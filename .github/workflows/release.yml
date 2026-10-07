@@ -1,0 +1,108 @@
+name: Release
+
+# Push a tag vX.Y.Z to build, test and publish. The version comes from the tag.
+# A tag with a suffix (v0.2.0-rc1) makes a GitHub pre-release only and is not
+# published to the Marketplace, which has no semver pre-release versions.
+# Marketplace publishing runs only when the repository variable
+# MARKETPLACE_PUBLISH is "true"; until then a release is GitHub only.
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      prerelease: ${{ steps.version.outputs.prerelease }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Version from tag
+        id: version
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          version="${TAG#v}"
+          if ! printf '%s' "$version" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$'; then
+            echo "tag $TAG is not vX.Y.Z or vX.Y.Z-suffix" >&2
+            exit 1
+          fi
+          case "$version" in
+            *-*) prerelease=true ;;
+            *) prerelease=false ;;
+          esac
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "prerelease=$prerelease" >> "$GITHUB_OUTPUT"
+      # socat: the end-to-end test runs the SessionStart hook's relay for real
+      - run: sudo apt-get update && sudo apt-get install -y socat
+      - run: npm ci
+      - run: npm version --no-git-tag-version "${{ steps.version.outputs.version }}"
+      - run: npm run typecheck
+      - run: npm test
+      # A fixed name, so releases/latest/download/claude-sandbox-vscode.vsix is stable
+      - run: npx vsce package --no-dependencies --out claude-sandbox-vscode.vsix
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vsix
+          path: claude-sandbox-vscode.vsix
+
+  github-release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: vsix
+      - name: Create the GitHub release with the vsix
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+          PRERELEASE: ${{ needs.build.outputs.prerelease }}
+        run: |
+          flags=""
+          if [ "$PRERELEASE" = true ]; then flags="--prerelease"; fi
+          gh release create "$TAG" claude-sandbox-vscode.vsix \
+            -R "$GITHUB_REPOSITORY" --title "$TAG" --generate-notes --verify-tag $flags
+
+  marketplace:
+    needs: [build, github-release]
+    if: needs.build.outputs.prerelease == 'false' && vars.MARKETPLACE_PUBLISH == 'true'
+    runs-on: ubuntu-latest
+    # The environment holds the Entra ID app's ids (variables, not secrets: they
+    # are identifiers) and can require a reviewer before anything is published.
+    environment: marketplace
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - uses: actions/download-artifact@v4
+        with:
+          name: vsix
+      # Federated sign-in: GitHub's OIDC token is exchanged for an Entra ID
+      # token for the app registration. No long-lived secret is stored.
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          allow-no-subscriptions: true
+      - name: Publish to the VS Code Marketplace
+        run: npx vsce publish --azure-credential --skip-duplicate --packagePath claude-sandbox-vscode.vsix
