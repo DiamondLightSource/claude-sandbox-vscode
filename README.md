@@ -11,6 +11,21 @@ plays for an unsandboxed Claude. claude-sandbox itself is not changed.
 Run **Claude Sandbox: Copy launch command** and paste the copied
 `claude --settings '…'` into a devcontainer terminal in the workspace folder.
 
+## Install
+
+Until the extension is on the VS Code Marketplace, install it from the latest
+GitHub release. In a terminal in the devcontainer, with VS Code attached:
+
+```sh
+curl -fsSLO https://github.com/DiamondLightSource/claude-sandbox-vscode/releases/latest/download/claude-sandbox-vscode.vsix
+code --install-extension claude-sandbox-vscode.vsix
+```
+
+Or download the `.vsix` from the
+[releases page](https://github.com/DiamondLightSource/claude-sandbox-vscode/releases)
+and use **Extensions → ⋯ → Install from VSIX…**. Either way it installs into
+the devcontainer. Repeat to update.
+
 ## How it works
 
 1. The extension listens on a Unix socket in the workspace root
@@ -83,9 +98,13 @@ npm run package     # .vsix via @vscode/vsce
 ## Releasing
 
 Push a tag `vX.Y.Z` on `main`. `.github/workflows/release.yml` sets the
-version from the tag, runs the tests, attaches the `.vsix` to a GitHub release
-and publishes it to the VS Code Marketplace. A tag with a suffix
-(`v0.2.0-rc1`) makes a GitHub pre-release only.
+version from the tag, runs the tests and attaches `claude-sandbox-vscode.vsix`
+to a GitHub release. A tag with a suffix (`v0.2.0-rc1`) makes a GitHub
+pre-release only.
+
+Marketplace publishing is off until the repository variable
+`MARKETPLACE_PUBLISH` is `true`. When it is, a release is also published to
+the VS Code Marketplace.
 
 Publishing signs in to Microsoft Entra ID with GitHub's OIDC token (no stored
 secret). The `marketplace` environment holds two variables, `AZURE_CLIENT_ID`
