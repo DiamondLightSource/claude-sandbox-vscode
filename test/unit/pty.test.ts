@@ -7,8 +7,11 @@ import { FLUSH_MS, OutputBatcher, PtyProcess } from "../../src/pty.ts";
 import { PromptWatcher } from "../../src/prompt.ts";
 import { clampDim, CLAUDE, DIM_MAX, helperArgs, PTY_HELPER, PYTHON, resizeLine } from "../../src/ptyHelper.ts";
 
-// claude-sandbox's interpreter when it is installed (the devcontainer), else the system's (CI)
-const python = fs.existsSync(PYTHON) ? PYTHON : "python3";
+// claude-sandbox's interpreter when it is installed (the devcontainer), else the system's (CI),
+// by absolute path: the relay runs programs by path, never through PATH
+const python = fs.existsSync(PYTHON)
+  ? PYTHON
+  : (["/usr/bin/python3", "/usr/local/bin/python3"].find((p) => fs.existsSync(p)) ?? "/usr/bin/python3");
 
 interface Run {
   p: PtyProcess;
