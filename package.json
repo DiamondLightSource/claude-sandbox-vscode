@@ -1,0 +1,101 @@
+{
+  "name": "claude-sandbox-vscode",
+  "displayName": "Claude Sandbox for VS Code",
+  "description": "Make VS Code the IDE of a Claude Code session running inside claude-sandbox.",
+  "version": "0.0.1",
+  "publisher": "diamondlightsource",
+  "license": "MIT",
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/DiamondLightSource/claude-sandbox-vscode.git"
+  },
+  "engines": {
+    "vscode": "^1.105.0",
+    "node": ">=22.18"
+  },
+  "categories": [
+    "Other"
+  ],
+  "main": "./dist/extension.cjs",
+  "extensionKind": [
+    "workspace"
+  ],
+  "activationEvents": [],
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": true,
+      "description": "The extension never runs workspace content; keep workspaces the sandbox can write untrusted."
+    },
+    "virtualWorkspaces": false
+  },
+  "contributes": {
+    "commands": [
+      {
+        "command": "claudeSandbox.startLink",
+        "title": "Start IDE link",
+        "category": "Claude Sandbox"
+      },
+      {
+        "command": "claudeSandbox.stopLink",
+        "title": "Stop IDE link",
+        "category": "Claude Sandbox"
+      },
+      {
+        "command": "claudeSandbox.copySettings",
+        "title": "Copy launch command",
+        "category": "Claude Sandbox"
+      },
+      {
+        "command": "claudeSandbox.acceptDiff",
+        "title": "Accept proposed change",
+        "category": "Claude Sandbox",
+        "icon": "$(check)"
+      },
+      {
+        "command": "claudeSandbox.rejectDiff",
+        "title": "Reject proposed change",
+        "category": "Claude Sandbox",
+        "icon": "$(close)"
+      }
+    ],
+    "menus": {
+      "editor/title": [
+        {
+          "command": "claudeSandbox.acceptDiff",
+          "when": "resourceScheme == claude-sandbox-proposal || resourceScheme == claude-sandbox-original",
+          "group": "navigation@1"
+        },
+        {
+          "command": "claudeSandbox.rejectDiff",
+          "when": "resourceScheme == claude-sandbox-proposal || resourceScheme == claude-sandbox-original",
+          "group": "navigation@2"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "claudeSandbox.acceptDiff",
+          "when": "resourceScheme == claude-sandbox-proposal || resourceScheme == claude-sandbox-original"
+        },
+        {
+          "command": "claudeSandbox.rejectDiff",
+          "when": "resourceScheme == claude-sandbox-proposal || resourceScheme == claude-sandbox-original"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "build": "esbuild src/extension.ts --bundle --platform=node --target=node20 --format=cjs --external:vscode --outfile=dist/extension.cjs --sourcemap",
+    "typecheck": "tsc -p . --noEmit",
+    "test": "node --test --test-concurrency=1 \"test/**/*.test.ts\"",
+    "package": "npm run build && vsce package --no-dependencies",
+    "vscode:prepublish": "npm run build -- --minify"
+  },
+  "devDependencies": {
+    "@types/node": "22.20.5",
+    "@types/vscode": "1.105.0",
+    "@vscode/vsce": "4.0.0",
+    "esbuild": "0.28.2",
+    "typescript": "5.9.3"
+  }
+}
