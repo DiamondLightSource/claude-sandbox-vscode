@@ -137,6 +137,21 @@ export interface LinkSettings {
     SessionStart: Json[];
     SessionEnd: Json[];
   };
+  /** claudeSandbox.reviewEdits: file-edit tools always ask (and so open their diff here). */
+  permissions?: { ask: string[] };
+}
+
+/**
+ * The tools `claudeSandbox.reviewEdits` makes Claude Code ask about, whatever its permission
+ * mode: then an edit is shown as an openDiff proposal in VS Code. Not MultiEdit: 2.1.292 warns
+ * that it matches no known tool. Edits made through the shell (`sed -i`, `echo > f`) are not
+ * these tools and are not caught; the Claude Changes view lists them.
+ */
+export const REVIEW_TOOLS: readonly string[] = ["Edit", "Write", "NotebookEdit"];
+
+/** Our settings with the edit tools set to ask (claudeSandbox.reviewEdits). */
+export function withReviewEdits(ours: LinkSettings): LinkSettings {
+  return { ...ours, permissions: { ask: [...REVIEW_TOOLS] } };
 }
 
 /** Our settings: the port in Claude's environment, the two hooks with their matchers. */
@@ -171,7 +186,10 @@ function setKey(o: Obj, k: string, v: Json): void {
   Object.defineProperty(o, k, { value: v, enumerable: true, writable: true, configurable: true });
 }
 
-/** Merge ours into a user's settings object: env gains ours, our hooks follow theirs. */
+/**
+ * Merge ours into a user's settings object: env gains ours, our hooks follow theirs, and their
+ * permissions.ask gains our tools (reviewEdits).
+ */
 export function mergeSettings(theirs: unknown, ours: LinkSettings): Obj {
   const base = isObj(theirs) ? copyObj(theirs as Obj) : (Object.create(null) as Obj);
   const envIn = own(base, "env");
@@ -185,6 +203,16 @@ export function mergeSettings(theirs: unknown, ours: LinkSettings): Obj {
     setKey(hooks, event, [...(Array.isArray(before) ? before : []), ...list]);
   }
   setKey(base, "hooks", hooks);
+  if (ours.permissions !== undefined) {
+    // their permissions kept; the ask list gains ours (concatenated, without repeats)
+    const permsIn = own(base, "permissions");
+    const perms = isObj(permsIn) ? copyObj(permsIn as Obj) : (Object.create(null) as Obj);
+    const askIn = own(perms, "ask");
+    const ask: Json[] = Array.isArray(askIn) ? [...askIn] : [];
+    for (const t of ours.permissions.ask) if (!ask.includes(t)) ask.push(t);
+    setKey(perms, "ask", ask);
+    setKey(base, "permissions", perms);
+  }
   return base;
 }
 

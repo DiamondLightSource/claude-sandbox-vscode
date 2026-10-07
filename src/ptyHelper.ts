@@ -20,6 +20,9 @@ export const PYTHON = "/usr/libexec/claude-sandbox/venv/bin/python";
 export const CLAUDE = "/usr/local/bin/claude";
 
 export const DIM_MAX = 10000;
+/** The relay's buffers: output it holds for a slow reader, keys it holds for a busy program. */
+export const OUT_MAX = 1 << 20;
+export const IN_MAX = 1 << 20;
 
 export const PTY_HELPER = String.raw`
 import errno, fcntl, os, select, signal, struct, sys, termios, time
@@ -52,9 +55,12 @@ def main():
             os.write(2, ("cannot run %r: %s\r\n" % (argv[0], e)).encode())
         os._exit(127)
     os.close(slave)
-    os.set_blocking(master, False)
-    os.set_blocking(0, False)
-    pending = b""
+    # every descriptor non-blocking, with buffers: the relay never blocks on one side (a slow
+    # reader of the output, a program not reading its input) while another waits (keys, resizes)
+    for fd in (master, 0, 1, 3):
+        os.set_blocking(fd, False)
+    pending = bytearray()  # keys for the pty
+    out = bytearray()  # the pty's output, for fd 1
     ctl, ctlbuf = 3, b""
     status = None
     quiet = None
@@ -63,12 +69,19 @@ def main():
             done, st = os.waitpid(pid, os.WNOHANG)
             if done:
                 status = st
-        r = [master]
-        if not pending:
+        # read each side only while what it gives can be passed on (bounded buffers)
+        r = []
+        if len(out) < ${OUT_MAX}:
+            r.append(master)
+        if len(pending) < ${IN_MAX}:
             r.append(0)
         if ctl >= 0:
             r.append(ctl)
-        w = [master] if pending else []
+        w = []
+        if pending:
+            w.append(master)
+        if out:
+            w.append(1)
         rr, ww, _ = select.select(r, w, [], 0.25)
         if master in rr:
             try:
@@ -78,31 +91,33 @@ def main():
             except OSError:
                 data = b""
             if data == b"":
+                if not flush(out):
+                    return finish(master, pid, status, kill=True)
                 break
             if data:
                 quiet = None
-                view = memoryview(data)
-                while view:
-                    try:
-                        n = os.write(1, view)
-                    except BrokenPipeError:
-                        return finish(master, pid, status, kill=True)
-                    view = view[n:]
-        elif status is not None:
+                out += data
+        elif status is not None and not out:
             # exited, and the pty quiet: a second of that ends it (a straggler may hold the pty)
             now = time.monotonic()
             if quiet is None:
                 quiet = now
             elif now - quiet > 1:
                 break
-        if master in ww and pending:
+        if 1 in ww and out:
             try:
-                n = os.write(master, pending)
-                pending = pending[n:]
+                del out[: os.write(1, out)]
             except BlockingIOError:
                 pass
             except OSError:
-                pending = b""
+                return finish(master, pid, status, kill=True)
+        if master in ww and pending:
+            try:
+                del pending[: os.write(master, pending)]
+            except BlockingIOError:
+                pass
+            except OSError:
+                pending.clear()
         if 0 in rr:
             try:
                 data = os.read(0, 65536)
@@ -113,8 +128,13 @@ def main():
             if data:
                 pending += data
         if ctl >= 0 and ctl in rr:
-            data = os.read(ctl, 4096)
-            if not data:
+            try:
+                data = os.read(ctl, 4096)
+            except BlockingIOError:
+                data = None
+            if data is None:
+                pass
+            elif not data:
                 os.close(ctl)
                 ctl = -1
             else:
@@ -127,6 +147,16 @@ def main():
                         pass
                 ctlbuf = ctlbuf[-64:]
     return finish(master, pid, status, kill=False)
+
+def flush(out):
+    # the pty closed: what is left goes out, waiting for the reader; False if it went away
+    os.set_blocking(1, True)
+    try:
+        while out:
+            del out[: os.write(1, out)]
+    except OSError:
+        return False
+    return True
 
 def finish(master, pid, status, kill):
     try:

@@ -41,9 +41,17 @@ export class PtyProcess {
     });
     this.ctl = this.child.stdio[3] as Writable;
     const decoder = new StringDecoder("utf8");
+    // a throw in the data path is reported, never left to stop the stream or the session
+    const deliver = (t: string): void => {
+      try {
+        events.onData(t);
+      } catch (e) {
+        events.onError?.(`output handler failed: ${e instanceof Error ? (e.stack ?? e.message) : String(e)}`);
+      }
+    };
     this.child.stdout!.on("data", (b: Buffer) => {
       const t = decoder.write(b);
-      if (t) events.onData(t);
+      if (t) deliver(t);
     });
     this.child.stderr!.on("data", (b: Buffer) => events.onError?.(b.toString("utf8")));
     // a pipe the helper closed (it exited) is not an error of ours
@@ -54,11 +62,18 @@ export class PtyProcess {
       done = true;
       this.exited = true;
       const rest = decoder.end();
-      if (rest) events.onData(rest);
+      if (rest) deliver(rest);
       events.onExit(code);
     };
-    this.child.on("error", (err) => {
+    this.child.on("error", (err: NodeJS.ErrnoException) => {
       events.onError?.(String(err));
+      // the relay itself could not start: say why on the terminal, not just "exited with 127"
+      const python = o.python ?? PYTHON;
+      deliver(
+        err.code === "ENOENT"
+          ? `\r\ncannot start the terminal relay: ${python} is missing. Is claude-sandbox installed in this container? Run Claude Sandbox: Start again to be offered the install.\r\n`
+          : `\r\ncannot start the terminal relay (${python}): ${err.message}\r\n`,
+      );
       exit(127);
     });
     this.child.on("close", (code, signal) => exit(code ?? (signal ? 128 + signalNumber(signal) : 1)));
@@ -92,4 +107,52 @@ export class PtyProcess {
 function signalNumber(signal: NodeJS.Signals): number {
   const n: Record<string, number> = { SIGHUP: 1, SIGINT: 2, SIGKILL: 9, SIGTERM: 15 };
   return n[signal] ?? 0;
+}
+
+/** Output is handed to the terminal at most this often: one write per batch. */
+export const FLUSH_MS = 16;
+
+/**
+ * Coalesces the relay's output into one write per FLUSH_MS, however small the reads (VS Code's
+ * Pseudoterminal has no flow control: every write is a message to the window). Appending is
+ * O(chunk); the batch is joined once per flush. A throw from the sink is reported, never left
+ * to stop later batches.
+ */
+export class OutputBatcher {
+  private parts: string[] = [];
+  private timer: ReturnType<typeof setTimeout> | undefined;
+  private readonly sink: (text: string) => void;
+  private readonly onError: (err: unknown) => void;
+  private readonly ms: number;
+
+  constructor(sink: (text: string) => void, onError: (err: unknown) => void, ms = FLUSH_MS) {
+    this.sink = sink;
+    this.onError = onError;
+    this.ms = ms;
+  }
+
+  push(text: string): void {
+    this.parts.push(text);
+    this.timer ??= setTimeout(() => this.flush(), this.ms);
+  }
+
+  /** Now (at exit, so nothing is lost). */
+  flush(): void {
+    if (this.timer !== undefined) clearTimeout(this.timer);
+    this.timer = undefined;
+    if (this.parts.length === 0) return;
+    const text = this.parts.length === 1 ? this.parts[0]! : this.parts.join("");
+    this.parts = [];
+    try {
+      this.sink(text);
+    } catch (e) {
+      this.onError(e);
+    }
+  }
+
+  dispose(): void {
+    if (this.timer !== undefined) clearTimeout(this.timer);
+    this.timer = undefined;
+    this.parts = [];
+  }
 }

@@ -87,6 +87,12 @@
         "icon": "$(check-all)"
       },
       {
+        "command": "claudeSandbox.reviewAll",
+        "title": "Review All Changes",
+        "category": "Claude Sandbox",
+        "icon": "$(diff-multiple)"
+      },
+      {
         "command": "claudeSandbox.copySettings",
         "title": "Copy launch command (advanced)",
         "category": "Claude Sandbox"
@@ -143,44 +149,53 @@
           "default": false,
           "scope": "application",
           "markdownDescription": "Open the diff against HEAD as a preview when Claude changes a file during the session. User settings only."
+        },
+        "claudeSandbox.reviewEdits": {
+          "type": "boolean",
+          "default": true,
+          "scope": "application",
+          "markdownDescription": "Make Claude Code ask before every `Edit`, `Write` and `NotebookEdit`, in auto mode too, so each such edit opens here as a diff to accept or reject. Edits made through the shell (`sed -i`, `echo > file`) are not caught: the **Changed this session** view lists them. User settings only."
         }
       }
     },
     "keybindings": [
       {
         "command": "claudeSandbox.start",
-        "key": "ctrl+alt+c",
-        "mac": "cmd+alt+c"
+        "key": "ctrl+alt+c ctrl+alt+c"
       },
       {
         "command": "claudeSandbox.preset.explain",
-        "key": "ctrl+alt+e",
-        "mac": "cmd+alt+e",
+        "key": "ctrl+alt+c e",
         "when": "editorTextFocus && resourceScheme == file"
       },
       {
         "command": "claudeSandbox.preset.reword",
-        "key": "ctrl+alt+r",
-        "mac": "cmd+alt+r",
+        "key": "ctrl+alt+c r",
         "when": "editorTextFocus && resourceScheme == file"
       },
       {
         "command": "claudeSandbox.preset.tighten",
-        "key": "ctrl+alt+i",
-        "mac": "cmd+alt+i",
+        "key": "ctrl+alt+c t",
+        "when": "editorTextFocus && resourceScheme == file"
+      },
+      {
+        "command": "claudeSandbox.customPreset",
+        "key": "ctrl+alt+c p",
         "when": "editorTextFocus && resourceScheme == file"
       },
       {
         "command": "claudeSandbox.askSelection",
-        "key": "ctrl+alt+a",
-        "mac": "cmd+alt+a",
+        "key": "ctrl+alt+c a",
         "when": "editorTextFocus && resourceScheme == file"
       },
       {
         "command": "claudeSandbox.mention",
-        "key": "ctrl+alt+m",
-        "mac": "cmd+alt+m",
+        "key": "ctrl+alt+c m",
         "when": "editorTextFocus && resourceScheme == file"
+      },
+      {
+        "command": "claudeSandbox.reviewAll",
+        "key": "ctrl+alt+c v"
       }
     ],
     "menus": {
@@ -248,6 +263,11 @@
         }
       ],
       "view/title": [
+        {
+          "command": "claudeSandbox.reviewAll",
+          "when": "view == claudeSandbox.changes",
+          "group": "navigation@0"
+        },
         {
           "command": "claudeSandbox.markAllReviewed",
           "when": "view == claudeSandbox.changes",

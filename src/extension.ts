@@ -14,7 +14,7 @@ import { IdeLink } from "./link.ts";
 import type { Logger } from "./log.ts";
 import type { LinkState } from "./mcp.ts";
 import { CLAUDE } from "./ptyHelper.ts";
-import { mergeSettings, SettingsError, shellQuote, withSettings } from "./settings.ts";
+import { mergeSettings, SettingsError, shellQuote, withReviewEdits, withSettings, type LinkSettings } from "./settings.ts";
 import { ChangesView } from "./vscode/changesView.ts";
 import { vscodeDiagnostics } from "./vscode/diagnostics.ts";
 import { DiffEditors } from "./vscode/diffView.ts";
@@ -52,6 +52,12 @@ export function activate(context: vscode.ExtensionContext): void {
 
   const folders = (): string[] =>
     (vscode.workspace.workspaceFolders ?? []).filter((f) => f.uri.scheme === "file").map((f) => f.uri.fsPath);
+  // claudeSandbox.reviewEdits (default on): Edit/Write/NotebookEdit always ask, so each file
+  // edit opens as a diff here, whatever the permission mode
+  const sessionSettings = (l: IdeLink): LinkSettings =>
+    vscode.workspace.getConfiguration("claudeSandbox").get<boolean>("reviewEdits", true) === false
+      ? l.settings
+      : withReviewEdits(l.settings);
   const errorMessage = (err: unknown): void => {
     void vscode.window.showErrorMessage(`Claude Sandbox: ${err instanceof Error ? err.message : String(err)}`);
   };
@@ -105,7 +111,7 @@ export function activate(context: vscode.ExtensionContext): void {
     let args: string[];
     try {
       const user = extraArgs(vscode.workspace.getConfiguration("claudeSandbox").get("extraArgs"));
-      args = withSettings([CLAUDE, ...user], l.settings).slice(1);
+      args = withSettings([CLAUDE, ...user], sessionSettings(l)).slice(1);
     } catch (err) {
       await closeLink();
       errorMessage(err instanceof SettingsError ? err.message : err);
@@ -147,7 +153,7 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand("claudeSandbox.copySettings", async () => {
       const l = await ensureLink();
       if (l === undefined) return;
-      await vscode.env.clipboard.writeText(`claude --settings ${shellQuote(JSON.stringify(mergeSettings(null, l.settings)))}`);
+      await vscode.env.clipboard.writeText(`claude --settings ${shellQuote(JSON.stringify(mergeSettings(null, sessionSettings(l))))}`);
       void vscode.window.showInformationMessage(
         "Claude Sandbox: launch command copied. Paste it into a devcontainer terminal. It holds the link's token.",
       );

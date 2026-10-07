@@ -3,6 +3,7 @@
 // click, in a visible terminal; an outdated install gets a notice, never an upgrade.
 
 import * as fs from "node:fs";
+import * as os from "node:os";
 import * as path from "node:path";
 import { isObj, own } from "./json.ts";
 import { CLAUDE, PYTHON } from "./ptyHelper.ts";
@@ -34,8 +35,8 @@ export interface InstallState {
   why?: string;
 }
 
-/** Looks at the two files (the shim read only up to 4 KiB). */
-export function installState(claude = CLAUDE, cli = CLAUDE_SANDBOX): InstallState {
+/** Looks at the three files (the shim read only up to 4 KiB). */
+export function installState(claude = CLAUDE, cli = CLAUDE_SANDBOX, python = PYTHON): InstallState {
   let text = "";
   try {
     const fd = fs.openSync(claude, fs.constants.O_RDONLY | fs.constants.O_NONBLOCK);
@@ -55,17 +56,50 @@ export function installState(claude = CLAUDE, cli = CLAUDE_SANDBOX): InstallStat
   } catch {
     return { installed: false, why: `${cli} is missing` };
   }
+  try {
+    // the interpreter the shim and the pty relay run: without it Start could only fail
+    fs.accessSync(python, fs.constants.X_OK);
+  } catch {
+    return { installed: false, why: `${python} is missing` };
+  }
   return { installed: true };
 }
 
-/** uvx: the system locations first, then the extension host's PATH; null if none. */
-export function findUvx(envPath = process.env.PATH ?? ""): string | null {
-  const dirs = ["/usr/local/bin", "/usr/bin", ...envPath.split(":").filter((d) => d.startsWith("/"))];
-  for (const d of dirs) {
-    const p = path.join(d, "uvx");
+/** The user's home from the password database, not $HOME (remoteEnv, jail-editable, can set that). */
+function passwdHome(): string {
+  try {
+    return os.userInfo().homedir;
+  } catch {
+    return "/nonexistent";
+  }
+}
+
+/**
+ * Where uvx is looked for, in order: fixed paths the jail cannot write, never the extension
+ * host's PATH (devcontainer.json's remoteEnv, which the jail can edit, sets that). The jail
+ * sees / read-only and $HOME as an empty tmpfs with a few folders bound back; ~/.cargo is not
+ * one of them. ~/.local/bin/uvx is left out on purpose: claude-sandbox binds that file (and
+ * ~/.local/bin/uv) read-write into the jail (bwrap.py, so the agent can run uv), so a session
+ * could have replaced it.
+ */
+export function uvxCandidates(home = passwdHome()): string[] {
+  return ["/usr/local/bin/uvx", "/usr/bin/uvx", path.join(home, ".cargo", "bin", "uvx")];
+}
+
+/**
+ * uvx from uvxCandidates: a regular file (after any symlink, whose target must be in one of
+ * the same folders) that only root or we own and no one else can write. Null if none.
+ */
+export function findUvx(candidates = uvxCandidates(), uid = process.getuid?.() ?? 0): string | null {
+  const dirs = new Set(candidates.map((c) => path.dirname(c)));
+  for (const p of candidates) {
     try {
-      fs.accessSync(p, fs.constants.X_OK);
-      if (fs.statSync(p).isFile()) return p;
+      const real = fs.realpathSync(p);
+      if (!dirs.has(path.dirname(real))) continue;
+      const st = fs.statSync(real);
+      if (!st.isFile() || (st.uid !== 0 && st.uid !== uid) || (st.mode & 0o022) !== 0) continue;
+      fs.accessSync(real, fs.constants.X_OK);
+      return real;
     } catch {
       // next
     }
@@ -73,9 +107,13 @@ export function findUvx(envPath = process.env.PATH ?? ""): string | null {
   return null;
 }
 
-/** The install command: `uvx claude-sandbox install`, through sudo unless we are root. */
+/**
+ * The install command: `uvx --no-cache claude-sandbox@latest install`, through sudo unless we
+ * are root. @latest: an unpinned uvx reuses an older cached tool environment. --no-cache: uv's
+ * cache is in ~/.cache, which the jail can write.
+ */
 export function installArgv(uid: number, uvx: string): string[] {
-  const cmd = [uvx, "claude-sandbox", "install"];
+  const cmd = [uvx, "--no-cache", "claude-sandbox@latest", "install"];
   return uid === 0 ? cmd : [SUDO, ...cmd];
 }
 

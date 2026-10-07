@@ -17,19 +17,28 @@ const src = (dir: string): string =>
 describe("rule 11: settings the workspace cannot set", () => {
   it("every setting is application-scoped (user settings only: not workspace, folder, or a devcontainer's machine settings)", () => {
     const props = pkg.contributes.configuration.properties as Record<string, { scope?: string }>;
-    assert.deepEqual(Object.keys(props).sort(), ["claudeSandbox.autoOpenDiffs", "claudeSandbox.extraArgs", "claudeSandbox.presets"]);
+    assert.deepEqual(Object.keys(props).sort(), ["claudeSandbox.autoOpenDiffs", "claudeSandbox.extraArgs", "claudeSandbox.presets", "claudeSandbox.reviewEdits"]);
     for (const [k, v] of Object.entries(props)) assert.equal(v.scope, "application", k);
   });
   it("the code reads no other setting of ours, and nothing that runs from settings", () => {
     const code = src(path.join(root, "src"));
     const ours = [...code.matchAll(/getConfiguration\("claudeSandbox"\)\.get(?:<[^>]+>)?\("(\w+)"/g)].map((m) => m[1]);
-    assert.deepEqual([...new Set(ours)].sort(), ["autoOpenDiffs", "extraArgs", "presets"]);
+    assert.deepEqual([...new Set(ours)].sort(), ["autoOpenDiffs", "extraArgs", "presets", "reviewEdits"]);
     const others = [...code.matchAll(/getConfiguration\("(\w+)"\)/g)].map((m) => m[1]);
-    assert.deepEqual([...new Set(others)].sort(), ["claudeSandbox", "files"], "files.watcherExclude only");
+    assert.deepEqual([...new Set(others)].sort(), ["claudeSandbox"], "no other extension's settings (files.watcherExclude is workspace-writable)");
   });
 });
 
 describe("the manifest", () => {
+  it("keybindings: one Ctrl+Alt+C chord prefix, nothing on VS Code's own Ctrl+Alt+<letter> keys", () => {
+    const kb = pkg.contributes.keybindings as { command: string; key: string; mac?: string }[];
+    for (const k of kb) {
+      assert.match(k.key, /^ctrl\+alt\+c (?:ctrl\+alt\+c|[a-z])$/, k.command);
+      assert.equal(k.mac, undefined, "the same chord on every platform");
+    }
+    assert.equal(new Set(kb.map((k) => k.key)).size, kb.length, "no two the same");
+    assert.ok(!kb.some((k) => k.key === "ctrl+alt+i"), "Ctrl+Alt+I is VS Code's Open Chat");
+  });
   it("runs in the devcontainer, activates after startup", () => {
     assert.deepEqual(pkg.extensionKind, ["workspace"]);
     assert.deepEqual(pkg.activationEvents, ["onStartupFinished"]);

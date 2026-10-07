@@ -28,7 +28,8 @@ export async function checkInstalled(log: (m: string) => void): Promise<boolean>
   const uvx = findUvx();
   if (uvx === null) {
     const pick = await vscode.window.showWarningMessage(
-      "claude-sandbox isn't installed in this container, and uv (uvx) isn't either.",
+      "claude-sandbox isn't installed in this container, and uvx isn't in /usr/local/bin, /usr/bin or ~/.cargo/bin (the only places the install offer runs it from).",
+      { detail: `${st.why ?? ""}. Install claude-sandbox from a devcontainer terminal: uvx claude-sandbox@latest install` },
       "How to install",
     );
     if (pick) void vscode.env.openExternal(vscode.Uri.parse(DOCS_URL));

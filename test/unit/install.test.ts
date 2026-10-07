@@ -6,6 +6,7 @@ import * as path from "node:path";
 import { describe, it } from "node:test";
 import {
   compareVersions,
+  findUvx,
   INSTALL_SCRIPT,
   installArgv,
   installState,
@@ -15,6 +16,7 @@ import {
   pypiLatest,
   SHADOW_MARK,
   SUDO,
+  uvxCandidates,
 } from "../../src/install.ts";
 
 // /usr/local/bin/claude as claude-sandbox 5.0 installs it
@@ -29,16 +31,22 @@ describe("rule 10: the install offer", () => {
     assert.equal(isShadow("#!/bin/sh\nexec /root/.local/bin/claude \"$@\"\n"), false);
     assert.equal(isShadow("\x7fELF..." + SHADOW_MARK), false, "a binary is not the shim");
   });
-  it("installState: the shim and the CLI, read without blocking on a FIFO", () => {
+  it("installState: the shim, the CLI and the interpreter, read without blocking on a FIFO", () => {
     const d = fs.mkdtempSync(path.join(os.tmpdir(), "csv-install-"));
     try {
       const shim = path.join(d, "claude");
       const cli = path.join(d, "claude-sandbox");
+      assert.match(installState("/bin/sh", "/bin/sh", path.join(d, "python")).why ?? "", /^\/bin\/sh is not claude-sandbox's/);
+      fs.writeFileSync(shim, SHIM);
+      fs.writeFileSync(cli, "#!/bin/sh\n", { mode: 0o755 });
+      assert.match(installState(shim, cli, path.join(d, "python")).why!, /python is missing/, "a missing interpreter is not installed");
+      fs.rmSync(shim);
+      fs.rmSync(cli);
       assert.equal(installState(shim, cli).installed, false);
       fs.writeFileSync(shim, SHIM);
       assert.match(installState(shim, cli).why!, /claude-sandbox is missing/);
       fs.writeFileSync(cli, "#!/bin/sh\n", { mode: 0o755 });
-      assert.deepEqual(installState(shim, cli), { installed: true });
+      assert.deepEqual(installState(shim, cli, "/bin/sh"), { installed: true });
       fs.writeFileSync(shim, "#!/bin/sh\nexec real-claude\n");
       assert.match(installState(shim, cli).why!, /not claude-sandbox's/);
       fs.rmSync(shim);
@@ -48,9 +56,31 @@ describe("rule 10: the install offer", () => {
       fs.rmSync(d, { recursive: true, force: true });
     }
   });
-  it("the command is fixed: uvx claude-sandbox install, through sudo unless root", () => {
-    assert.deepEqual(installArgv(0, "/usr/bin/uvx"), ["/usr/bin/uvx", "claude-sandbox", "install"]);
-    assert.deepEqual(installArgv(1000, "/usr/bin/uvx"), [SUDO, "/usr/bin/uvx", "claude-sandbox", "install"]);
+  it("the command is fixed: uvx --no-cache claude-sandbox@latest install, through sudo unless root", () => {
+    assert.deepEqual(installArgv(0, "/usr/bin/uvx"), ["/usr/bin/uvx", "--no-cache", "claude-sandbox@latest", "install"]);
+    assert.deepEqual(installArgv(1000, "/usr/bin/uvx"), [SUDO, "/usr/bin/uvx", "--no-cache", "claude-sandbox@latest", "install"]);
+  });
+  it("uvx only from fixed places the jail cannot write, never PATH or ~/.local/bin", () => {
+    assert.deepEqual(uvxCandidates("/home/me"), ["/usr/local/bin/uvx", "/usr/bin/uvx", "/home/me/.cargo/bin/uvx"]);
+    const d = fs.mkdtempSync(path.join(os.tmpdir(), "csv-uvx-"));
+    try {
+      const [a, b, c] = ["a", "b", "c"].map((n) => path.join(d, n));
+      for (const x of [a, b, c]) fs.mkdirSync(x!);
+      const uid = process.getuid!();
+      const cands = [path.join(a!, "uvx"), path.join(b!, "uvx")];
+      assert.equal(findUvx(cands, uid), null, "none there");
+      fs.writeFileSync(path.join(c!, "uvx"), "#!/bin/sh\n", { mode: 0o755 });
+      fs.symlinkSync(path.join(c!, "uvx"), cands[0]!);
+      assert.equal(findUvx(cands, uid), null, "a symlink out of the fixed folders");
+      fs.writeFileSync(cands[1]!, "#!/bin/sh\n", { mode: 0o755 });
+      fs.chmodSync(cands[1]!, 0o777);
+      assert.equal(findUvx(cands, uid), null, "writable by others");
+      fs.chmodSync(cands[1]!, 0o755);
+      assert.equal(findUvx(cands, uid), fs.realpathSync(cands[1]!));
+      assert.equal(findUvx(cands, uid + 1), uid === 0 ? fs.realpathSync(cands[1]!) : null, "owned by someone else");
+    } finally {
+      fs.rmSync(d, { recursive: true, force: true });
+    }
   });
   it("the visible terminal's script runs its arguments as words, never as shell text", () => {
     const d = fs.mkdtempSync(path.join(os.tmpdir(), "csv-install-"));

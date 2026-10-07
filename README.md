@@ -13,28 +13,46 @@ The extension runs in a devcontainer (it installs into the container's VS Code
 server).
 
 1. **Install claude-sandbox.** If it isn't installed in the container, a
-   notification offers **Install**, which runs `uvx claude-sandbox install`
-   (with sudo when you are not root) in a terminal you can watch. Nothing runs
-   until you click. When a newer claude-sandbox is on PyPI you get a notice
+   notification offers **Install**, which runs
+   `uvx --no-cache claude-sandbox@latest install` (with sudo when you are not
+   root) in a terminal you can watch. Nothing runs until you click. uvx is
+   used only from `/usr/local/bin`, `/usr/bin` or `~/.cargo/bin` (never from
+   `PATH`, and not `~/.local/bin`, which the sandbox can write); without one
+   there, the notification links to the
+   [claude-sandbox docs](https://diamondlightsource.github.io/claude-sandbox/). When a newer claude-sandbox is on PyPI you get a notice
    (at most once a day); the extension never upgrades it.
 2. **Start.** **Claude Sandbox: Start** (command palette, the `Claude:` status
-   bar item, or `Ctrl+Alt+C`) opens Claude in a terminal tab beside your
-   editor, running in the sandbox in the first workspace folder and linked to
-   this window. The status bar shows `waiting` until Claude connects, then
+   bar item, or `Ctrl+Alt+C Ctrl+Alt+C`) opens Claude in a terminal tab beside
+   your editor, running in the sandbox and linked to this window. Claude
+   always starts in the **first** workspace folder (in a multi-root window
+   too): the link's socket lives there, where the sandbox can see it. The status bar shows `waiting` until Claude connects, then
    `connected`. Running Start again focuses the session. Exiting Claude, or
    closing its tab, ends the session; so does reloading the window.
-3. **Presets.** Select text, right-click, **Claude Sandbox**: Explain
-   (`Ctrl+Alt+E`), Reword (`Ctrl+Alt+R`), Tighten (`Ctrl+Alt+I`), **My
-   presets…**, **Ask about selection…** (`Ctrl+Alt+A`) or **Mention in
-   Claude** (`Ctrl+Alt+M`, puts `@file#L1-3` into Claude's prompt without
-   sending it). A preset is typed only when Claude's input box is showing:
-   if Claude is asking you something, waiting on a proposed change, or working,
-   you get a warning and nothing is typed.
+3. **Presets.** Select text, right-click, **Claude Sandbox**: Explain, Reword,
+   Tighten, **My presets…**, **Ask about selection…** or **Mention in Claude**
+   (puts `@file#L1-3` into Claude's prompt without sending it). Keys: press
+   `Ctrl+Alt+C`, then `E` Explain, `R` Reword, `T` Tighten, `P` My presets,
+   `A` Ask, `M` Mention, `V` Review All (one prefix, so nothing shadows VS
+   Code's own `Ctrl+Alt` keys such as Open Chat). A preset is typed only when
+   Claude's input box is on screen: if Claude is asking you something (a
+   permission or any other menu), waiting on a proposed change, or working
+   (its spinner, e.g. `(1s · ↓ 25 tokens · thinking)`, is showing), you get a
+   warning and nothing is typed. What you selected stays Claude's selection
+   when you click into its terminal; a cursor in a workspace file sends that
+   file and line; selecting in a file outside the workspace clears it.
 4. **Changed this session.** The Claude Sandbox side bar lists the files that
    changed in the workspace while the session ran (your own saves left out).
    Click one for VS Code's diff against HEAD; tick it with **Mark as
-   reviewed** (it unticks if it changes again). The count is on the view and
-   in the status bar. There is no revert button: use Source Control's Discard.
+   reviewed** (it unticks if it changes again). **Review All Changes** (the
+   view's title bar, or the command) opens them all in VS Code's multi-file
+   diff editor. Symlinks are listed as "symlink" and never opened. The count
+   is on the view and in the status bar. There is no revert button: use
+   Source Control's Discard.
+5. **Reviewing edits.** With `claudeSandbox.reviewEdits` (on by default)
+   Claude asks before every `Edit`, `Write` and `NotebookEdit`, in auto mode
+   too, and each such edit opens here as a diff to accept or reject. Edits
+   made through the shell (`sed -i`, `echo > file`, a script) are **not**
+   caught: no prompt, no diff. The Changed this session view lists them.
 
 Settings (user settings only; a workspace cannot set them):
 
@@ -43,6 +61,8 @@ Settings (user settings only; a workspace cannot set them):
 - `claudeSandbox.presets`: your own presets, `[{"title": "Summarise",
   "prompt": "Summarise the selection in one paragraph."}]`.
 - `claudeSandbox.autoOpenDiffs`: open each change's diff as it happens (off).
+- `claudeSandbox.reviewEdits`: make Claude ask before file-edit tools, so
+  each edit is shown as a diff (on).
 
 **Claude Sandbox: Copy launch command (advanced)** copies a
 `claude --settings '…'` that links a Claude you start by hand in a
@@ -65,12 +85,14 @@ the devcontainer. Repeat to update.
 
 ## How it works
 
-1. The extension listens on a Unix socket in the workspace root
-   (`.claude-sandbox-vscode-<port>.sock`, mode 0600), which the jail can see.
+1. The extension listens on a Unix socket in the first workspace folder
+   (`.claude-sandbox-vscode-<port>.sock`, mode 0600), which the jail can see;
+   Claude starts in that folder.
 2. **Start** runs the sandbox's `claude` (`/usr/local/bin/claude`) as the
    terminal's own process, on a pty made by a small Python relay that the
    extension runs with claude-sandbox's own interpreter, so it can see when
-   Claude's input box is up. Claude is given `--settings` with `CLAUDE_CODE_SSE_PORT` and
+   Claude's input box is up (a small virtual screen of what the terminal shows
+   now). Claude is given `--settings` with `CLAUDE_CODE_SSE_PORT` and
    `SessionStart`/`SessionEnd` hooks. Inside the jail the start hook starts
    `socat` (TCP `127.0.0.1:<port>` to the socket) unless it already runs, and
    once it listens writes Claude Code's lock file
@@ -100,14 +122,19 @@ message is treated as hostile ([trust boundary](docs/design.md#trust-boundary)):
   Accept and Reject work from either side of the diff.
 - Diagnostics, selections and mentions are sent only for workspace files.
 - Claude runs as the terminal's own process, never typed into a shell. Presets
-  are typed only into Claude's input box, never into a menu where Enter would
-  approve something, as one bracketed paste with control characters removed.
+  are typed only while Claude's input box is on the screen now (read from a
+  virtual screen, at the bottom, with the cursor in it: text the model writes
+  cannot draw that), never into a menu where Enter would approve something,
+  as one bracketed paste with control characters removed. Whatever an Enter
+  reaches still runs inside the sandbox.
 - The pty relay is a constant program run by claude-sandbox's root-owned
   interpreter (`-I`); only Claude's arguments vary. The install command is
   fixed in the extension and runs only on your click. All settings are
   user-scoped.
-- The changes view reads and writes no file itself; VS Code's diff does the
-  reading and the Git extension runs git.
+- The changes view reads and writes no file itself (it `lstat`s, never
+  follows a symlink, and reads no workspace setting such as
+  `files.watcherExclude`); VS Code's diff does the reading and the Git
+  extension runs git.
 - The host never writes into the sandbox's `~/.claude`; the in-sandbox hook
   writes the lock file, and every value in its shell command is validated and
   quoted. The host deletes nothing in the workspace either (its own socket

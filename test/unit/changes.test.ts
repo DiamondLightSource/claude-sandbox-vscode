@@ -1,12 +1,15 @@
 import assert from "node:assert/strict";
+import * as fs from "node:fs";
+import * as os from "node:os";
+import * as path from "node:path";
 import { describe, it } from "node:test";
-import { ChangeSet, globToRegExp, SAVE_WINDOW_MS } from "../../src/changes.ts";
+import { ChangeSet, entryKind, reviewPlan, SAVE_WINDOW_MS } from "../../src/changes.ts";
 
-const set = (exclude: string[] = []) => new ChangeSet({ roots: ["/w", "/v/"], exclude });
+const set = () => new ChangeSet({ roots: ["/w", "/v/"] });
 
 describe("Changed this session: the list", () => {
-  it("records files in the workspace folders only, not .git, our sockets or watcherExclude", () => {
-    const s = set(["**/node_modules", "**/.venv/**", "**/*.log"]);
+  it("records files in the workspace folders only, not under a .git segment or our sockets", () => {
+    const s = set();
     for (const p of [
       "/w/a.py",
       "/v/b.md",
@@ -16,13 +19,44 @@ describe("Changed this session: the list", () => {
       "/w/.git/index",
       "/w/sub/.git/HEAD",
       "/w/.claude-sandbox-vscode-31337.sock",
+      "/w/.gitignore",
+      "/w/x.git/y",
       "/w/node_modules/x/y.js",
-      "/w/.venv/lib/z.py",
-      "/w/out/run.log",
     ]) {
       s.event("changed", p, 0);
     }
-    assert.deepEqual(s.list().map((c) => c.path), ["/v/b.md", "/w/a.py"]);
+    // no pattern from settings: files.watcherExclude is workspace-writable (the jail could hide
+    // files from this list with it, or hang the extension host with a pathological glob)
+    assert.deepEqual(
+      s.list().map((c) => c.path),
+      ["/v/b.md", "/w/.gitignore", "/w/a.py", "/w/node_modules/x/y.js", "/w/x.git/y"],
+    );
+  });
+  it("a path of any depth or shape is decided in time linear in its length", () => {
+    const s = set();
+    const deep = "/w/" + "a/".repeat(20_000) + "**/".repeat(5000) + "z";
+    const t0 = performance.now();
+    for (let i = 0; i < 100; i++) s.wanted(deep);
+    assert.ok(performance.now() - t0 < 2000);
+  });
+  it("a symlink is listed as one (lstat, never followed); a folder and a missing path are told apart", async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "csv-changes-"));
+    try {
+      fs.writeFileSync(path.join(dir, "f"), "x");
+      fs.mkdirSync(path.join(dir, "d"));
+      fs.symlinkSync("/etc/passwd", path.join(dir, "l"));
+      fs.symlinkSync(path.join(dir, "d"), path.join(dir, "ld"));
+      assert.equal(await entryKind(path.join(dir, "f")), "file");
+      assert.equal(await entryKind(path.join(dir, "d")), "dir");
+      assert.equal(await entryKind(path.join(dir, "l")), "symlink");
+      assert.equal(await entryKind(path.join(dir, "ld")), "symlink", "a link to a folder is a symlink, not a folder");
+      assert.equal(await entryKind(path.join(dir, "gone")), "gone");
+      const s = new ChangeSet({ roots: [dir] });
+      assert.equal(s.event("created", path.join(dir, "l"), 0, true)?.symlink, true);
+      assert.equal(s.event("deleted", path.join(dir, "old"), 1, true)?.symlink, false, "a deleted entry is not opened either way");
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
   });
   it("skips the user's own saves within the window (not deletions), not later changes", () => {
     const s = set();
@@ -61,18 +95,25 @@ describe("Changed this session: the list", () => {
   });
 });
 
-describe("globToRegExp (files.watcherExclude patterns)", () => {
-  it("**, *, ?, {a,b}, [...] and folder contents", () => {
-    const m = (g: string, p: string): boolean => globToRegExp(g).test(p);
-    assert.ok(m("**/.git/objects/**", ".git/objects/ab/cd"));
-    assert.ok(m("**/.git/objects/**", "sub/.git/objects/ab"));
-    assert.ok(m("**/node_modules/*/**", "node_modules/x/y.js"));
-    assert.ok(m("**/node_modules", "a/node_modules/x/y.js"), "a folder's contents");
-    assert.ok(m("*.{log,tmp}", "x.tmp"));
-    assert.ok(!m("*.{log,tmp}", "d/x.tmp"), "* stays in one folder");
-    assert.ok(m("file?.txt", "file1.txt"));
-    assert.ok(m("[ab].md", "b.md") && !m("[!ab].md", "a.md"));
-    assert.ok(!m("a.b", "axb"), "dots are literal");
-    assert.ok(m("/abs/**", "/abs/x/y"));
+describe("Review All (vscode.changes rows)", () => {
+  it("HEAD vs now; a new file against nothing; a deleted one HEAD vs nothing; symlinks left out", () => {
+    const s = set();
+    s.event("changed", "/w/mod.py", 0);
+    s.event("created", "/w/new.py", 0);
+    s.event("deleted", "/w/gone.py", 0);
+    s.event("deleted", "/w/never-committed.py", 0);
+    s.event("created", "/w/link", 0, true);
+    s.event("changed", "/v/outside-repo.md", 0);
+    const inHead = (c: { path: string }): boolean => c.path === "/w/mod.py" || c.path === "/w/gone.py";
+    const plan = reviewPlan(s.list(), inHead);
+    assert.deepEqual(plan.rows, [
+      { path: "/v/outside-repo.md", head: false, now: true },
+      { path: "/w/gone.py", head: true, now: false },
+      { path: "/w/mod.py", head: true, now: true },
+      { path: "/w/new.py", head: false, now: true },
+    ]);
+    assert.equal(plan.symlinks, 1);
+    assert.equal(plan.title, "Claude changes (4 files)");
+    assert.equal(reviewPlan([], () => true).title, "Claude changes (0 files)");
   });
 });

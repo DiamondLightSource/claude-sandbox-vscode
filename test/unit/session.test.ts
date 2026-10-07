@@ -4,9 +4,12 @@ import type { LinkState, Position } from "../../src/mcp.ts";
 import { PASTE_END, PASTE_START } from "../../src/paste.ts";
 import { PromptWatcher } from "../../src/prompt.ts";
 import { Session, type LinkPort } from "../../src/session.ts";
+import { outputUntil } from "../helpers/captures.ts";
 
-const BOX = "❯\xa0\x1b[2mTry something";
-const MENU = "Do you want to make this edit?\r\n❯ 1. Yes\r\n  2. No";
+// whole screens as Claude Code 2.1.292 drew them (test/fixtures/), each fed over whatever came before
+const BOX = outputUntil("menus", 9.9); // the input box with its placeholder
+const MENU = outputUntil("menus", 26.5); // the /permissions dialog
+const BUSY = outputUntil("vim-and-working", 14.4); // "· Fluttering… (1s · ↓ 187 tokens · thinking)"
 const p = (line: number, character: number): Position => ({ line, character });
 
 class FakeLink implements LinkPort {
@@ -117,7 +120,7 @@ describe("rule 6: asks are typed only into Claude Code's input box", () => {
     assert.deepEqual(typed, []);
   });
   it("busy: refused, nothing typed", async () => {
-    const { s, typed } = setup({ output: BOX + "✻ Working… (esc to interrupt)" });
+    const { s, typed } = setup({ output: BUSY });
     const r = await s.ask({ question: "Explain" });
     assert.match((r as { error: string }).error, /working/);
     assert.deepEqual(typed, []);

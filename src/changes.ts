@@ -2,7 +2,12 @@
 // linked session ran, from VS Code's file watcher events, and which the user has marked as
 // reviewed. Paths only: nothing here, or in the view, reads or writes a file's contents
 // (VS Code's diff editor does the reading). Changes the user's own saves cause are skipped,
-// and so are .git, our sockets and what files.watcherExclude excludes.
+// and so are .git (any path segment) and our sockets. Nothing else is filtered, and no pattern
+// from settings is read: files.watcherExclude is a workspace setting the jail can write (VS
+// Code's watcher already applies it; compiling it again here only added a ReDoS and a way to
+// hide files from this list).
+
+import { promises as fsp } from "node:fs";
 
 export type ChangeKind = "created" | "changed" | "deleted";
 
@@ -12,6 +17,8 @@ export interface Change {
   reviewed: boolean;
   /** When it last changed (ms). */
   at: number;
+  /** A symlink when last seen (lstat): listed, never opened. */
+  symlink: boolean;
 }
 
 /** A save by the user counts as theirs for this long after it. */
@@ -20,23 +27,31 @@ export const CHANGES_MAX = 5000;
 
 const SOCKET_RE = /^\.claude-sandbox-vscode-\d+\.sock$/;
 
+export type Entry = "file" | "dir" | "symlink" | "gone";
+
+/** What is at `p` now, without following a symlink (lstat: metadata only, no content read). */
+export async function entryKind(p: string): Promise<Entry> {
+  try {
+    const st = await fsp.lstat(p);
+    return st.isSymbolicLink() ? "symlink" : st.isDirectory() ? "dir" : "file";
+  } catch {
+    return "gone";
+  }
+}
+
 export interface ChangeSetOptions {
   roots: readonly string[];
-  /** files.watcherExclude patterns that are on (relative to a root, or absolute). */
-  exclude?: readonly string[];
   saveWindowMs?: number;
 }
 
 export class ChangeSet {
   private readonly roots: string[];
-  private readonly exclude: RegExp[];
   private readonly saveWindow: number;
   private readonly items = new Map<string, Change>();
   private readonly saves = new Map<string, number>();
 
   constructor(o: ChangeSetOptions) {
     this.roots = o.roots.map((r) => r.replace(/\/+$/, "") || "/");
-    this.exclude = (o.exclude ?? []).map(globToRegExp);
     this.saveWindow = o.saveWindowMs ?? SAVE_WINDOW_MS;
   }
 
@@ -59,12 +74,11 @@ export class ChangeSet {
     if (rel === null || rel === "") return false;
     const parts = rel.split("/");
     if (parts.includes(".git")) return false;
-    if (SOCKET_RE.test(parts[parts.length - 1]!)) return false;
-    return !this.exclude.some((re) => re.test(rel) || re.test(path));
+    return !SOCKET_RE.test(parts[parts.length - 1]!);
   }
 
   /** A watcher event. The changed entry, or null when it is ignored. */
-  event(kind: ChangeKind, path: string, now: number): Change | null {
+  event(kind: ChangeKind, path: string, now: number, symlink = false): Change | null {
     if (!this.wanted(path)) return null;
     const saved = this.saves.get(path);
     if (saved !== undefined && now - saved <= this.saveWindow && kind !== "deleted") return null;
@@ -80,7 +94,7 @@ export class ChangeSet {
     } else if (this.items.size >= CHANGES_MAX) {
       return null;
     }
-    const c: Change = { path, kind: k, reviewed: false, at: now };
+    const c: Change = { path, kind: k, reviewed: false, at: now, symlink: k !== "deleted" && symlink };
     this.items.set(path, c);
     return c;
   }
@@ -117,45 +131,30 @@ export class ChangeSet {
   }
 }
 
+/** One file of "Review All": its HEAD side (or none: new, or no repository), its current side (none: deleted). */
+export interface ReviewRow {
+  path: string;
+  head: boolean;
+  now: boolean;
+}
+
 /**
- * A VS Code glob (`**`, `*`, `?`, `{a,b}`, `[...]`) as a RegExp over a whole path. A pattern
- * matches a folder's contents too (`**\/node_modules` excludes what is in it).
+ * "Review All" (VS Code's multi-file diff editor, vscode.changes): a row per listed file,
+ * symlinks left out (never opened), a deleted file only when HEAD has it (else there is
+ * nothing to show). `inHead` says whether HEAD has the file (false outside a repository).
  */
-export function globToRegExp(glob: string): RegExp {
-  let re = "";
-  let depth = 0;
-  for (let i = 0; i < glob.length; i++) {
-    const c = glob[i]!;
-    if (c === "*") {
-      if (glob[i + 1] === "*") {
-        i++;
-        if (glob[i + 1] === "/") {
-          i++;
-          re += "(?:[^/]*/)*";
-        } else {
-          re += ".*";
-        }
-      } else {
-        re += "[^/]*";
-      }
-    } else if (c === "?") re += "[^/]";
-    else if (c === "{") {
-      depth++;
-      re += "(?:";
-    } else if (c === "}" && depth > 0) {
-      depth--;
-      re += ")";
-    } else if (c === "," && depth > 0) re += "|";
-    else if (c === "[") {
-      const j = glob.indexOf("]", i + 1);
-      if (j < 0) re += "\\[";
-      else {
-        const body = glob.slice(i + 1, j).replace(/\\/g, "\\\\");
-        re += "[" + (body.startsWith("!") ? "^" + body.slice(1) : body) + "]";
-        i = j;
-      }
-    } else re += c.replace(/[.+^$()|\\\]]/g, "\\$&");
+export function reviewPlan(changes: readonly Change[], inHead: (c: Change) => boolean): { rows: ReviewRow[]; symlinks: number; title: string } {
+  const rows: ReviewRow[] = [];
+  let symlinks = 0;
+  for (const c of changes) {
+    if (c.symlink) {
+      symlinks++;
+      continue;
+    }
+    const head = inHead(c);
+    if (c.kind === "deleted") {
+      if (head) rows.push({ path: c.path, head: true, now: false });
+    } else rows.push({ path: c.path, head, now: true });
   }
-  while (depth-- > 0) re += ")";
-  return new RegExp("^" + re + "(?:/.*)?$");
+  return { rows, symlinks, title: `Claude changes (${rows.length} file${rows.length === 1 ? "" : "s"})` };
 }

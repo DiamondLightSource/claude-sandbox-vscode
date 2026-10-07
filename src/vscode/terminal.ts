@@ -6,7 +6,7 @@
 
 import * as vscode from "vscode";
 import { PromptWatcher } from "../prompt.ts";
-import { PtyProcess } from "../pty.ts";
+import { OutputBatcher, PtyProcess } from "../pty.ts";
 import { CLAUDE } from "../ptyHelper.ts";
 import { Session, type LinkPort } from "../session.ts";
 
@@ -42,8 +42,13 @@ export class ClaudeTerminal implements vscode.Disposable {
   private readonly name = new vscode.EventEmitter<string>();
   private ended = false;
   private closeOnKey = false;
+  private readonly out: OutputBatcher;
 
   constructor(o: ClaudeTerminalOptions) {
+    const fault = (where: string, e: unknown): void =>
+      o.log(`[pty] ${where} failed: ${e instanceof Error ? (e.stack ?? e.message) : String(e)}`);
+    // one write to VS Code's terminal per batch (src/pty.ts)
+    this.out = new OutputBatcher((t) => this.write.fire(t), (e) => fault("terminal write", e));
     const watcher = new PromptWatcher();
     this.session = new Session({
       write: (d) => this.pty?.write(d),
@@ -55,6 +60,7 @@ export class ClaudeTerminal implements vscode.Disposable {
     const finish = (code: number): void => {
       if (this.ended) return;
       this.ended = true;
+      this.out.flush();
       this.session.exited();
       o.onExit(code);
       if (code === 0) {
@@ -70,6 +76,7 @@ export class ClaudeTerminal implements vscode.Disposable {
       onDidClose: this.close.event,
       onDidChangeName: this.name.event,
       open: (dims) => {
+        watcher.resize(dims?.columns ?? 100, dims?.rows ?? 30);
         this.pty = new PtyProcess(
           {
             program: CLAUDE,
@@ -81,8 +88,14 @@ export class ClaudeTerminal implements vscode.Disposable {
           },
           {
             onData: (t) => {
-              this.session.output(t);
-              this.write.fire(t);
+              // the prompt watcher's screen first; a fault there is logged and never stops the
+              // terminal (asks are then refused: the screen reads as unknown)
+              try {
+                this.session.output(t);
+              } catch (e) {
+                fault("prompt watcher", e);
+              }
+              this.out.push(t);
             },
             onExit: finish,
             onError: (t) => o.log(`[pty] ${t.trimEnd()}`),
@@ -94,11 +107,23 @@ export class ClaudeTerminal implements vscode.Disposable {
         this.pty?.kill();
         if (this.pty === null) finish(0);
       },
+      // a fault in either is logged; the keys and resizes after it still go through
       handleInput: (data) => {
-        if (this.closeOnKey) this.close.fire();
-        else this.session.input(data);
+        try {
+          if (this.closeOnKey) this.close.fire();
+          else this.session.input(data);
+        } catch (e) {
+          fault("input", e);
+        }
       },
-      setDimensions: (dims) => this.pty?.resize(dims.columns, dims.rows),
+      setDimensions: (dims) => {
+        try {
+          this.pty?.resize(dims.columns, dims.rows);
+          watcher.resize(dims.columns, dims.rows);
+        } catch (e) {
+          fault("resize", e);
+        }
+      },
     };
     const beside = vscode.window.activeTextEditor !== undefined;
     this.terminal = vscode.window.createTerminal({
@@ -116,6 +141,7 @@ export class ClaudeTerminal implements vscode.Disposable {
   }
 
   dispose(): void {
+    this.out.dispose();
     this.pty?.kill();
     this.terminal.dispose();
     this.write.dispose();

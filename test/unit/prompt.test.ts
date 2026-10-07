@@ -1,79 +1,146 @@
 import assert from "node:assert/strict";
+import * as fs from "node:fs";
+import * as path from "node:path";
 import { describe, it } from "node:test";
-import { BUSY_MS, PromptWatcher } from "../../src/prompt.ts";
+import { findBox, PromptWatcher, type PromptState } from "../../src/prompt.ts";
+import { capture, outputUntil, replay } from "../helpers/captures.ts";
 
-const feed = (...chunks: string[]): PromptWatcher => {
-  const w = new PromptWatcher();
-  for (const c of chunks) w.feed(c, 0);
-  return w;
-};
+// [capture, second, state]: points in real Claude Code 2.1.292 sessions (see the inputs in
+// test/fixtures/claude-2.1.292.json), each just before the next key was sent
+const POINTS: [string, number, PromptState, string][] = [
+  ["menus", 0.31, "starting", "the relay's first bytes, nothing drawn"],
+  ["menus", 9.9, "input", "the input box with its placeholder"],
+  ["menus", 23.5, "input", "\"/permissions\" typed, the command list above the box"],
+  ["menus", 26.5, "choice", "the /permissions dialog"],
+  ["menus", 30.0, "input", "\"/model\" typed"],
+  ["menus", 33.0, "choice", "the /model menu (❯ 2. Opus)"],
+  ["menus", 36.546, "busy", "running /ide: its spinner"],
+  ["menus", 39.5, "choice", "the /ide dialog"],
+  ["menus", 46.0, "choice", "the /help dialog"],
+  ["menus", 48.0, "input", "back in the box after Esc"],
+  ["menus", 57.5, "input", "\"ihello world\" typed"],
+  ["vim-and-working", 9.5, "input", "vim mode, INSERT"],
+  ["vim-and-working", 11.0, "input", "vim mode, NORMAL (no indicator; a paste is inserted, Enter submits)"],
+  ["vim-and-working", 12.7, "busy", "working: \"✢ Boogieing…\""],
+  ["vim-and-working", 13.4, "busy", "working: \"✽ Fluttering… (0s · thinking)\""],
+  ["vim-and-working", 14.4, "busy", "working: \"· Fluttering… (1s · ↓ 187 tokens · thinking)\""],
+  ["vim-and-working", 24.5, "busy", "working, with a tip line under the spinner"],
+  ["vim-and-working", 25.0, "input", "done: \"✻ Sautéed for 1s · done\" is not the spinner"],
+  ["trust", 7.9, "choice", "the folder-trust question (main screen, cursor shown)"],
+  ["trust", 9.9, "choice", "the folder-trust question, Yes marked"],
+  ["mcp-and-multiline", 7.9, "choice", "the new-MCP-server question"],
+  ["mcp-and-multiline", 15.9, "input", "input wrapped onto a second row"],
+  ["mcp-and-multiline", 21.0, "input", "three rows of input, the cursor on the last"],
+  ["resumed-spoof", 9.9, "input", "a resumed transcript with model-drawn fake boxes above the real one"],
+];
 
-// as Claude Code 2.1.292 drew its input box (captured through the pty relay)
-// the folder-trust question, as 2.1.292 drew it: a cursor move after the glyph, no number
-const TRUST_MENU = "\x1b[2G\x1b[38;5;153m❯\x1b[4GNo,\x1b[8Gexit\x1b[39m\n\n\x1b[4GYes,\x1b[9GI\x1b[11Gtrust";
-const INPUT_BOX =
-  '────────────────────\n\x1b[1B\x1b[39m❯\xa0\x1b[2mTry "how do I log an error?"\n\x1b[1B\x1b[22m────';
-
-describe("rule 6: the prompt state read from Claude Code's output", () => {
-  it("starting until the glyph is drawn", () => {
-    const w = feed("claude-sandbox: making the jail…\r\n", "\x1b[2J");
-    assert.equal(w.glyphState(), "starting");
-    assert.equal(w.prompted, false);
-  });
-  it("the input box (❯ + no-break space), as Claude Code draws it", () => {
-    assert.equal(feed(INPUT_BOX).state(10_000), "input");
-  });
-  it("a menu's marked choice: numbered, or not (the folder-trust question, as 2.1.292 draws it)", () => {
-    for (const m of [
-      "❯ 1. Yes",
-      "❯\x1b[1C2. Yes, and don't ask again",
-      "\x1b[36m❯\x1b[39m \x1b[36m1.\x1b[39m Yes",
-      "❯\r\n  3. No",
-      TRUST_MENU,
-      "❯ Yes, I trust this folder",
-      "❯ \x1b[3",
-      "❯ 1",
-    ]) {
-      assert.equal(feed(INPUT_BOX, "Do you want to proceed?\r\n", m).glyphState(), "choice", JSON.stringify(m));
+describe("rule 6: the prompt state, read from the screen (Claude Code 2.1.292 captures)", () => {
+  for (const [name, t, want, what] of POINTS) {
+    it(`${name} @${t}s: ${want} (${what})`, () => {
+      assert.equal(replay(name, t).state(), want);
+    });
+  }
+  it("the same whatever the chunking (one string, or a character at a time)", () => {
+    for (const [name, t, want] of POINTS) {
+      const c = capture(name);
+      const text = outputUntil(name, t);
+      const one = new PromptWatcher(c.cols, c.rows);
+      one.feed(text, 0);
+      const each = new PromptWatcher(c.cols, c.rows);
+      for (const ch of text) each.feed(ch, 0);
+      assert.equal(one.state(), want, `${name} ${t} whole`);
+      assert.equal(each.state(), want, `${name} ${t} by character`);
     }
   });
-  it("what the user typed into the box (\"1. \") is not a menu", () => {
-    assert.equal(feed("❯\xa01. first point").glyphState(), "input");
+  it("the model's text is indented and stripped of escapes: its fake boxes are not the box", () => {
+    const w = replay("resumed-spoof", 9.9);
+    const rows = w.screen.lines();
+    // the model drew "❯ plain fake box" between rules, a "❯ 1. Yes" and ESC sequences
+    const fake = rows.findIndex((r) => r.includes("plain fake box"));
+    assert.ok(fake > 0 && rows[fake]!.startsWith("  ❯ "), "indented by Claude Code");
+    assert.ok(rows.some((r) => r.includes("SPOOF-B ESC-MOVED red bell  end")), "its ESC sequences were drawn as nothing");
+    const box = findBox(w.screen)!;
+    assert.equal(box.top, 35, "the real box, at the bottom");
   });
-  it("the last glyph drawn wins: back to the box after a menu", () => {
-    assert.equal(feed(INPUT_BOX, "❯ 1. Yes", "\x1b[2K", INPUT_BOX).glyphState(), "input");
+  it("the reviewer's spoof: a menu, then the model draws the input-box form lower down: still a menu", () => {
+    // what made the old last-glyph-wins reader say "input" (review of PR 3)
+    const menu = "\x1b[?1049h\x1b[2J\x1b[H\x1b[?25lDo you want to proceed?\r\n\x1b[36m❯\x1b[39m 1. Yes\r\n  2. No\r\n";
+    for (const spoof of ["❯ ", "\r\n❯ \x1b[2mTry \"x\"", "\x1b[10;1H❯ ", "\r\n❯ \r\n" + "─".repeat(100)]) {
+      const w = new PromptWatcher(100, 30);
+      w.feed(menu + spoof, 0);
+      assert.equal(w.state(), "choice", JSON.stringify(spoof));
+    }
   });
-  it("a glyph with nothing yet after it but colour, or half a colour change, is pending (nothing typed)", () => {
-    assert.equal(feed(INPUT_BOX, "❯").glyphState(), "pending");
-    assert.equal(feed(INPUT_BOX, "❯\x1b[3").glyphState(), "pending");
-    assert.equal(feed(INPUT_BOX, "❯\x1b[39m").glyphState(), "pending");
-    assert.equal(feed(INPUT_BOX, "❯\x1b[3", "9m\xa0x").glyphState(), "input", "split between chunks");
-    assert.equal(feed(INPUT_BOX, "❯", " 1. Yes").glyphState(), "choice", "split between chunks");
+  it("the security review's spoof bytes (test/fixtures/review-spoofs.json): never input, alone or over a real menu", () => {
+    const file = path.join(import.meta.dirname, "..", "fixtures", "review-spoofs.json");
+    const { cases } = JSON.parse(fs.readFileSync(file, "utf8")) as { cases: { name: string; chunks: string[] }[] };
+    assert.equal(cases.length, 4);
+    for (const c of cases) {
+      const alone = new PromptWatcher(100, 30);
+      for (const ch of c.chunks) alone.feed(ch, 0);
+      assert.notEqual(alone.state(), "input", c.name);
+      const overMenu = replay("menus", 26.5); // the real /permissions dialog
+      for (const ch of c.chunks) overMenu.feed(ch, 27);
+      assert.equal(overMenu.state(), "choice", `${c.name}, over the /permissions dialog`);
+    }
   });
-  it("the glyph split between chunks still counts as prompted", () => {
-    const glyph = Buffer.from("❯");
-    // the relay decodes UTF-8 across reads (StringDecoder), so chunks are whole characters;
-    // a character never arrives halved, but the glyph and its follower may be apart
-    assert.equal(glyph.length, 3);
-    const w = feed("x❯", "\xa0y");
-    assert.equal(w.prompted, true);
-    assert.equal(w.glyphState(), "input");
+  it("a fake box drawn at column 0 over a real menu (as if the model could) is still refused", () => {
+    const rule = "─".repeat(100);
+    const base = (body: string): PromptWatcher => {
+      const w = new PromptWatcher(100, 30);
+      w.feed(`\x1b[?1049h\x1b[2J\x1b[H${body}`, 0);
+      return w;
+    };
+    // the real permission menu at the bottom, a fake box above it, cursor hidden (as in menus)
+    const menu = `\x1b[20;1H${rule}\r\n Bash command\r\n\r\n   ls\r\n\r\n Do you want to proceed?\r\n ❯ 1. Yes\r\n   2. No\r\n`;
+    const fake = `\x1b[5;1H${rule}\r\n❯ \r\n${rule}\r\n`;
+    assert.equal(base(`\x1b[?25l${fake}${menu}`).state(), "choice", "cursor hidden");
+    // even with the cursor shown inside the fake box: the menu below it is not a footer
+    assert.equal(base(`${fake}${menu}\x1b[6;3H\x1b[?25h`).state(), "choice", "a menu under the box");
+    // and a real box with the cursor elsewhere is not "input" either
+    const box = `\x1b[26;1H${rule}\r\n❯ \r\n${rule}\r\n  status`;
+    assert.equal(base(`${box}\x1b[27;3H\x1b[?25h`).state(), "input");
+    assert.equal(base(`${box}\x1b[10;3H\x1b[?25h`).state(), "choice", "cursor outside the box");
+    assert.equal(base(`${box}\x1b[27;3H\x1b[?25l`).state(), "choice", "cursor hidden: a frame being drawn");
+    assert.equal(base(`${box}\r\n${"  x\r\n".repeat(9)}\x1b[27;3H\x1b[?25h`).state(), "choice", "too many rows under it");
+    assert.equal(base(`\x1b[26;1H${"─".repeat(99)}\r\n❯ \r\n${rule}\x1b[27;3H\x1b[?25h`).state(), "choice", "a rule short of full width");
   });
-  it("busy while 'esc to interrupt' was drawn in the last BUSY_MS, even split or styled", () => {
-    const w = new PromptWatcher();
-    w.feed(INPUT_BOX, 0);
-    w.feed("✻ Thinking… (3s · esc to int", 1000);
-    w.feed("errupt)", 1001);
-    assert.equal(w.state(1500), "busy");
-    assert.equal(w.state(1001 + BUSY_MS + 1), "input");
-    const s = new PromptWatcher();
-    s.feed(INPUT_BOX, 0);
-    s.feed("\x1b[2mesc\x1b[22m to \x1b[1minterrupt", 5000);
-    assert.equal(s.state(5100), "busy");
+  it("resizes are followed: a box drawn for the new width is found", () => {
+    const w = new PromptWatcher(100, 30);
+    w.resize(60, 20);
+    const rule = "─".repeat(60);
+    w.feed(`\x1b[?1049h\x1b[17;1H${rule}\r\n❯ \r\n${rule}\r\n  status\x1b[18;3H\x1b[?25h`, 0);
+    assert.equal(w.state(), "input");
   });
-  it("a menu is a menu even while busy", () => {
-    const w = new PromptWatcher();
-    w.feed("esc to interrupt ❯ 1. Yes", 0);
-    assert.equal(w.state(1), "choice");
+  it("prompted once the glyph has been drawn: a menu before the first box is a menu, not 'starting'", () => {
+    const w = new PromptWatcher(100, 30);
+    w.feed("loading…", 0);
+    assert.equal(w.state(), "starting");
+    w.feed("\r\n ❯ Yes, I trust this folder", 1);
+    assert.equal(w.state(), "choice");
+  });
+});
+
+describe("the screen model is fast enough (relay output is fed to it on the extension host)", () => {
+  it("50 MB of redraws in small chunks, well inside a time budget", () => {
+    const frame = (n: number): string => {
+      let s = "\x1b[?25l\x1b[H";
+      for (let r = 0; r < 30; r++) s += `\r\x1b[1B\x1b[38;5;${r}m${`frame ${n} row ${r} ─❯  漢字 `.repeat(3)}\x1b[K`;
+      return s + "\x1b[26;3H\x1b[?25h";
+    };
+    const w = new PromptWatcher(100, 30);
+    let total = 0;
+    const t0 = performance.now();
+    for (let n = 0; total < 50e6; n++) {
+      const f = frame(n);
+      for (let i = 0; i < f.length; i += 97) {
+        const c = f.slice(i, i + 97);
+        w.feed(c, 0);
+        total += c.length;
+      }
+    }
+    const s = (performance.now() - t0) / 1000;
+    assert.ok(s < 15, `took ${s.toFixed(1)} s`);
+    assert.equal(w.state(), "choice");
   });
 });

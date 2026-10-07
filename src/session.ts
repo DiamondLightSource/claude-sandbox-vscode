@@ -2,7 +2,7 @@
 // (trust boundary rule 6). No vscode import: the Pseudoterminal glue is src/vscode/terminal.ts.
 // Ported from md-collab-editor's TermSession.ask / mention / _wait_ready / _answer_pending.
 //
-// An ask is typed only while Claude Code's `❯` input box is showing (src/prompt.ts), never
+// An ask is typed only while Claude Code's input box is on screen (src/prompt.ts), never
 // while a menu is up or a proposed change waits for an answer (Enter would answer it), and it is
 // checked again just before the Enter. A session that has only just started is waited for, at
 // most START_WAIT_MS: Claude Code keeps text typed before its prompt is up but drops the Enter.
@@ -23,6 +23,10 @@ export const START_WAIT_MS = 20_000;
 export const SETTLE_MS = 50;
 /** Between pasting a question and pressing Enter. */
 export const ENTER_DELAY_MS = 100;
+/** A frame is taken as drawn once output has paused this long... */
+export const QUIET_MS = 150;
+/** ...waited for at most this long before the screen is read as it is. */
+export const SETTLE_MAX_MS = 1000;
 const POLL_MS = 50;
 
 /** What the session needs of the link (the Bridge). */
@@ -120,36 +124,54 @@ export class Session {
     if (link !== null && link.waitingDiffs().length > 0) {
       return "Claude is waiting for your answer to a proposed change: accept or reject it first.";
     }
-    switch (this.o.watcher.state(this.now())) {
+    switch (this.o.watcher.state()) {
       case "input":
         return null;
       case "choice":
-        return "Claude Code is asking you something in the terminal: answer it there first.";
+        return "Claude Code is asking you something in the terminal (its input box is not showing): answer it there first.";
       case "busy":
         return "Claude is working: send it again once it has finished.";
       default:
-        return "Claude Code's prompt is not showing, so nothing was sent.";
+        return "Claude Code's input box is not showing, so nothing was sent.";
     }
   }
 
-  /** Until the session has drawn its prompt (or a menu), at most START_WAIT_MS. */
+  /**
+   * Until Claude Code has drawn its first screen (at most START_WAIT_MS), and until the screen
+   * shows the input box or output has paused (a frame half drawn is not read as a menu).
+   */
   private async ready(): Promise<string | null> {
     const since = this.now();
     let told = false;
     for (;;) {
       if (!this.alive) return "The Claude session ended before it could take the question.";
-      const g = this.o.watcher.glyphState();
-      if (g !== "starting" && g !== "pending") return null;
+      const st = this.o.watcher.state();
       const waited = this.now() - since;
-      if (waited >= (this.o.startWaitMs ?? START_WAIT_MS)) {
-        return "Claude Code has not started yet (its prompt is not up), so nothing was sent: try again once it is.";
-      }
-      if (!told && waited >= 1000) {
-        told = true;
-        this.o.onWaiting?.();
+      if (st === "starting") {
+        if (waited >= (this.o.startWaitMs ?? START_WAIT_MS)) {
+          return "Claude Code has not started yet (its input box is not up), so nothing was sent: try again once it is.";
+        }
+        if (!told && waited >= 1000) {
+          told = true;
+          this.o.onWaiting?.();
+        }
+      } else if (st === "input" || st === "busy" || !this.drawing(since)) {
+        return null;
       }
       await this.sleep(POLL_MS);
     }
+  }
+
+  /** Whether output is still arriving (a frame may be half drawn), for at most SETTLE_MAX_MS from `since`. */
+  private drawing(since: number): boolean {
+    const now = this.now();
+    return now - this.o.watcher.lastOutput < QUIET_MS && now - since < SETTLE_MAX_MS;
+  }
+
+  /** Until the screen shows the input box, or output has paused (at most SETTLE_MAX_MS). */
+  private async settle(): Promise<void> {
+    const since = this.now();
+    while (this.alive && this.o.watcher.state() !== "input" && this.drawing(since)) await this.sleep(POLL_MS);
   }
 
   /** One at a time, in order. */
@@ -189,12 +211,14 @@ export class Session {
     if (f !== undefined && (via === "typed" || span === null)) {
       text = typedRef(f.fsPath, this.o.cwd, via === "typed" ? span : null) + " " + text;
     }
-    why = this.why(); // the ping took time: look again
+    await this.settle(); // the ping took time: look again
+    why = this.why();
     if (why !== null) return { ok: false, error: why };
     this.held = [];
     try {
       this.o.write(pasteText(text));
       await this.sleep(ENTER_DELAY_MS);
+      await this.settle(); // the paste is being drawn into the box
       why = this.why(); // Claude asked something meanwhile
       if (why !== null) return { ok: false, error: "The question was typed but not sent. " + why };
       this.o.write("\r");
@@ -219,6 +243,7 @@ export class Session {
         const lines = span ? { start: span[0] - 1, end: span[1] - 1 } : undefined;
         if (link.mention(f.fsPath, lines)) return { ok: true, via: "ide" };
       }
+      await this.settle();
       const why = this.why();
       if (why !== null) return { ok: false, error: why };
       this.o.write(pasteText(typedRef(f.fsPath, this.o.cwd, span) + " "));
