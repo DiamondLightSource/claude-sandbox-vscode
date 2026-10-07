@@ -72,7 +72,11 @@ export async function checkInstalled(log: (m: string) => void): Promise<boolean>
 
 function installedVersion(): Promise<string | null> {
   return new Promise((resolve) => {
-    execFile(CLAUDE_SANDBOX, ["version"], { timeout: 15_000, maxBuffer: 64 * 1024 }, (err, stdout) => {
+    // a fixed environment: the extension host's PATH and BASH_ENV come from devcontainer.json's
+    // remoteEnv, which the jail can edit, and an older claude-sandbox is a `#!/usr/bin/env bash`
+    // script
+    const env = { PATH: "/usr/local/bin:/usr/bin:/bin" };
+    execFile(CLAUDE_SANDBOX, ["version"], { env, timeout: 15_000, maxBuffer: 64 * 1024 }, (err, stdout) => {
       resolve(err ? null : parseVersionOutput(String(stdout)));
     });
   });

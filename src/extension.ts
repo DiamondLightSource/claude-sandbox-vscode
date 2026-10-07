@@ -50,7 +50,7 @@ export function activate(context: vscode.ExtensionContext): void {
   showState();
   const diffs = new DiffEditors(
     (id, d) => link?.bridge.decide(id, d) ?? false,
-    () => claude?.terminal.name,
+    () => (claude?.running ? claude.terminal.name : undefined),
   );
 
   const folders = (): string[] =>

@@ -214,7 +214,8 @@ message as hostile. These rules are the security design; each has a test in
    (the extension host not reading the output, Claude not reading its keys)
    never stops the others, so keys and resizes still go through.
    Only two places start processes: the relay, and `claude-sandbox version`
-   by absolute path for the outdated notice.
+   by absolute path, with a fixed `PATH` and nothing else in its environment,
+   for the outdated notice and the "too old" message.
 10. **Install offer.** Nothing runs without the user's click. The command is
     fixed in the extension (`uvx --no-cache --from 'claude-sandbox>=5.0.0b1'
     claude-sandbox install`,
@@ -258,7 +259,11 @@ message as hostile. These rules are the security design; each has a test in
     description "symlink" and never opened as a diff, alone or in Review All,
     so a link the jail planted to a file outside the workspace is not shown.
     VS Code's diff editor reads the files; the built-in Git extension runs git.
-    There is no revert action: that would be the host writing into the
+    Like Source Control, it shows only files the Git extension reports a
+    change for, so git state the session controls (a commit, `.gitignore`,
+    `.git/info/exclude`, skip-worktree) can take a file out of the view just
+    as it takes it out of Source Control; the view is a convenience over git
+    state, not an audit. There is no revert action: that would be the host writing into the
     jail-writable workspace (Source Control's Discard is the way back).
 
 ## Out of scope (residual risk)
@@ -326,7 +331,7 @@ client on the real socket, with the real token, attacking).
 | 9 The pty relay | `test/unit/pty.test.ts` (argv constant but for size and arguments; the pty is the controlling terminal at the given size with no fd of ours; arguments are words; keys and UTF-8; SIGWINCH on resize, bad resize lines ignored; Ctrl-C and exit status; output before exit kept; kill hangs up; a slow reader of the output holds up neither keys nor resizes (fails on the old blocking relay); a flood of redraws with input bursts, resizes, a stalling host and a throwing output handler at once; a missing program is 127, a missing interpreter is explained; writes coalesced per 16 ms, a throwing sink reported); `test/hostile/audit.test.ts` "child_process only in the pty relay and the version check" |
 | 10 Install offer | `test/unit/install.test.ts` (the shim, CLI and interpreter recognised, read without blocking on a FIFO; the fixed command with `--no-cache` and the `>=5.0.0b1` requirement, and sudo; older than the minimum is too old; uvx only from the fixed paths, not a symlink out of them, not writable by others, not owned by another user; the terminal script runs its arguments as words; version parsing and comparison; PyPI JSON read as own keys); `test/hostile/audit.test.ts` "terminals" |
 | 11 Settings | `test/unit/manifest.test.ts` (every setting `scope: application`; the code reads no other setting of ours and no other extension's, `files.watcherExclude` included; keybindings on the `Ctrl+Alt+C` chord only); `test/unit/settings.test.ts` "reviewEdits" (the ask list merged and deduplicated, theirs kept, `__proto__` a plain key) |
-| 12 Changes view | `test/unit/changes.test.ts` (only workspace files, not a `.git` segment or sockets, no settings patterns; any path decided in linear time; lstat: a symlink listed as one, a folder and a missing path told apart; the user's saves skipped; kinds; reviewed until changed again; Review All's rows: HEAD vs now, new against nothing, deleted HEAD vs nothing, symlinks left out); `test/hostile/audit.test.ts` "rule 3" (no write API; `workspace.fs` only for `stat`) |
+| 12 Changes view | `test/unit/changes.test.ts` (only workspace files, not a `.git` segment or sockets, no settings patterns; any path decided in linear time; lstat: a symlink listed as one, a folder and a missing path told apart; the user's saves skipped; kinds; reviewed until changed again; Review All's rows: HEAD vs now, new against nothing, deleted HEAD vs nothing, symlinks left out; `splitByGit`: only what git shows changed, outside a repository all); `test/hostile/audit.test.ts` "rule 3" (no write API; `workspace.fs` only for `stat`) |
 | 7 Lock files and sockets | `test/hostile/hook.test.ts` (the hook run for real with socat, in a workspace whose name tries to break out of the command; idempotent, one socat; another's lock left alone and not removed at SessionEnd; no lock when socat never listens; the matchers; silent on stderr when the lock folder cannot be made), "SessionEnd removes only a lock that is ours, byte for byte" (trailing newline, NUL, prefix, suffix kept; a FIFO at the lock path neither blocks nor is removed; a symlink and its target left; a huge file); `test/unit/settings.test.ts` "hook commands"; `test/hostile/audit.test.ts` "rule 7" (every fs path recorded during a session; none under the config folder); `test/hostile/link.test.ts` "rule 7: the socket name" |
 | 8 Parser and connection limits | `test/unit/websocket.test.ts`; `test/hostile/link.test.ts` "rule 8" (0600, deflate refused, tokens, 4 handshakes, slow handshake, 1009, 1002, one linked session (the `/ide` behaviour above recorded by hand with Claude Code 2.1.292), a client that stops reading (backpressure), the 32 MiB cap, pings, a slow reader not dropped while paused); `test/unit/mcp.test.ts` "connections", "rule 8" and "the largest answer (FILE_SAVED) always fits under the output cap" (`PROPOSAL_MAX` derived from `MAX_QUEUED`, a worst-case proposal and id, a larger proposal or accepted text), `test/unit/settings.test.ts` (`__proto__`); `test/unit/log.test.ts` |
 
@@ -452,7 +457,16 @@ list is reset at each Start and kept after the session ends. A click opens VS
 Code's diff against HEAD through the built-in Git extension's API (`getAPI(1)`,
 `toGitUri(uri, 'HEAD')`, `vscode.diff`); a file HEAD lacks (untracked or added)
 opens as itself; a deleted one is HEAD against empty; a symlink is listed
-("symlink") and not opened. **Mark as reviewed** (inline) ticks a file until it
+("symlink") and not opened. As in Source Control, a file is shown only while
+the Git extension reports a change for it (working tree, index, untracked, a
+merge, or a rename's old path): one put back as HEAD has it, ignored, or
+committed drops out, and comes back if it changes again. Files outside any
+repository are always shown. When the shown files span more than one
+repository (or, outside any, workspace folder) they are grouped under one
+node per root, as Source Control groups by repository; with one root the
+files are listed directly. Each repository's status is followed
+(`state.onDidChange`, keyed by `rootUri`) from the first time it is looked
+at, until the next Start. **Mark as reviewed** (inline) ticks a file until it
 changes again; the view's badge and the status bar count the rest.
 **Review All Changes** (the view's title bar, the palette, `Ctrl+Alt+C V`)
 opens every listed file in VS Code's multi-file diff editor:

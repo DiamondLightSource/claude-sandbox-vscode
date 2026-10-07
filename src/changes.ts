@@ -133,17 +133,39 @@ export class ChangeSet {
 
 /**
  * The list split by what git says now. `inGit(c)`: true when git shows the file changed
- * (working tree, index, untracked or a merge), false when it shows nothing (the file matches
- * HEAD again, or git ignores it: build output, `.pyc`), undefined outside any repository.
- * Only false goes to `quiet`, which the view folds into one collapsed group: still listed, so
- * a `.gitignore` the session edits cannot hide a file from the list, only fold it (and the
- * `.gitignore` itself is then a change).
+ * (working tree, index, untracked, a merge, or a rename's old path), false when it shows
+ * nothing (the file matches HEAD again, or git ignores it: build output, `.pyc`), undefined
+ * outside any repository. The view shows `active` only, as Source Control does; so git state
+ * the session controls (a commit, `.gitignore`, `.git/info/exclude`, skip-worktree) can take
+ * a file out of the view, exactly as it takes it out of Source Control.
  */
 export function splitByGit(changes: readonly Change[], inGit: (c: Change) => boolean | undefined): { active: Change[]; quiet: Change[] } {
   const active: Change[] = [];
   const quiet: Change[] = [];
   for (const c of changes) (inGit(c) === false ? quiet : active).push(c);
   return { active, quiet };
+}
+
+/** The files of one repository (or, outside any, one workspace folder) in the view. */
+export interface ChangeGroup {
+  /** The repository's root, or the folder's path. */
+  root: string;
+  changes: Change[];
+}
+
+/**
+ * The view's files grouped by `rootOf` (a file's repository root, else its workspace folder),
+ * as Source Control groups by repository: groups by root, files in their list order.
+ */
+export function groupByRoot(changes: readonly Change[], rootOf: (c: Change) => string): ChangeGroup[] {
+  const groups = new Map<string, Change[]>();
+  for (const c of changes) {
+    const r = rootOf(c);
+    const g = groups.get(r);
+    if (g === undefined) groups.set(r, [c]);
+    else g.push(c);
+  }
+  return [...groups].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)).map(([root, cs]) => ({ root, changes: cs }));
 }
 
 /** One file of "Review All": its HEAD side (or none: new, or no repository), its current side (none: deleted). */

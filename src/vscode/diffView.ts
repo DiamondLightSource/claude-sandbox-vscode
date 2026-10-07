@@ -138,9 +138,11 @@ export class DiffEditors implements DiffPresenter, vscode.Disposable {
     const doc = vscode.workspace.textDocuments.find((d) => d.uri.toString() === e.data.right.toString());
     if (doc?.isDirty) await doc.save();
     const tabs = this.openTabs(id);
-    // preserveFocus: by default closing focuses the tab's group, which then empties and goes,
-    // leaving focus nowhere instead of in the Claude terminal
-    if (tabs.length) await vscode.window.tabGroups.close(tabs, true);
+    // Claude closing a diff in a group that is not active: preserve focus, or VS Code focuses
+    // that group, which then empties and goes, leaving focus nowhere. The user's own Accept or
+    // Reject in the diff (its group active): VS Code's default, which moves focus on to the
+    // group used before it (Claude's)
+    if (tabs.length) await vscode.window.tabGroups.close(tabs, !tabs.some((t) => t.group.isActive));
     else this.tabs.noTabs(id);
   }
 

@@ -3,7 +3,7 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import { describe, it } from "node:test";
-import { ChangeSet, entryKind, reviewPlan, SAVE_WINDOW_MS, splitByGit } from "../../src/changes.ts";
+import { ChangeSet, entryKind, groupByRoot, reviewPlan, SAVE_WINDOW_MS, splitByGit } from "../../src/changes.ts";
 
 const set = () => new ChangeSet({ roots: ["/w", "/v/"] });
 
@@ -118,8 +118,8 @@ describe("Review All (vscode.changes rows)", () => {
   });
 });
 
-describe("the list split by what git says now", () => {
-  it("folds only files git shows no change for; outside a repository stays listed", () => {
+describe("shown as Source Control shows it", () => {
+  it("only files git shows a change for; outside a repository all", () => {
     const s = set();
     s.event("changed", "/w/mod.py", 0); // git: modified
     s.event("changed", "/w/reverted.py", 0); // git: nothing (back as HEAD has it)
@@ -130,5 +130,26 @@ describe("the list split by what git says now", () => {
     assert.deepEqual(active.map((c) => c.path), ["/v/outside-repo.md", "/w/mod.py"]);
     assert.deepEqual(quiet.map((c) => c.path), ["/w/__pycache__/m.cpython-313.pyc", "/w/reverted.py"]);
     assert.deepEqual(splitByGit([], () => false), { active: [], quiet: [] });
+  });
+});
+
+describe("grouped by repository, as Source Control groups them", () => {
+  it("one group per root, roots sorted, files in list order", () => {
+    const s = set();
+    s.event("changed", "/w/b.py", 0);
+    s.event("changed", "/w/sub/repo2/x.ts", 0);
+    s.event("changed", "/w/a.py", 0);
+    s.event("changed", "/v/notes.md", 0);
+    const rootOf = (c: { path: string }): string => (c.path.startsWith("/w/sub/repo2/") ? "/w/sub/repo2" : c.path.startsWith("/w/") ? "/w" : "/v");
+    const groups = groupByRoot(s.list(), rootOf);
+    assert.deepEqual(
+      groups.map((g) => [g.root, g.changes.map((c) => c.path)]),
+      [
+        ["/v", ["/v/notes.md"]],
+        ["/w", ["/w/a.py", "/w/b.py"]],
+        ["/w/sub/repo2", ["/w/sub/repo2/x.ts"]],
+      ],
+    );
+    assert.deepEqual(groupByRoot([], rootOf), []);
   });
 });
