@@ -10,12 +10,16 @@ import {
   INSTALL_SCRIPT,
   installArgv,
   installState,
+  isPre,
   isShadow,
+  MIN_VERSION,
   outdated,
   parseVersionOutput,
   pypiLatest,
+  REQUIREMENT,
   SHADOW_MARK,
   SUDO,
+  tooOld,
   uvxCandidates,
 } from "../../src/install.ts";
 
@@ -56,9 +60,19 @@ describe("rule 10: the install offer", () => {
       fs.rmSync(d, { recursive: true, force: true });
     }
   });
-  it("the command is fixed: uvx --no-cache claude-sandbox@latest install, through sudo unless root", () => {
-    assert.deepEqual(installArgv(0, "/usr/bin/uvx"), ["/usr/bin/uvx", "--no-cache", "claude-sandbox@latest", "install"]);
-    assert.deepEqual(installArgv(1000, "/usr/bin/uvx"), [SUDO, "/usr/bin/uvx", "--no-cache", "claude-sandbox@latest", "install"]);
+  it("the command is fixed: uvx --no-cache --from 'claude-sandbox>=MIN' claude-sandbox install, through sudo unless root", () => {
+    const cmd = ["/usr/bin/uvx", "--no-cache", "--from", "claude-sandbox>=5.0.0b1", "claude-sandbox", "install"];
+    assert.deepEqual(installArgv(0, "/usr/bin/uvx"), cmd);
+    assert.deepEqual(installArgv(1000, "/usr/bin/uvx"), [SUDO, ...cmd]);
+    assert.equal(REQUIREMENT, `claude-sandbox>=${MIN_VERSION}`);
+    assert.equal(isPre(MIN_VERSION), true, "a pre-release floor, so uv allows betas");
+  });
+  it("a claude-sandbox older than MIN_VERSION is too old", () => {
+    assert.equal(tooOld("4.7.1"), true);
+    assert.equal(tooOld("4.8.0-beta.2"), true);
+    assert.equal(tooOld("5.0.0-beta.1"), false);
+    assert.equal(tooOld("5.0.0"), false);
+    assert.equal(tooOld("weird"), false, "unknown: not called too old");
   });
   it("uvx only from fixed places the jail cannot write, never PATH or ~/.local/bin", () => {
     assert.deepEqual(uvxCandidates("/home/me"), ["/usr/local/bin/uvx", "/usr/bin/uvx", "/home/me/.cargo/bin/uvx"]);
@@ -105,6 +119,21 @@ describe("the outdated notice", () => {
     assert.equal(pypiLatest({ info: { version: "5.0.1" } }), "5.0.1");
     assert.equal(pypiLatest(JSON.parse('{"__proto__": {"version": "9"}}')), null);
     assert.equal(pypiLatest({ info: { version: 5 } }), null);
+  });
+  it("a pre-release install is compared with the newest release, yanked ones left out", () => {
+    const f = [{ yanked: false }];
+    const json = {
+      info: { version: "4.7.1" },
+      releases: { "4.7.1": f, "5.0.0b1": f, "5.0.0b2": f, "5.0.0b3": [{ yanked: true }], "5.0.0b4": [], junk: f },
+    };
+    assert.equal(pypiLatest(json), "4.7.1", "stable install: info.version");
+    assert.equal(pypiLatest(json, true), "5.0.0b2");
+    assert.equal(pypiLatest({ info: { version: "5.1.0" }, releases: { "5.0.0b2": f } }, true), "5.1.0");
+    assert.equal(pypiLatest(JSON.parse('{"releases": {"__proto__": [{}]}}'), true), null);
+    assert.equal(isPre("5.0.0-beta.2"), true);
+    assert.equal(isPre("5.0.0.dev1"), true);
+    assert.equal(isPre("5.0.0"), false);
+    assert.equal(isPre("5.0.0.post1"), false);
   });
   it("compares PEP 440 and semver-style versions", () => {
     assert.equal(compareVersions("5.0.0-beta.2", "5.0.0b2"), 0);

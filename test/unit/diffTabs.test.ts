@@ -2,8 +2,25 @@ import assert from "node:assert/strict";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { describe, it } from "node:test";
-import { DiffTabs, diffIdOf, ORIGINAL_SCHEME, PROPOSAL_SCHEME } from "../../src/diffTabs.ts";
+import { DiffTabs, diffColumn, diffIdOf, ORIGINAL_SCHEME, PROPOSAL_SCHEME } from "../../src/diffTabs.ts";
 import type { Decision } from "../../src/mcp.ts";
+
+describe("diffColumn: never the Claude terminal's group", () => {
+  const g = (column: number, active: boolean, holdsClaude: boolean) => ({ column, active, holdsClaude });
+  it("opens beside when Claude's group is the only one", () => {
+    assert.equal(diffColumn([g(1, true, true)]), "beside");
+  });
+  it("opens in another group when Claude's is active", () => {
+    assert.equal(diffColumn([g(1, false, false), g(2, true, true)]), 1);
+  });
+  it("opens in the active group when it is not Claude's", () => {
+    assert.equal(diffColumn([g(1, false, true), g(2, false, false), g(3, true, false)]), 3);
+  });
+  it("leaves it to VS Code when no group holds Claude (a panel terminal)", () => {
+    assert.equal(diffColumn([g(1, true, false)]), undefined);
+    assert.equal(diffColumn([]), undefined);
+  });
+});
 
 function table(): { tabs: DiffTabs<{ n: number }>; said: [string, Decision][]; clock: { t: number } } {
   const said: [string, Decision][] = [];

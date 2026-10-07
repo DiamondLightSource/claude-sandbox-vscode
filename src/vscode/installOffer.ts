@@ -9,27 +9,37 @@ import {
   DAY_MS,
   DOCS_URL,
   findUvx,
+  INSTALL_HINT,
   INSTALL_SCRIPT,
   installArgv,
   installState,
+  isPre,
+  MIN_VERSION,
   outdated,
   parseVersionOutput,
   PYPI_URL,
   pypiLatest,
+  tooOld,
 } from "../install.ts";
 
 const LAST_CHECK = "claudeSandbox.lastVersionCheck";
 
-/** Offers the install if claude-sandbox is missing. True if it is installed. */
+/** Offers the install if claude-sandbox is missing or too old. True if it is installed. */
 export async function checkInstalled(log: (m: string) => void): Promise<boolean> {
   const st = installState();
   if (st.installed) return true;
-  log(`[install] ${st.why ?? "not installed"}`);
+  // an older claude-sandbox has its CLI but not the shim or interpreter installState wants
+  const have = await installedVersion();
+  const old = have !== null && tooOld(have);
+  const problem = old
+    ? `claude-sandbox ${have} is installed, but this extension needs ${MIN_VERSION} or later.`
+    : "claude-sandbox isn't installed in this container.";
+  log(`[install] ${old ? problem : (st.why ?? "not installed")}`);
   const uvx = findUvx();
   if (uvx === null) {
     const pick = await vscode.window.showWarningMessage(
-      "claude-sandbox isn't installed in this container, and uvx isn't in /usr/local/bin, /usr/bin or ~/.cargo/bin (the only places the install offer runs it from).",
-      { detail: `${st.why ?? ""}. Install claude-sandbox from a devcontainer terminal: uvx claude-sandbox@latest install` },
+      `${problem} uvx isn't in /usr/local/bin, /usr/bin or ~/.cargo/bin (the only places the install offer runs it from).`,
+      { detail: `${st.why ?? ""}. Install claude-sandbox from a devcontainer terminal: ${INSTALL_HINT}` },
       "How to install",
     );
     if (pick) void vscode.env.openExternal(vscode.Uri.parse(DOCS_URL));
@@ -37,7 +47,7 @@ export async function checkInstalled(log: (m: string) => void): Promise<boolean>
   }
   const argv = installArgv(process.getuid?.() ?? 0, uvx);
   const pick = await vscode.window.showWarningMessage(
-    "claude-sandbox isn't installed in this container.",
+    problem,
     { detail: `Install runs \`${argv.join(" ")}\` in a terminal.` },
     "Install",
     "About claude-sandbox",
@@ -62,7 +72,11 @@ export async function checkInstalled(log: (m: string) => void): Promise<boolean>
 
 function installedVersion(): Promise<string | null> {
   return new Promise((resolve) => {
-    execFile(CLAUDE_SANDBOX, ["version"], { timeout: 15_000, maxBuffer: 64 * 1024 }, (err, stdout) => {
+    // a fixed environment: the extension host's PATH and BASH_ENV come from devcontainer.json's
+    // remoteEnv, which the jail can edit, and an older claude-sandbox is a `#!/usr/bin/env bash`
+    // script
+    const env = { PATH: "/usr/local/bin:/usr/bin:/bin" };
+    execFile(CLAUDE_SANDBOX, ["version"], { env, timeout: 15_000, maxBuffer: 64 * 1024 }, (err, stdout) => {
       resolve(err ? null : parseVersionOutput(String(stdout)));
     });
   });
@@ -79,13 +93,14 @@ export async function checkOutdated(state: vscode.Memento, log: (m: string) => v
   try {
     const res = await fetch(PYPI_URL, { signal: AbortSignal.timeout(10_000), headers: { accept: "application/json" } });
     if (!res.ok) return;
-    latest = pypiLatest(await res.json());
+    // a pre-release install is compared with the newest release of any kind
+    latest = pypiLatest(await res.json(), isPre(have));
   } catch {
     return; // offline: silent
   }
   if (latest === null || !outdated(have, latest)) return;
   log(`[install] claude-sandbox ${have} installed, ${latest} on PyPI`);
   void vscode.window.showInformationMessage(
-    `claude-sandbox ${latest} is available (this container has ${have}). Update it in a devcontainer terminal with \`uvx claude-sandbox@latest install\` (sudo if not root).`,
+    `claude-sandbox ${latest} is available (this container has ${have}). Update it in a devcontainer terminal with \`${INSTALL_HINT}\` (sudo if not root).`,
   );
 }

@@ -23,7 +23,12 @@ export interface Change {
 
 /** A save by the user counts as theirs for this long after it. */
 export const SAVE_WINDOW_MS = 2000;
-export const CHANGES_MAX = 5000;
+/**
+ * The most files the list records: an install rewrites thousands (`npm ci`: ~8,500 under
+ * node_modules), so this is well above that; a full list first forgets what the view does not
+ * show (see ChangeSet.prune).
+ */
+export const CHANGES_MAX = 50_000;
 
 const SOCKET_RE = /^\.claude-sandbox-vscode-\d+\.sock$/;
 
@@ -92,6 +97,7 @@ export class ChangeSet {
         return null;
       } else if (before.kind === "deleted" && kind === "created") k = "changed";
     } else if (this.items.size >= CHANGES_MAX) {
+      this.dropped++;
       return null;
     }
     const c: Change = { path, kind: k, reviewed: false, at: now, symlink: k !== "deleted" && symlink };
@@ -101,6 +107,26 @@ export class ChangeSet {
 
   get(path: string): Change | undefined {
     return this.items.get(path);
+  }
+
+  /** New paths not recorded because the list was full (CHANGES_MAX). */
+  dropped = 0;
+
+  /**
+   * Makes room: forgets the entries `keep` rejects that last changed before `before` (ms).
+   * The view keeps what it shows (what git shows changed) and forgets the rest, e.g. an
+   * `npm ci`'s thousands of ignored `node_modules` files, so they cannot fill the list and
+   * crowd out real changes; a forgotten file comes back if it changes again. How many went.
+   */
+  prune(keep: (c: Change) => boolean, before: number): number {
+    let n = 0;
+    for (const [p, ch] of this.items) {
+      if (ch.at < before && !keep(ch)) {
+        this.items.delete(p);
+        n++;
+      }
+    }
+    return n;
   }
 
   markReviewed(path: string, reviewed = true): boolean {
@@ -131,12 +157,56 @@ export class ChangeSet {
   }
 }
 
+/**
+ * The list split by what git says now. `inGit(c)`: true when git shows the file changed
+ * (working tree, index, untracked, a merge, or a rename's old path), false when it shows
+ * nothing (the file matches HEAD again, or git ignores it: build output, `.pyc`), undefined
+ * outside any repository. The view shows `active` only, as Source Control does; so git state
+ * the session controls (a commit, `.gitignore`, `.git/info/exclude`, skip-worktree) can take
+ * a file out of the view, exactly as it takes it out of Source Control.
+ */
+export function splitByGit(changes: readonly Change[], inGit: (c: Change) => boolean | undefined): { active: Change[]; quiet: Change[] } {
+  const active: Change[] = [];
+  const quiet: Change[] = [];
+  for (const c of changes) (inGit(c) === false ? quiet : active).push(c);
+  return { active, quiet };
+}
+
+/** The files of one repository (or, outside any, one workspace folder) in the view. */
+export interface ChangeGroup {
+  /** The repository's root, or the folder's path. */
+  root: string;
+  changes: Change[];
+}
+
+/**
+ * The view's files grouped by `rootOf` (a file's repository root, else its workspace folder),
+ * as Source Control groups by repository: groups by root, files in their list order.
+ */
+export function groupByRoot(changes: readonly Change[], rootOf: (c: Change) => string): ChangeGroup[] {
+  const groups = new Map<string, Change[]>();
+  for (const c of changes) {
+    const r = rootOf(c);
+    const g = groups.get(r);
+    if (g === undefined) groups.set(r, [c]);
+    else g.push(c);
+  }
+  return [...groups].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)).map(([root, cs]) => ({ root, changes: cs }));
+}
+
 /** One file of "Review All": its HEAD side (or none: new, or no repository), its current side (none: deleted). */
 export interface ReviewRow {
   path: string;
   head: boolean;
   now: boolean;
 }
+
+/**
+ * Review All's title. VS Code's multi-file diff editor adds the count to it for the tab's label
+ * (MultiDiffEditorInput: "Claude changes (3 files)"), and shows the bare title until the
+ * resources resolve.
+ */
+export const REVIEW_TITLE = "Claude changes";
 
 /**
  * "Review All" (VS Code's multi-file diff editor, vscode.changes): a row per listed file,
@@ -156,5 +226,10 @@ export function reviewPlan(changes: readonly Change[], inHead: (c: Change) => bo
       if (head) rows.push({ path: c.path, head: true, now: false });
     } else rows.push({ path: c.path, head, now: true });
   }
-  return { rows, symlinks, title: `Claude changes (${rows.length} file${rows.length === 1 ? "" : "s"})` };
+  return { rows, symlinks, title: REVIEW_TITLE };
+}
+
+/** Whether a tab's label is Review All's: its title, then VS Code's " (N files)" (localised). */
+export function isReviewTitle(label: string): boolean {
+  return label === REVIEW_TITLE || label.startsWith(`${REVIEW_TITLE} (`);
 }

@@ -108,13 +108,31 @@ export function findUvx(candidates = uvxCandidates(), uid = process.getuid?.() ?
 }
 
 /**
- * The install command: `uvx --no-cache claude-sandbox@latest install`, through sudo unless we
- * are root. @latest: an unpinned uvx reuses an older cached tool environment. --no-cache: uv's
- * cache is in ~/.cache, which the jail can write.
+ * The oldest claude-sandbox this extension works with: the first with the `_shadow` shim and
+ * the root-owned interpreter in /usr/libexec that installState looks for.
+ */
+export const MIN_VERSION = "5.0.0b1";
+
+/** The requirement uvx installs; it names a pre-release, so uv allows betas for it. */
+export const REQUIREMENT = `claude-sandbox>=${MIN_VERSION}`;
+
+/** The install command for a person to type in a devcontainer terminal. */
+export const INSTALL_HINT = `uvx --from '${REQUIREMENT}' claude-sandbox install`;
+
+/**
+ * The install command: `uvx --no-cache --from 'claude-sandbox>=MIN' claude-sandbox install`,
+ * through sudo unless we are root. A requirement, not a bare name: an unpinned uvx reuses an
+ * older cached tool environment, and @latest never picks a pre-release (PyPI's latest stable
+ * may be older than MIN_VERSION). --no-cache: uv's cache is in ~/.cache, which the jail can write.
  */
 export function installArgv(uid: number, uvx: string): string[] {
-  const cmd = [uvx, "--no-cache", "claude-sandbox@latest", "install"];
+  const cmd = [uvx, "--no-cache", "--from", REQUIREMENT, "claude-sandbox", "install"];
   return uid === 0 ? cmd : [SUDO, ...cmd];
+}
+
+/** Whether a claude-sandbox version is too old for this extension (unknown: false). */
+export function tooOld(version: string): boolean {
+  return compareVersions(version, MIN_VERSION) === -1;
 }
 
 /** `claude-sandbox version`'s output → the version. */
@@ -123,10 +141,31 @@ export function parseVersionOutput(out: string): string | null {
   return m ? m[1]! : null;
 }
 
-/** PyPI's JSON → the latest version. */
-export function pypiLatest(json: unknown): string | null {
-  const v = own(own(json, "info"), "version");
-  return typeof v === "string" && isObj(json) ? v : null;
+/** Whether a version is a pre-release or a development release. */
+export function isPre(version: string): boolean {
+  const v = parseVersion(version);
+  return v !== null && (v.pre[0] !== 3 || v.dev !== Infinity);
+}
+
+/**
+ * PyPI's JSON → the latest version. PyPI's `info.version` is the latest stable; with `pre`
+ * (the installed version is a pre-release) it is the highest in `releases` that has a file
+ * not yanked.
+ */
+export function pypiLatest(json: unknown, pre = false): string | null {
+  if (!isObj(json)) return null;
+  const stable = own(own(json, "info"), "version");
+  let best = typeof stable === "string" && parseVersion(stable) !== null ? stable : null;
+  if (!pre) return best;
+  const releases = own(json, "releases");
+  if (!isObj(releases)) return best;
+  for (const v of Object.keys(releases)) {
+    const files = own(releases, v);
+    if (!Array.isArray(files) || !files.some((f) => isObj(f) && own(f, "yanked") !== true)) continue;
+    if (parseVersion(v) === null) continue;
+    if (best === null || compareVersions(v, best) === 1) best = v;
+  }
+  return best;
 }
 
 interface Version {

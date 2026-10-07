@@ -21,6 +21,27 @@ export function diffIdOf(uri: { scheme: string; path: string }): string | undefi
   return id === undefined || id === "" ? undefined : id;
 }
 
+/** An editor group as diffColumn sees it. */
+export interface Group {
+  column: number;
+  active: boolean;
+  /** It holds the Claude terminal's tab. */
+  holdsClaude: boolean;
+}
+
+/**
+ * Where a diff opens: never in the Claude terminal's group, where it would hide the terminal
+ * and, when it closes, leave focus nowhere. The active group if that is not Claude's, else
+ * another group, else "beside" (a new group). Undefined (VS Code's default) when no group
+ * holds Claude: its terminal is in the panel.
+ */
+export function diffColumn(groups: readonly Group[]): number | "beside" | undefined {
+  if (!groups.some((g) => g.holdsClaude)) return undefined;
+  const active = groups.find((g) => g.active);
+  if (active !== undefined && !active.holdsClaude) return active.column;
+  return groups.find((g) => !g.holdsClaude)?.column ?? "beside";
+}
+
 export type Phase = "open" | "closing";
 
 export interface Entry<T> {

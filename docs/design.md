@@ -14,7 +14,8 @@ the "IDE link" section of its `CLAUDE.md`, `IdeBridge` in `server.py`, and
 ## Scope
 
 The extension supports one setup: a devcontainer with claude-sandbox installed
-in it (`uvx claude-sandbox@latest install`), with VS Code attached from the host. The
+in it, version 5.0.0b1 or later
+(`uvx --from 'claude-sandbox>=5.0.0b1' claude-sandbox install`), with VS Code attached from the host. The
 extension runs in the devcontainer's remote extension host. Rootless Podman and
 the devcontainer are claude-sandbox prerequisites. claude-sandbox's standalone
 mode (the host launcher starting its own container) is not a target.
@@ -213,13 +214,17 @@ message as hostile. These rules are the security design; each has a test in
    (the extension host not reading the output, Claude not reading its keys)
    never stops the others, so keys and resizes still go through.
    Only two places start processes: the relay, and `claude-sandbox version`
-   by absolute path for the outdated notice.
+   by absolute path, with a fixed `PATH` and nothing else in its environment,
+   for the outdated notice and the "too old" message.
 10. **Install offer.** Nothing runs without the user's click. The command is
-    fixed in the extension (`uvx --no-cache claude-sandbox@latest install`,
+    fixed in the extension (`uvx --no-cache --from 'claude-sandbox>=5.0.0b1'
+    claude-sandbox install`,
     prefixed with `/usr/bin/sudo` when not uid 0), run in a visible terminal as
     `/bin/sh -c <constant script> sh <argv...>` (the command as positional
-    parameters, never shell text). `@latest`: an unpinned `uvx` reuses an older
-    cached tool. `--no-cache`: uv's cache is under `~/.cache`, which claude-sandbox
+    parameters, never shell text). A requirement, not a bare name: an unpinned
+    `uvx` reuses an older cached tool, and `@latest` never picks a pre-release,
+    while PyPI's latest stable (4.7.1) predates the shim and interpreter the
+    extension needs. The floor names a pre-release, so uv allows betas for it. `--no-cache`: uv's cache is under `~/.cache`, which claude-sandbox
     binds read-write into the jail. uvx is taken only from fixed paths:
     `/usr/local/bin/uvx`, `/usr/bin/uvx` (the jail sees `/` read-only) and the
     user's `~/.cargo/bin/uvx` (home from the password database, not `$HOME`;
@@ -254,7 +259,11 @@ message as hostile. These rules are the security design; each has a test in
     description "symlink" and never opened as a diff, alone or in Review All,
     so a link the jail planted to a file outside the workspace is not shown.
     VS Code's diff editor reads the files; the built-in Git extension runs git.
-    There is no revert action: that would be the host writing into the
+    Like Source Control, it shows only files the Git extension reports a
+    change for, so git state the session controls (a commit, `.gitignore`,
+    `.git/info/exclude`, skip-worktree) can take a file out of the view just
+    as it takes it out of Source Control; the view is a convenience over git
+    state, not an audit. There is no revert action: that would be the host writing into the
     jail-writable workspace (Source Control's Discard is the way back).
 
 ## Out of scope (residual risk)
@@ -320,9 +329,9 @@ client on the real socket, with the real token, attacking).
 | 5 selection_changed | `test/unit/mcp.test.ts` "rule 5"; `test/unit/selection.test.ts` (select in a.py, focus the terminal: still a.py; a file outside the workspace clears it; a cursor in b.py sends b.py's position) |
 | 6 Terminal input | `test/unit/paste.test.ts` (the paste primitive); `test/unit/screen.test.ts` (the VT model: text, wrap, cursor moves, ED/EL/ECH, the scroll region, wide characters, the alternate screen, cursor visibility, ignored sequences, caps); `test/unit/prompt.test.ts` (the screen read at points of real Claude Code 2.1.292 sessions, `test/fixtures/claude-2.1.292.json`: the box, typed and multi-row input, `/permissions`, `/model`, `/ide`, `/help`, the trust and MCP questions, working, vim INSERT and NORMAL, a resumed transcript holding model-drawn fake boxes; any chunking; the review's spoof bytes, `test/fixtures/review-spoofs.json`, alone and over a real menu; fake boxes at column 0; resizes; 50 MB in small chunks within a time budget); `test/unit/session.test.ts` (selection → ping → one paste → Enter; refused in a menu, with a diff waiting, while working; a menu that appears during the ping or before the Enter; waiting for a starting session, and giving up; typed fallback; keys held; Mention via `at_mentioned` or typed only into the box); `test/unit/mcp.test.ts` "the ping barrier", "at_mentioned"; `test/hostile/audit.test.ts` "terminals" (no `sendText`, the session's terminal is a Pseudoterminal running CLAUDE) |
 | 9 The pty relay | `test/unit/pty.test.ts` (argv constant but for size and arguments; the pty is the controlling terminal at the given size with no fd of ours; arguments are words; keys and UTF-8; SIGWINCH on resize, bad resize lines ignored; Ctrl-C and exit status; output before exit kept; kill hangs up; a slow reader of the output holds up neither keys nor resizes (fails on the old blocking relay); a flood of redraws with input bursts, resizes, a stalling host and a throwing output handler at once; a missing program is 127, a missing interpreter is explained; writes coalesced per 16 ms, a throwing sink reported); `test/hostile/audit.test.ts` "child_process only in the pty relay and the version check" |
-| 10 Install offer | `test/unit/install.test.ts` (the shim, CLI and interpreter recognised, read without blocking on a FIFO; the fixed command with `--no-cache` and `@latest`, and sudo; uvx only from the fixed paths, not a symlink out of them, not writable by others, not owned by another user; the terminal script runs its arguments as words; version parsing and comparison; PyPI JSON read as own keys); `test/hostile/audit.test.ts` "terminals" |
+| 10 Install offer | `test/unit/install.test.ts` (the shim, CLI and interpreter recognised, read without blocking on a FIFO; the fixed command with `--no-cache` and the `>=5.0.0b1` requirement, and sudo; older than the minimum is too old; uvx only from the fixed paths, not a symlink out of them, not writable by others, not owned by another user; the terminal script runs its arguments as words; version parsing and comparison; PyPI JSON read as own keys); `test/hostile/audit.test.ts` "terminals" |
 | 11 Settings | `test/unit/manifest.test.ts` (every setting `scope: application`; the code reads no other setting of ours and no other extension's, `files.watcherExclude` included; keybindings on the `Ctrl+Alt+C` chord only); `test/unit/settings.test.ts` "reviewEdits" (the ask list merged and deduplicated, theirs kept, `__proto__` a plain key) |
-| 12 Changes view | `test/unit/changes.test.ts` (only workspace files, not a `.git` segment or sockets, no settings patterns; any path decided in linear time; lstat: a symlink listed as one, a folder and a missing path told apart; the user's saves skipped; kinds; reviewed until changed again; Review All's rows: HEAD vs now, new against nothing, deleted HEAD vs nothing, symlinks left out); `test/hostile/audit.test.ts` "rule 3" (no write API; `workspace.fs` only for `stat`) |
+| 12 Changes view | `test/unit/changes.test.ts` (only workspace files, not a `.git` segment or sockets, no settings patterns; any path decided in linear time; lstat: a symlink listed as one, a folder and a missing path told apart; the user's saves skipped; kinds; reviewed until changed again; Review All's rows: HEAD vs now, new against nothing, deleted HEAD vs nothing, symlinks left out; `splitByGit`: only what git shows changed, outside a repository all); `test/hostile/audit.test.ts` "rule 3" (no write API; `workspace.fs` only for `stat`) |
 | 7 Lock files and sockets | `test/hostile/hook.test.ts` (the hook run for real with socat, in a workspace whose name tries to break out of the command; idempotent, one socat; another's lock left alone and not removed at SessionEnd; no lock when socat never listens; the matchers; silent on stderr when the lock folder cannot be made), "SessionEnd removes only a lock that is ours, byte for byte" (trailing newline, NUL, prefix, suffix kept; a FIFO at the lock path neither blocks nor is removed; a symlink and its target left; a huge file); `test/unit/settings.test.ts` "hook commands"; `test/hostile/audit.test.ts` "rule 7" (every fs path recorded during a session; none under the config folder); `test/hostile/link.test.ts` "rule 7: the socket name" |
 | 8 Parser and connection limits | `test/unit/websocket.test.ts`; `test/hostile/link.test.ts` "rule 8" (0600, deflate refused, tokens, 4 handshakes, slow handshake, 1009, 1002, one linked session (the `/ide` behaviour above recorded by hand with Claude Code 2.1.292), a client that stops reading (backpressure), the 32 MiB cap, pings, a slow reader not dropped while paused); `test/unit/mcp.test.ts` "connections", "rule 8" and "the largest answer (FILE_SAVED) always fits under the output cap" (`PROPOSAL_MAX` derived from `MAX_QUEUED`, a worst-case proposal and id, a larger proposal or accepted text), `test/unit/settings.test.ts` (`__proto__`); `test/unit/log.test.ts` |
 
@@ -401,14 +410,17 @@ protect.
 On startup (`onStartupFinished`), if `/usr/local/bin/claude` is not
 claude-sandbox's shim (its text names `…/venv/bin/python -I -m claude_sandbox
 _shadow`) or `/usr/local/bin/claude-sandbox` is missing, a notification says
-"claude-sandbox isn't installed in this container" and offers **Install**,
-which opens a visible terminal running `uvx --no-cache claude-sandbox@latest
-install` (with sudo when not root; uvx only from the fixed paths of rule 10).
+"claude-sandbox isn't installed in this container" (or, when
+`claude-sandbox version` reports one older than 5.0.0b1, that it needs 5.0.0b1
+or later) and offers **Install**, which opens a visible terminal running
+`uvx --no-cache --from 'claude-sandbox>=5.0.0b1' claude-sandbox install` (with sudo when not root; uvx only from the fixed paths of rule 10).
 Without uvx it links to the claude-sandbox docs instead. Start checks the same
 (the interpreter too) and offers the same; a relay that cannot start because
 the interpreter is missing says so on the terminal, not just "exited 127". Once a day at most, `claude-sandbox
-version` is compared with PyPI's latest; a newer one gets a notice naming
-`uvx claude-sandbox@latest install`, never an upgrade.
+version` is compared with PyPI's latest (its latest stable, or for a
+pre-release install the newest release that is not yanked); a newer one gets a
+notice naming `uvx --from 'claude-sandbox>=5.0.0b1' claude-sandbox install`,
+never an upgrade.
 
 ## Presets
 
@@ -417,7 +429,9 @@ Tighten, **My presets…** (from `claudeSandbox.presets`, a list of
 `{title, prompt}` in user settings), **Ask about selection…** (an input box)
 and **Mention in Claude**. Keybindings share one chord prefix,
 `Ctrl+Alt+C`: Start `Ctrl+Alt+C Ctrl+Alt+C`, then a letter for Explain `E`,
-Reword `R`, Tighten `T`, My presets `P`, Ask `A`, Mention `M`, Review All `V`.
+Reword `R`, Tighten `T`, My presets `P`, Ask `A`, Mention `M`, Review All `V`
+(Next and Previous Change take `F8` and `Shift+F8`, scoped to Review All: see
+the Claude Changes view).
 The earlier single `Ctrl+Alt+<letter>` keys collided with VS Code's own
 (`Ctrl+Alt+I` is Open Chat on Linux and Windows); VS Code binds nothing to
 `Ctrl+Alt+C` on Linux or Windows (Copy Path is `Ctrl+Shift+Alt+C` /
@@ -445,13 +459,41 @@ list is reset at each Start and kept after the session ends. A click opens VS
 Code's diff against HEAD through the built-in Git extension's API (`getAPI(1)`,
 `toGitUri(uri, 'HEAD')`, `vscode.diff`); a file HEAD lacks (untracked or added)
 opens as itself; a deleted one is HEAD against empty; a symlink is listed
-("symlink") and not opened. **Mark as reviewed** (inline) ticks a file until it
+("symlink") and not opened. As in Source Control, a file is shown only while
+the Git extension reports a change for it (working tree, index, untracked, a
+merge, or a rename's old path): one put back as HEAD has it, ignored, or
+committed drops out, and comes back if it changes again. Files outside any
+repository are always shown. The list records at most 50,000 files (an `npm ci` rewrites
+thousands under `node_modules`); when full it first forgets files the view does
+not show that changed at least 5 s ago (a forgotten file returns if it changes
+again), and if still full says how many later changes it did not record. When the shown files span more than one
+repository (or, outside any, workspace folder) they are grouped under one
+node per root, as Source Control groups by repository; with one root the
+files are listed directly. Each repository's status is followed
+(`state.onDidChange`, keyed by `rootUri`) from the first time it is looked
+at, until the next Start. **Mark as reviewed** (inline) ticks a file until it
 changes again; the view's badge and the status bar count the rest.
 **Review All Changes** (the view's title bar, the palette, `Ctrl+Alt+C V`)
 opens every listed file in VS Code's multi-file diff editor:
-`vscode.changes` with title "Claude changes (N files)" and one
+`vscode.changes` with title "Claude changes" (VS Code adds " (N files)" for
+the tab), in place of a Review All tab already open (each `vscode.changes` is a
+new editor, so it would otherwise open beside it), and one
 `[resource, HEAD, now]` row per file, a missing side `undefined` (VS Code shows
 a new file as added, a deleted one as deleted); symlinks left out. No host git
 command runs; VS Code reads the contents.
+**Next Change** and **Previous Change** (the view's title bar, the palette)
+run VS Code's own `multiDiffEditor.goToNextChange` / `goToPreviousChange`
+(VS Code 1.106+, where they are also the multi-file diff editor's own arrows
+and `Alt+F5` / `Shift+Alt+F5`), which step through the active multi-file diff
+editor's changes and on into the next or previous file. When Review All is not
+the active editor (its tab's label is not "Claude changes", alone or followed
+by VS Code's count) they open it instead, at the top; the next step goes to its
+first change. They take `F8` and `Shift+F8`, VS Code's next and previous
+problem, only where stepping through changes is what the user is doing: with
+Review All active or the Changes view focused. Review All active is the
+`claudeSandbox.reviewing` context key, from the active tab's label, set only
+when VS Code has the commands (`getCommands` at activation), so on 1.105 `F8`
+in Review All still goes to problems. These are the only keys outside the
+`Ctrl+Alt+C` prefix.
 `claudeSandbox.autoOpenDiffs` (off by default) opens each change's diff as a
 preview. Grouping by prompt is a later addition.

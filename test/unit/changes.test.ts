@@ -3,7 +3,7 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import { describe, it } from "node:test";
-import { ChangeSet, entryKind, reviewPlan, SAVE_WINDOW_MS } from "../../src/changes.ts";
+import { CHANGES_MAX, ChangeSet, entryKind, groupByRoot, isReviewTitle, reviewPlan, SAVE_WINDOW_MS, splitByGit } from "../../src/changes.ts";
 
 const set = () => new ChangeSet({ roots: ["/w", "/v/"] });
 
@@ -113,7 +113,66 @@ describe("Review All (vscode.changes rows)", () => {
       { path: "/w/new.py", head: false, now: true },
     ]);
     assert.equal(plan.symlinks, 1);
-    assert.equal(plan.title, "Claude changes (4 files)");
-    assert.equal(reviewPlan([], () => true).title, "Claude changes (0 files)");
+    assert.equal(plan.title, "Claude changes", "VS Code adds the count");
+  });
+  it("Review All's tab is told apart by its label: the title, then VS Code's count", () => {
+    // VS Code's MultiDiffEditorInput names the tab "<title> (N files)" / "<title> (1 file)",
+    // localised, and shows the bare title until the resources resolve
+    const title = reviewPlan([], () => true).title;
+    for (const t of [title, `${title} (4 files)`, `${title} (1 file)`, `${title} (4 Dateien)`]) assert.ok(isReviewTitle(t), t);
+    for (const t of ["Changes", "Claude changes.md", "My Claude changes (4 files)", "mod.py (HEAD ↔ now)"]) assert.ok(!isReviewTitle(t), t);
+  });
+});
+
+describe("shown as Source Control shows it", () => {
+  it("only files git shows a change for; outside a repository all", () => {
+    const s = set();
+    s.event("changed", "/w/mod.py", 0); // git: modified
+    s.event("changed", "/w/reverted.py", 0); // git: nothing (back as HEAD has it)
+    s.event("created", "/w/__pycache__/m.cpython-313.pyc", 0); // git: nothing (ignored)
+    s.event("changed", "/v/outside-repo.md", 0); // no repository
+    const git: Record<string, boolean | undefined> = { "/w/mod.py": true, "/w/reverted.py": false, "/w/__pycache__/m.cpython-313.pyc": false };
+    const { active, quiet } = splitByGit(s.list(), (c) => git[c.path]);
+    assert.deepEqual(active.map((c) => c.path), ["/v/outside-repo.md", "/w/mod.py"]);
+    assert.deepEqual(quiet.map((c) => c.path), ["/w/__pycache__/m.cpython-313.pyc", "/w/reverted.py"]);
+    assert.deepEqual(splitByGit([], () => false), { active: [], quiet: [] });
+  });
+});
+
+describe("grouped by repository, as Source Control groups them", () => {
+  it("one group per root, roots sorted, files in list order", () => {
+    const s = set();
+    s.event("changed", "/w/b.py", 0);
+    s.event("changed", "/w/sub/repo2/x.ts", 0);
+    s.event("changed", "/w/a.py", 0);
+    s.event("changed", "/v/notes.md", 0);
+    const rootOf = (c: { path: string }): string => (c.path.startsWith("/w/sub/repo2/") ? "/w/sub/repo2" : c.path.startsWith("/w/") ? "/w" : "/v");
+    const groups = groupByRoot(s.list(), rootOf);
+    assert.deepEqual(
+      groups.map((g) => [g.root, g.changes.map((c) => c.path)]),
+      [
+        ["/v", ["/v/notes.md"]],
+        ["/w", ["/w/a.py", "/w/b.py"]],
+        ["/w/sub/repo2", ["/w/sub/repo2/x.ts"]],
+      ],
+    );
+    assert.deepEqual(groupByRoot([], rootOf), []);
+  });
+});
+
+describe("a full list", () => {
+  it("counts what it drops; pruning forgets only old entries the view does not keep", () => {
+    const s = set();
+    for (let i = 0; i < CHANGES_MAX; i++) s.event("created", `/w/node_modules/p${i}.js`, 0);
+    s.event("changed", "/w/real.py", 0);
+    assert.equal(s.size, CHANGES_MAX);
+    assert.equal(s.dropped, 1, "a new path past the limit is counted, not silently lost");
+    s.event("changed", "/w/node_modules/p1.js", 10); // already listed: still updated
+    assert.equal(s.get("/w/node_modules/p1.js")!.at, 10);
+    // the view keeps p0 (git shows it changed); p1 changed too recently to judge
+    const gone = s.prune((c) => c.path === "/w/node_modules/p0.js", 5);
+    assert.equal(gone, CHANGES_MAX - 2);
+    assert.deepEqual(s.list().map((c) => c.path), ["/w/node_modules/p0.js", "/w/node_modules/p1.js"]);
+    assert.ok(s.event("changed", "/w/real.py", 20), "room again for real changes");
   });
 });
