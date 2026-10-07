@@ -11,7 +11,11 @@
 
 import * as path from "node:path";
 import * as vscode from "vscode";
-import { ChangeSet, entryKind as entry, reviewPlan, type Change, type Entry } from "../changes.ts";
+import { ChangeSet, entryKind as entry, reviewPlan, splitByGit, type Change, type Entry } from "../changes.ts";
+
+/** The collapsed group of listed files git shows no change for now. */
+const QUIET = { quiet: true } as const;
+type Node = Change | typeof QUIET;
 
 const EMPTY_SCHEME = "claude-sandbox-empty";
 const AUTO_OPEN_MS = 400;
@@ -28,6 +32,8 @@ interface GitRepository {
     readonly workingTreeChanges: readonly GitChange[];
     readonly indexChanges: readonly GitChange[];
     readonly untrackedChanges?: readonly GitChange[];
+    readonly mergeChanges?: readonly GitChange[];
+    readonly onDidChange: vscode.Event<void>;
   };
 }
 interface GitApi {
@@ -55,11 +61,14 @@ async function gitApi(): Promise<GitApi | null> {
   }
 }
 
-export class ChangesView implements vscode.TreeDataProvider<Change>, vscode.Disposable {
+export class ChangesView implements vscode.TreeDataProvider<Node>, vscode.Disposable {
   private set: ChangeSet = new ChangeSet({ roots: [] });
-  private readonly emitter = new vscode.EventEmitter<Change | undefined>();
+  private readonly emitter = new vscode.EventEmitter<Node | undefined>();
   readonly onDidChangeTreeData = this.emitter.event;
-  private readonly view: vscode.TreeView<Change>;
+  private readonly view: vscode.TreeView<Node>;
+  /** The Git extension's API once loaded, and the repositories whose status we follow. */
+  private git: GitApi | null = null;
+  private readonly repos = new Map<GitRepository, vscode.Disposable>();
   private readonly subs: vscode.Disposable[] = [];
   private watching: vscode.Disposable[] = [];
   private readonly autoTimers = new Map<string, NodeJS.Timeout>();
@@ -103,7 +112,35 @@ export class ChangesView implements vscode.TreeDataProvider<Change>, vscode.Disp
       vscode.workspace.onDidSaveTextDocument(saved),
     ];
     void vscode.commands.executeCommand("setContext", "claudeSandbox.watching", true);
+    void gitApi().then((g) => {
+      this.git = g;
+      this.refresh();
+    });
     this.refresh();
+  }
+
+  /** The repository a path is in, its status followed from then on (the groups redraw with it). */
+  private repoOf(p: string): GitRepository | null {
+    const repo = this.git?.getRepository(vscode.Uri.file(p)) ?? null;
+    if (repo !== null && !this.repos.has(repo)) this.repos.set(repo, repo.state.onDidChange(() => this.refreshSoon()));
+    return repo;
+  }
+
+  /** Listed files git shows a change for now (or outside any repository), and the rest. */
+  private split(): { active: Change[]; quiet: Change[] } {
+    const changed = new Map<GitRepository, Set<string>>();
+    return splitByGit(this.set.list(), (c) => {
+      const repo = this.git === null ? null : this.repoOf(c.path);
+      if (repo === null) return undefined;
+      let paths = changed.get(repo);
+      if (paths === undefined) {
+        const s = repo.state;
+        const all = [...s.workingTreeChanges, ...s.indexChanges, ...(s.untrackedChanges ?? []), ...(s.mergeChanges ?? [])];
+        paths = new Set(all.map((x) => x.uri.fsPath));
+        changed.set(repo, paths);
+      }
+      return paths.has(c.path);
+    });
   }
 
   /** The session ended: the list stays for review, nothing more is recorded. */
@@ -152,14 +189,15 @@ export class ChangesView implements vscode.TreeDataProvider<Change>, vscode.Disp
     if (this.refreshTimer) clearTimeout(this.refreshTimer);
     this.refreshTimer = undefined;
     this.emitter.fire(undefined);
-    const n = this.set.unreviewed;
+    const n = this.unreviewed;
     this.view.badge = n > 0 ? { value: n, tooltip: `${n} changed file${n === 1 ? "" : "s"} not reviewed` } : undefined;
     this.view.message = this.set.size === 0 && this.watching.length > 0 ? "No files have changed yet this session." : "";
     this.onCount(n);
   }
 
+  /** Unreviewed files git shows a change for (the folded group is not counted). */
   get unreviewed(): number {
-    return this.set.unreviewed;
+    return this.split().active.filter((c) => !c.reviewed).length;
   }
 
   /** HEAD's side of a change: HEAD, or empty for a file HEAD lacks (untracked or added). */
@@ -213,7 +251,8 @@ export class ChangesView implements vscode.TreeDataProvider<Change>, vscode.Disp
    */
   async reviewAll(): Promise<void> {
     const git = await gitApi();
-    const list = this.set.list();
+    // the folded group is left out: git shows nothing to review in it
+    const list = this.split().active;
     for (const c of list) if (c.kind !== "deleted") await this.check(c); // a symlink now is marked
     const repoOf = (c: Change): GitRepository | null => git?.getRepository(vscode.Uri.file(c.path)) ?? null;
     const plan = reviewPlan(list, (c) => {
@@ -235,11 +274,24 @@ export class ChangesView implements vscode.TreeDataProvider<Change>, vscode.Disp
 
   // -- TreeDataProvider
 
-  getChildren(element?: Change): Change[] {
-    return element === undefined ? this.set.list() : [];
+  getChildren(element?: Node): Node[] {
+    if (element === undefined) {
+      const { active, quiet } = this.split();
+      return quiet.length > 0 ? [...active, QUIET] : active;
+    }
+    return element === QUIET ? this.split().quiet : [];
   }
 
-  getTreeItem(c: Change): vscode.TreeItem {
+  getTreeItem(n: Node): vscode.TreeItem {
+    if ("quiet" in n) {
+      const count = this.split().quiet.length;
+      const item = new vscode.TreeItem(`No change in git (${count})`, vscode.TreeItemCollapsibleState.Collapsed);
+      item.iconPath = new vscode.ThemeIcon("eye-closed");
+      item.tooltip = "Changed this session, but git shows no change now: back as HEAD has them, or ignored by git. Left out of Review All.";
+      item.contextValue = "quiet";
+      return item;
+    }
+    const c = n;
     const uri = vscode.Uri.file(c.path);
     const item = new vscode.TreeItem(uri, vscode.TreeItemCollapsibleState.None);
     const folder = vscode.workspace.getWorkspaceFolder(uri);
@@ -259,6 +311,8 @@ export class ChangesView implements vscode.TreeDataProvider<Change>, vscode.Disp
 
   dispose(): void {
     this.stop();
+    this.repos.forEach((d) => d.dispose());
+    this.repos.clear();
     if (this.refreshTimer) clearTimeout(this.refreshTimer);
     this.subs.forEach((s) => s.dispose());
   }

@@ -3,7 +3,7 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import { describe, it } from "node:test";
-import { ChangeSet, entryKind, reviewPlan, SAVE_WINDOW_MS } from "../../src/changes.ts";
+import { ChangeSet, entryKind, reviewPlan, SAVE_WINDOW_MS, splitByGit } from "../../src/changes.ts";
 
 const set = () => new ChangeSet({ roots: ["/w", "/v/"] });
 
@@ -115,5 +115,20 @@ describe("Review All (vscode.changes rows)", () => {
     assert.equal(plan.symlinks, 1);
     assert.equal(plan.title, "Claude changes (4 files)");
     assert.equal(reviewPlan([], () => true).title, "Claude changes (0 files)");
+  });
+});
+
+describe("the list split by what git says now", () => {
+  it("folds only files git shows no change for; outside a repository stays listed", () => {
+    const s = set();
+    s.event("changed", "/w/mod.py", 0); // git: modified
+    s.event("changed", "/w/reverted.py", 0); // git: nothing (back as HEAD has it)
+    s.event("created", "/w/__pycache__/m.cpython-313.pyc", 0); // git: nothing (ignored)
+    s.event("changed", "/v/outside-repo.md", 0); // no repository
+    const git: Record<string, boolean | undefined> = { "/w/mod.py": true, "/w/reverted.py": false, "/w/__pycache__/m.cpython-313.pyc": false };
+    const { active, quiet } = splitByGit(s.list(), (c) => git[c.path]);
+    assert.deepEqual(active.map((c) => c.path), ["/v/outside-repo.md", "/w/mod.py"]);
+    assert.deepEqual(quiet.map((c) => c.path), ["/w/__pycache__/m.cpython-313.pyc", "/w/reverted.py"]);
+    assert.deepEqual(splitByGit([], () => false), { active: [], quiet: [] });
   });
 });

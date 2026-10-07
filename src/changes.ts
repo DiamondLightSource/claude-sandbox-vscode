@@ -131,6 +131,21 @@ export class ChangeSet {
   }
 }
 
+/**
+ * The list split by what git says now. `inGit(c)`: true when git shows the file changed
+ * (working tree, index, untracked or a merge), false when it shows nothing (the file matches
+ * HEAD again, or git ignores it: build output, `.pyc`), undefined outside any repository.
+ * Only false goes to `quiet`, which the view folds into one collapsed group: still listed, so
+ * a `.gitignore` the session edits cannot hide a file from the list, only fold it (and the
+ * `.gitignore` itself is then a change).
+ */
+export function splitByGit(changes: readonly Change[], inGit: (c: Change) => boolean | undefined): { active: Change[]; quiet: Change[] } {
+  const active: Change[] = [];
+  const quiet: Change[] = [];
+  for (const c of changes) (inGit(c) === false ? quiet : active).push(c);
+  return { active, quiet };
+}
+
 /** One file of "Review All": its HEAD side (or none: new, or no repository), its current side (none: deleted). */
 export interface ReviewRow {
   path: string;
