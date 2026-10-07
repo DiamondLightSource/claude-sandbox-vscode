@@ -5,7 +5,7 @@
 // jail. What each event means (closing the tab is a rejection...) is src/diffTabs.ts.
 
 import * as vscode from "vscode";
-import { DiffTabs, diffIdOf, ORIGINAL_SCHEME, PROPOSAL_SCHEME, type Entry } from "../diffTabs.ts";
+import { DiffTabs, diffColumn, diffIdOf, ORIGINAL_SCHEME, PROPOSAL_SCHEME, type Entry } from "../diffTabs.ts";
 import type { Decision, DiffPresenter, DiffView } from "../mcp.ts";
 
 interface Shown {
@@ -62,8 +62,12 @@ export class DiffEditors implements DiffPresenter, vscode.Disposable {
   private readonly tabs: DiffTabs<Shown>;
   private readonly subs: vscode.Disposable[] = [];
 
-  constructor(decide: (id: string, d: Decision) => boolean) {
+  private readonly claudeName: () => string | undefined;
+
+  /** `claudeName`: the Claude terminal's current name (its tab's label), if one is running. */
+  constructor(decide: (id: string, d: Decision) => boolean, claudeName: () => string | undefined = () => undefined) {
     this.tabs = new DiffTabs<Shown>(decide);
+    this.claudeName = claudeName;
     this.subs.push(
       vscode.workspace.registerFileSystemProvider(PROPOSAL_SCHEME, new ProposalFs(this.tabs), { isCaseSensitive: true }),
       vscode.workspace.registerTextDocumentContentProvider(ORIGINAL_SCHEME, {
@@ -99,8 +103,27 @@ export class DiffEditors implements DiffPresenter, vscode.Disposable {
     this.tabs.add(view.id, { view, left, right, proposal: new TextEncoder().encode(view.proposed) });
     const title = `${view.title}${view.exists ? "" : " (new file)"}`;
     // focus stays in the Claude terminal: Enter there answers Claude's prompt; in the diff it
-    // would have typed a newline into the proposal
-    void vscode.commands.executeCommand("vscode.diff", left, right, title, { preview: false, preserveFocus: true });
+    // would have typed a newline into the proposal. The terminal's own group is avoided so
+    // the diff neither hides it nor, closing, takes focus with it.
+    const column = this.column();
+    void vscode.commands.executeCommand("vscode.diff", left, right, title, {
+      preview: false,
+      preserveFocus: true,
+      ...(column === undefined ? {} : { viewColumn: column === "beside" ? vscode.ViewColumn.Beside : column }),
+    });
+  }
+
+  private column(): number | "beside" | undefined {
+    const name = this.claudeName();
+    const all = vscode.window.tabGroups.all;
+    const active = vscode.window.tabGroups.activeTabGroup;
+    return diffColumn(
+      all.map((g) => ({
+        column: g.viewColumn,
+        active: g === active,
+        holdsClaude: name !== undefined && g.tabs.some((t) => t.input instanceof vscode.TabInputTerminal && t.label === name),
+      })),
+    );
   }
 
   /** The bridge closes it: no answer. */
@@ -115,7 +138,9 @@ export class DiffEditors implements DiffPresenter, vscode.Disposable {
     const doc = vscode.workspace.textDocuments.find((d) => d.uri.toString() === e.data.right.toString());
     if (doc?.isDirty) await doc.save();
     const tabs = this.openTabs(id);
-    if (tabs.length) await vscode.window.tabGroups.close(tabs);
+    // preserveFocus: by default closing focuses the tab's group, which then empties and goes,
+    // leaving focus nowhere instead of in the Claude terminal
+    if (tabs.length) await vscode.window.tabGroups.close(tabs, true);
     else this.tabs.noTabs(id);
   }
 

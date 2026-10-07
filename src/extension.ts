@@ -48,7 +48,10 @@ export function activate(context: vscode.ExtensionContext): void {
     showState();
   };
   showState();
-  const diffs = new DiffEditors((id, d) => link?.bridge.decide(id, d) ?? false);
+  const diffs = new DiffEditors(
+    (id, d) => link?.bridge.decide(id, d) ?? false,
+    () => claude?.terminal.name,
+  );
 
   const folders = (): string[] =>
     (vscode.workspace.workspaceFolders ?? []).filter((f) => f.uri.scheme === "file").map((f) => f.uri.fsPath);
