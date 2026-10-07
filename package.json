@@ -164,7 +164,7 @@
         },
         "claudeSandbox.reviewEdits": {
           "type": "boolean",
-          "default": true,
+          "default": false,
           "scope": "application",
           "markdownDescription": "Make Claude Code ask before every `Edit`, `Write` and `NotebookEdit`, in auto mode too, so each such edit opens here as a diff to accept or reject. Edits made through the shell (`sed -i`, `echo > file`) are not caught: the **Changed this session** view lists them. User settings only."
         }

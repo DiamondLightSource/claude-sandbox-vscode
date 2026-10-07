@@ -59,8 +59,8 @@ server).
    opened. The count
    is on the view and in the status bar. There is no revert button: use
    Source Control's Discard.
-5. **Reviewing edits.** With `claudeSandbox.reviewEdits` (on by default)
-   Claude asks before every `Edit`, `Write` and `NotebookEdit`, in auto mode
+5. **Reviewing edits.** With `claudeSandbox.reviewEdits` on (it is off by
+   default) Claude asks before every `Edit`, `Write` and `NotebookEdit`, in auto mode
    too, and each such edit opens here as a diff to accept or reject. Edits
    made through the shell (`sed -i`, `echo > file`, a script) are **not**
    caught: no prompt, no diff. The Changed this session view lists them.
@@ -73,7 +73,7 @@ Settings (user settings only; a workspace cannot set them):
   "prompt": "Summarise the selection in one paragraph."}]`.
 - `claudeSandbox.autoOpenDiffs`: open each change's diff as it happens (off).
 - `claudeSandbox.reviewEdits`: make Claude ask before file-edit tools, so
-  each edit is shown as a diff (on).
+  each edit is shown as a diff (off).
 
 **Claude Sandbox: Copy launch command (advanced)** copies a
 `claude --settings '…'` that links a Claude you start by hand in a
