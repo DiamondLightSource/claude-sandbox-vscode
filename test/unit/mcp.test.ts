@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { afterEach, beforeEach, describe, it } from "node:test";
-import { Bridge, DIFFS_MAX, ENVELOPE_MAX, ID_MAX, JSON_ESCAPE_MAX, PROPOSAL_MAX, RESEND_MS, TOOLS } from "../../src/mcp.ts";
+import { Bridge, DIFFS_MAX, PING_PREFIX, ENVELOPE_MAX, ID_MAX, JSON_ESCAPE_MAX, PROPOSAL_MAX, RESEND_MS, TOOLS } from "../../src/mcp.ts";
 import { HIGH_WATER, MAX_QUEUED } from "../../src/websocket.ts";
 import { Workspace } from "../../src/paths.ts";
 import { IDE_CONNECTED, INITIALIZE, INITIALIZED, TOOLS_LIST, openDiff, texts, toolCall } from "../helpers/client.ts";
@@ -286,6 +286,47 @@ describe("rule 5: selection_changed", () => {
     const zero = { line: 0, character: 0 };
     assert.deepEqual(peer.notes("selection_changed").slice(1), [{ text: "", selection: { start: zero, end: zero, isEmpty: true } }]);
     assert.doesNotMatch(JSON.stringify(peer.sent), new RegExp(SECRET));
+  });
+});
+
+describe("rule 6: the ping barrier an ask waits on", () => {
+  it("resolves true on Claude's answer to that id, in order after the selection", async () => {
+    const { peer, send } = ready();
+    bridge.select(target, { line: 1, character: 0 }, { line: 2, character: 0 }, "hello world\n");
+    const p = bridge.ping(1000);
+    const req = peer.sent.at(-1)!;
+    assert.equal(req.method, "ping");
+    assert.match(String(req.id), new RegExp(`^${PING_PREFIX}`));
+    const order = peer.sent.map((m) => m.method);
+    assert.ok(order.lastIndexOf("selection_changed") < order.lastIndexOf("ping"));
+    send({ jsonrpc: "2.0", id: "other", result: {} }); // not ours: ignored
+    send({ jsonrpc: "2.0", id: req.id, result: {} });
+    assert.equal(await p, true);
+  });
+  it("false with no answer in time, an error answer, a lost connection, or no session", async () => {
+    assert.equal(await bridge.ping(10), false, "no session");
+    const { peer, send, conn } = ready();
+    assert.equal(await bridge.ping(20), false, "no answer");
+    const p = bridge.ping(1000);
+    send({ jsonrpc: "2.0", id: peer.sent.at(-1)!.id, error: { code: -1, message: "no" } });
+    assert.equal(await p, false, "an error");
+    const q = bridge.ping(5000);
+    bridge.detach(conn);
+    assert.equal(await q, false, "detached");
+  });
+});
+
+describe("rule 5: at_mentioned", () => {
+  it("only for workspace files, with 0-based lines, never Enter", () => {
+    assert.equal(bridge.mention(target), false, "no session");
+    fs.mkdirSync(path.join(t.ws, ".git"));
+    fs.writeFileSync(path.join(t.ws, ".git", "config"), "");
+    const { peer } = ready();
+    assert.equal(bridge.mention(target, { start: 1, end: 2 }), true);
+    assert.equal(bridge.mention(target), true);
+    assert.equal(bridge.mention(t.secret), false);
+    assert.equal(bridge.mention(path.join(t.ws, ".git", "config")), false);
+    assert.deepEqual(peer.notes("at_mentioned"), [{ filePath: target, lineStart: 1, lineEnd: 2 }, { filePath: target }]);
   });
 });
 

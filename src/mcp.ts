@@ -44,6 +44,10 @@ export const PROPOSAL_MAX = Math.floor((MAX_QUEUED - HIGH_WATER - ENVELOPE_MAX) 
 export const PROTOCOLS = ["2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05", "2024-10-07"];
 export const DIFFS_MAX = 16;
 export const RESEND_MS = 500;
+/** How long an ask waits for Claude to answer its ping. */
+export const PING_MS = 2000;
+/** Our request ids (pings), never a number: Claude's own requests to us use numbers. */
+export const PING_PREFIX = "csv-ping-";
 
 export const INSTRUCTIONS =
   "You are attached to VS Code through claude-sandbox-vscode. When the user has text selected " +
@@ -197,6 +201,8 @@ export class Bridge {
   private readonly diffs = new Map<string, Waiting>();
   private selection: Selection | null = null;
   private nextDiff = 1;
+  private nextPing = 1;
+  private readonly pings = new Map<string, { conn: Conn; done: (ok: boolean) => void }>();
   private readonly salt = Math.random().toString(16).slice(2, 10);
   state: LinkState = "waiting";
 
@@ -245,6 +251,7 @@ export class Bridge {
   detach(conn: Conn): void {
     if (this.conn !== conn) return;
     this.conn = null;
+    this.endPings(conn);
     this.forget(conn);
     if (this.state === "connected") this.setState("waiting");
     this.o.logger.info("[ide] Claude Code disconnected");
@@ -267,6 +274,7 @@ export class Bridge {
     this.o.onState?.("off");
     const conn = this.conn;
     this.conn = null;
+    if (conn !== null) this.endPings(conn);
     for (const d of [...this.diffs.values()]) {
       this.diffs.delete(d.id);
       this.o.presenter.close(d.id);
@@ -296,7 +304,12 @@ export class Bridge {
     const method = own(msg, "method");
     const hasId = Object.prototype.hasOwnProperty.call(msg, "id");
     const rid = own(msg, "id");
-    if (method === undefined) return; // an answer to a request of ours: we send none yet
+    if (method === undefined) {
+      // an answer to a request of ours: only pings are sent, under ids of our own
+      const ping = typeof rid === "string" ? this.pings.get(rid) : undefined;
+      if (ping !== undefined && ping.conn === conn) ping.done(own(msg, "result") !== undefined);
+      return;
+    }
     if (typeof method !== "string") {
       if (hasId) this.sendTo(conn, rpcError(validId(rid) ? rid : null, -32600, "invalid request"));
       return;
@@ -510,6 +523,48 @@ export class Bridge {
     this.selection = params;
     const conn = this.live();
     if (conn) this.sendTo(conn, notify("selection_changed", params));
+  }
+
+  /**
+   * Ping Claude and wait for its answer: it answers in order, so it has then handled everything
+   * sent before (the selection an ask relies on). False if no session is linked or it does not
+   * answer within `ms`.
+   */
+  ping(ms = PING_MS): Promise<boolean> {
+    const conn = this.live();
+    if (conn === null) return Promise.resolve(false);
+    const id = `${PING_PREFIX}${this.salt}-${this.nextPing++}`;
+    return new Promise<boolean>((resolve) => {
+      const done = (ok: boolean): void => {
+        clearTimeout(timer);
+        this.pings.delete(id);
+        resolve(ok);
+      };
+      const timer = setTimeout(() => done(false), ms);
+      this.pings.set(id, { conn, done });
+      if (!this.sendTo(conn, { jsonrpc: "2.0", id, method: "ping" })) done(false);
+    });
+  }
+
+  private endPings(conn: Conn): void {
+    for (const p of [...this.pings.values()]) if (p.conn === conn) p.done(false);
+  }
+
+  /**
+   * Put an @-mention of a workspace file (and lines, 0-based, inclusive) into Claude's prompt:
+   * at_mentioned, never Enter. Only for a file inside a workspace folder (not .git); false
+   * otherwise, or when no session is linked.
+   */
+  mention(fsPath: string, lines?: { start: number; end: number }): boolean {
+    const r = this.o.workspace.resolve(fsPath);
+    const conn = this.live();
+    if (!r.ok || conn === null) return false;
+    const params: Msg = { filePath: fsPath };
+    if (lines !== undefined) {
+      params.lineStart = lines.start;
+      params.lineEnd = lines.end;
+    }
+    return this.sendTo(conn, notify("at_mentioned", params));
   }
 
   clearSelection(): boolean {

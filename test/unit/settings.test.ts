@@ -13,6 +13,7 @@ import {
   shellQuote,
   socatPath,
   START_MATCHER,
+  withReviewEdits,
   withSettings,
 } from "../../src/settings.ts";
 
@@ -109,6 +110,37 @@ describe("merging into the user's --settings", () => {
     assert.equal(agentSettings(["x"]), null);
     assert.deepEqual(agentSettings(["x", "--settings", '{"a":1}']), { start: 1, end: 3, value: { a: 1 } });
     assert.equal(agentSettings(["x", "--settings=[1]"])?.value, null);
+  });
+  it("reviewEdits: permissions.ask gains Edit, Write, NotebookEdit (not MultiEdit); theirs kept, no repeats", () => {
+    const review = withReviewEdits(ours);
+    assert.equal(ours.permissions, undefined, "ours is not changed");
+    assert.deepEqual(JSON.parse(JSON.stringify(mergeSettings(null, review))).permissions, { ask: ["Edit", "Write", "NotebookEdit"] });
+    const theirs = { permissions: { allow: ["Bash(ls:*)"], ask: ["Bash(rm:*)", "Write"], defaultMode: "auto" } };
+    const merged = JSON.parse(JSON.stringify(mergeSettings(theirs, review)));
+    assert.deepEqual(merged.permissions, {
+      allow: ["Bash(ls:*)"],
+      ask: ["Bash(rm:*)", "Write", "Edit", "NotebookEdit"],
+      defaultMode: "auto",
+    });
+    assert.deepEqual(theirs.permissions.ask, ["Bash(rm:*)", "Write"], "their object is not changed");
+    assert.ok(!JSON.stringify(merged).includes("MultiEdit"));
+    // not an array, or not an object: replaced by ours
+    assert.deepEqual(JSON.parse(JSON.stringify(mergeSettings({ permissions: { ask: "Edit" } }, review))).permissions, { ask: ["Edit", "Write", "NotebookEdit"] });
+    assert.deepEqual(JSON.parse(JSON.stringify(mergeSettings({ permissions: 3 }, review))).permissions, {
+      ask: ["Edit", "Write", "NotebookEdit"],
+    });
+    // without reviewEdits their permissions pass through untouched
+    assert.deepEqual(JSON.parse(JSON.stringify(mergeSettings(theirs, ours))).permissions, theirs.permissions);
+    // and through withSettings
+    const argv = withSettings(["claude", "--settings", JSON.stringify(theirs)], review);
+    assert.deepEqual(JSON.parse(argv[2]!).permissions.ask, ["Bash(rm:*)", "Write", "Edit", "NotebookEdit"]);
+  });
+  it("reviewEdits: a __proto__ in their permissions stays a plain key", () => {
+    const merged = mergeSettings(JSON.parse('{"permissions": {"__proto__": {"polluted": 1}, "ask": ["X"]}}'), withReviewEdits(ours));
+    assert.equal(({} as Record<string, unknown>).polluted, undefined);
+    const out = JSON.parse(JSON.stringify(merged));
+    assert.ok(Object.hasOwn(out.permissions, "__proto__"));
+    assert.deepEqual(out.permissions.ask, ["X", "Edit", "Write", "NotebookEdit"]);
   });
   it("__proto__ and constructor in the user's JSON stay plain keys and pollute nothing", () => {
     const evil = '{"__proto__": {"polluted": 1}, "constructor": {"prototype": {"polluted": 2}}, "env": {"__proto__": {"polluted": 3}}, "hooks": {"__proto__": []}}';

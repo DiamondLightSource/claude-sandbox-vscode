@@ -1,0 +1,30 @@
+{
+ "note": "The prompt-state spoofs from the security review of PR 3 (review-sec2/probe-prompt.ts), byte for byte. Each made the old last-glyph-wins reader say \"input\"; read from the screen they must not.",
+ "cases": [
+  {
+   "name": "1 a permission menu",
+   "chunks": [
+    "Do you want to proceed?\r\n❯ 1. Yes\r\n  2. No\r\n"
+   ]
+  },
+  {
+   "name": "2 the menu, then a fake input-box glyph after it",
+   "chunks": [
+    "Do you want to proceed?\r\n❯ 1. Yes\r\n  2. No\r\n",
+    "\r\n\u001b[2m(a harmless looking line)\u001b[0m\r\n❯ "
+   ]
+  },
+  {
+   "name": "3 one print: a menu glyph, then the input-box form",
+   "chunks": [
+    "❯ 1. Approve running rm -rf?\r\nsome scrollback\r\n❯ type here"
+   ]
+  },
+  {
+   "name": "4 the input-box form last, no busy hint",
+   "chunks": [
+    "❯ 1. Yes\r\n❯ "
+   ]
+  }
+ ]
+}

@@ -1,0 +1,837 @@
+{
+"claude": "2.1.292",
+"note": "Claude Code's output through a pty, captured by hand (scratch folders; no model prompts but the two noted in vim-and-working); paths and names replaced with same-length placeholders. Each capture: [seconds, output] chunks as read.",
+"captures": {
+"menus": {
+"cols": 100,
+"rows": 30,
+"inputs": [
+[
+10.009,
+"\u001b[B"
+],
+[
+12.009,
+"\u001b[A"
+],
+[
+14.011,
+"\r"
+],
+[
+22.016,
+"/permissions"
+],
+[
+23.518,
+"\r"
+],
+[
+26.521,
+"\u001b"
+],
+[
+28.522,
+"/model"
+],
+[
+30.024,
+"\r"
+],
+[
+33.027,
+"\u001b"
+],
+[
+35.028,
+"/ide"
+],
+[
+36.529,
+"\r"
+],
+[
+39.532,
+"\u001b"
+],
+[
+41.533,
+"/help"
+],
+[
+43.034,
+"\r"
+],
+[
+46.037,
+"\u001b"
+],
+[
+48.038,
+"/vim"
+],
+[
+49.539,
+"\r"
+],
+[
+51.541,
+"\u001b"
+],
+[
+53.543,
+"i"
+],
+[
+55.545,
+"hello world"
+],
+[
+57.546,
+"\u0015"
+],
+[
+58.546,
+"/vim"
+]
+],
+"chunks": [
+[
+0.308,
+"\u001b7\u001b[r\u001b8\u001b[?25h"
+],
+[
+0.335,
+"\u001b[?25l"
+],
+[
+0.335,
+"\u001b[?2004h\u001b[?2031h\u001b[?1004h"
+],
+[
+0.344,
+"\u001b[>0q\u001b[?u"
+],
+[
+0.344,
+"\u001b[c"
+],
+[
+0.566,
+"\u001b[>4m\u001b[<u\u001b[?1004l\u001b[?2031l\u001b[?2004l"
+],
+[
+0.685,
+"\u001b[?2004h\u001b[?2031h\u001b[?1004h"
+],
+[
+0.696,
+"\u001b]0;✳ Claude Code\u0007"
+],
+[
+0.726,
+"\u001b[?1049h\u001b[2J\u001b[H\u001b[?1000h\u001b[?1002h\u001b[?1003h\u001b[?1006h\u001b[?25l\u001b[H\r\u001b[1B\u001b[38;5;174m ▐\u001b[48;5;16m▛███▛█\u001b[12G\u001b[39m\u001b[49m\u001b[1mClaude Code\u001b[24G\u001b[22m\u001b[38;5;246mv2.1.292\r\u001b[1B\u001b[38;5;174m▝▜\u001b[48;5;16m█████\u001b[49m█▀\u001b[12G\u001b[38;5;246mOpus 5.5 · Claude Max\r\u001b[1B\u001b[38;5;174m ▝▝   ▝▝ \u001b[12G\u001b[38;5;246m/…/00000000-0000-4000-8000-000000000000/scratchpad/cap/d1 · \u001b[38;5;220m/rc connecting…\r\u001b[80C\u001b[20B\u001b[38;5;246m◐ medium · /effort\r\u001b[1B\u001b[38;5;244m────────────────────────────────────────────────────────────────────────────────────────────────────\r\u001b[1B\u001b[39m❯ \u001b[2mTry \"write a test for <filepath>\"\r\u001b[1B\u001b[22m\u001b[38;5;244m────────────────────────────────────────────────────────────────────────────────────────────────────\r\u001b[2C\u001b[1B\u001b[38;5;220m⚠ Transcript saving is off — inherited CLAUDE_CODE_CHILD_SESSION marker\u001b[38;5;246m · restart with CLAUDE_C…\r\u001b[2C\u001b[2B\u001b[38;5;220m⏵⏵ auto mode on\u001b[38;5;246m (shift+tab to cycle)\u001b[39m\u001b[30;1H\u001b[26;3H\u001b[?25h"
+],
+[
+0.831,
+"\u001b[>0q\u001b[?u\u001b[c"
+],
+[
+0.883,
+"\u001b[?25l\u001b[H\r\u001b[2C\u001b[28B\u001b[35mhost:devcontainer-000000\u001b[38;5;246m  \u001b[36mOpus 5.5 · medium\u001b[38;5;246m  \u001b[2mctx:new\u001b[22m  \u001b[33m/tmp/claude-0/-home-user0-code-claude-san…\u001b[39m\u001b[30;1H\u001b[26;3H\u001b[?25h"
+],
+[
+1.54,
+"\u001b[?25l\u001b[H\r\u001b[71C\u001b[3B\u001b]8;id=xxxxxxx;https://claude.ai/code/session_000000000000000000000000?from=cli\u0007\u001b[38;5;114m/rc\u001b[39m\u001b]8;;\u0007\u001b[K\u001b[30;1H\u001b[26;3H\u001b[?25h"
+],
+[
+10.009,
+"\u001b(B\u000f\u001b[?2004h\u001b[?1000h\u001b[?1002h\u001b[?1003h\u001b[?1006h"
+],
+[
+10.704,
+"\u001b[?25l\u001b[H\r\u001b[80C\u001b[23B\u001b[K\u001b[30;1H\u001b[26;3H\u001b[?25h"
+],
+[
+22.017,
+"\u001b(B\u000f\u001b[?2004h\u001b[?1000h\u001b[?1002h\u001b[?1003h\u001b[?1006h"
+],
+[
+22.044,
+"\u001b[?25l\u001b[H\r\u001b[2C\u001b[19B\u001b[38;5;153m❯ /\u001b[1mpermissions\u001b[22m                     Manage allow and deny tool permission rules\r\u001b[2C\u001b[1B\u001b[38;5;246m  /fewer-\u001b[39m\u001b[1mpermission\u001b[22m\u001b[38;5;246m-prompt\u001b[39m\u001b[1ms\u001b[22m\u001b[38;5;246m        Scan your transcripts for common read-only Bash and MCP tool\r\u001b[37C\u001b[1Bcalls, then add a prioritized allowlist to project .claude/s…\r\u001b[2C\u001b[1B  /update-config                   Use this skill to configure the Claude Code harness via\r\u001b[37C\u001b[1Bsettings.json. Automated behaviors (\"from now on when X\", \"e…\r\u001b[2C\u001b[2B\u001b[38;5;153m/permissions\u001b[39m\u001b[K\u001b[30;1H\u001b[26;15H\u001b[?25h"
+],
+[
+23.542,
+"\u001b[?25l\u001b[H\r\u001b[17B\u001b[38;5;153m▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔\r\u001b[3C\u001b[1B\u001b[1mPermissions\u001b[17G\u001b[22m\u001b[39mRecently\u001b[26Gdenied\u001b[34G\u001b[48;5;153m\u001b[38;5;16m\u001b[1m Allow \u001b[43G\u001b[22m\u001b[39m\u001b[49mAsk\u001b[49GDeny\u001b[56GAuto\u001b[61Gmode\u001b[68GWorkspace\r\u001b[2C\u001b[1B\u001b[K\r\u001b[2C\u001b[1B Claude Code won't ask before using allowed tools.\u001b[K\r\u001b[3C\u001b[1B\u001b[2m╭───────────────────────────────────────────────╮\u001b[22m\u001b[K\r\u001b[2C\u001b[1B \u001b[2m│\u001b[22m \u001b[38;5;246m⌕ Search…\u001b[39m                                     \u001b[2m│\u001b[22m\u001b[K\r\u001b[3C\u001b[1B\u001b[2m╰───────────────────────────────────────────────╯\u001b[22m\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B     \u001b[38;5;246m1. \u001b[39mAdd a new\u001b[19Grule…\r\u001b[1B     \u001b[38;5;246m2. \u001b[39mmcp__server-xx\u001b[K\r\u001b[2C\u001b[1B   \u001b[38;5;246m3. \u001b[39mRead(//data/x/**)\u001b[K\r\u001b[2C\u001b[1B\u001b[K\r\u001b[2C\u001b[1B \u001b[38;5;246m←/→ to switch · ↓ to selec\u001b[31G · Esc to cancel\u001b[39m\u001b[30;1H\u001b[19;35H"
+],
+[
+26.59,
+"\u001b[H\r\u001b[17B\u001b[K\r\u001b[3C\u001b[1B\u001b[K\r\u001b[3C\u001b[2B\u001b[K\r\u001b[3C\u001b[1B\u001b[K\r\u001b[3C\u001b[1B\u001b[K\r\u001b[3C\u001b[1B                                                 \u001b[81G\u001b[38;5;246m◐ medium · /effort\r\u001b[1B\u001b[38;5;244m────────────────────────────────────────────────────────────────────────────────────────────────────\r\u001b[1B\u001b[39m❯ \u001b[6G\u001b[K\r\u001b[1B\u001b[38;5;244m────────────────────────────────────────────────────────────────────────────────────────────────────\r\u001b[2C\u001b[1B\u001b[38;5;220m⚠ Transcript saving is off — inherited CLAUDE_CODE_CHILD_SESSION marker\u001b[38;5;246m · restart with CLAUDE_C…\r\u001b[2C\u001b[1B\u001b[35mhost:devcontainer-000000\u001b[38;5;246m  \u001b[36mOpus 5.5 · medium\u001b[38;5;246m  \u001b[2mctx:new\u001b[22m  \u001b[33m/tmp/claude-0/-home-user0-code-claude-san…\r\u001b[2C\u001b[1B\u001b[38;5;220m⏵⏵ auto mode on\u001b[38;5;246m (shift+tab \u001b[31Go cycle)\u001b[39m\u001b[K\u001b[30;1H\u001b[26;3H\u001b[?25h"
+],
+[
+28.538,
+"\u001b[?25l\u001b[H\r\u001b[2C\u001b[19B\u001b[38;5;153m❯ /\u001b[1mmodel\u001b[22m                           Set the AI \u001b[1mmodel\u001b[22m for Claude Code (currently Opus 5.5)\r\u001b[2C\u001b[1B\u001b[38;5;246m  /auto-mode-setup                 Teach auto mode about your environment, plus optional rule\r\u001b[37C\u001b[1Btweaks\r\u001b[2C\u001b[1B  /code-review                     3 free /ultrareview · Review the current diff, or a PR\r\u001b[37C\u001b[1Bnumber/branch/path target, for correctness bugs (plus\u001b[92Gr\u001b[94Guse/…\r\u001b[2C\u001b[2B\u001b[38;5;153m/model\u001b[39m\u001b[30;1H\u001b[26;9H\u001b[?25h"
+],
+[
+30.046,
+"\u001b[?25l\u001b[H\r\u001b[13B\u001b[38;5;153m▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔\u001b[81G\u001b[38;5;246m◐ medium · /effort\u001b[38;5;153m ▔\r\u001b[3C\u001b[1B\u001b[1mSelect model\r\u001b[3C\u001b[1B\u001b[22m\u001b[38;5;246mSwitch between Claude models. Your pick becomes the default for new sessions. For \r\u001b[3C\u001b[1Bother/previous model names, specify with --model.\r\u001b[5C\u001b[2B1.  \u001b[39mDefault\u001b[18G(recommended)\u001b[33G\u001b[38;5;174mOpus 5.5\u001b[38;5;246m · Best for everyday, complex tasks\r\u001b[2C\u001b[1B\u001b[39m \u001b[38;5;153m❯\u001b[39m \u001b[38;5;246m2.  \u001b[38;5;114mOpus 5.5\u001b[39m \u001b[38;5;114m✔\u001b[39m             \u001b[38;5;246mFor complex work and everyday tasks\u001b[39m\u001b[K\r\u001b[2C\u001b[1B   \u001b[38;5;246m3.  \u001b[39mFable 5.1              \u001b[38;5;246mFor\u001b[37Gyour toughest challenges\u001b[39m\u001b[K\r\u001b[5C\u001b[1B\u001b[38;5;246m4.  \u001b[39mSonnet\u001b[17G5.5\u001b[33G\u001b[38;5;246mMost efficient for simpler tasks\r\u001b[2C\u001b[1B\u001b[39m \u001b[38;5;246m↓\u001b[39m \u001b[38;5;246m5.  \u001b[39mHaiku 4.5              \u001b[38;5;246mFastest for\u001b[45Gq\u001b[47Gick answ\u001b[56Grs\u001b[39m\u001b[K\r\u001b[6C\u001b[1B\u001b[38;5;246m… +7 models\u001b[38G\u001b[39m\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B   \u001b[38;5;174m◐\u001b[38;5;246m Medium effort (default)\u001b[38;5;239m ←/→ to adjust\r\u001b[1B\u001b[39m\u001b[K\r\u001b[2C\u001b[1B \u001b[38;5;246mUse \u001b[1m/fast\u001b[22m to turn on Fast mode (Opus 5.5).\u001b[39m\u001b[K\r\u001b[2C\u001b[1B\u001b[K\r\u001b[2C\u001b[1B \u001b[38;5;246mEnter to set as defaul\u001b[27G ·\u001b[30Gs to us\u001b[38G this session only · Esc to cancel\u001b[39m\u001b[30;1H\u001b[20;4H"
+],
+[
+33.153,
+"\u001b[H\r\u001b[6B\u001b[48;5;237m\u001b[38;5;246m❯\u001b[39m \u001b[38;5;231m/model\u001b[39m \r\u001b[1B\u001b[49m\u001b[38;5;246m  ⎿  \u001b[39mKept\u001b[11Gmodel\u001b[17Gas\u001b[20G\u001b[38;5;153mOpus 5.5\r\u001b[6B\u001b[39m\u001b[K\r\u001b[3C\u001b[1B\u001b[K\r\u001b[3C\u001b[1B\u001b[K\r\u001b[3C\u001b[1B\u001b[K\r\u001b[5C\u001b[2B\u001b[K\r\u001b[3C\u001b[1B\u001b[K\r\u001b[5C\u001b[1B\u001b[K\r\u001b[5C\u001b[1B\u001b[K\r\u001b[3C\u001b[1B\u001b[K\r\u001b[6C\u001b[1B           \u001b[81G\u001b[38;5;246m◐ medium · /effort\r\u001b[1B\u001b[38;5;244m────────────────────────────────────────────────────────────────────────────────────────────────────\r\u001b[1B\u001b[39m❯ \u001b[4G\u001b[K\r\u001b[1B\u001b[38;5;244m────────────────────────────────────────────────────────────────────────────────────────────────────\r\u001b[2C\u001b[1B\u001b[38;5;220m⚠ Transcript saving is off — inherited CLAUDE_CODE_CHILD_SESSION marker\u001b[38;5;246m · restart with CLAUDE_C…\r\u001b[2C\u001b[1B\u001b[35mhost:devcontainer-000000\u001b[38;5;246m  \u001b[36mOpus 5.5 · medium\u001b[38;5;246m  \u001b[2mctx:new\u001b[22m  \u001b[33m/tmp/claude-0/-home-user0-code-claude-san…\r\u001b[2C\u001b[1B\u001b[38;5;220m⏵⏵ auto mode on\u001b[38;5;246m (shift+\u001b[27Gab\u001b[30Gto cycl\u001b[38G)\u001b[39m\u001b[K\u001b[30;1H\u001b[26;3H\u001b[?25h"
+],
+[
+35.043,
+"\u001b[?25l\u001b[H\r\u001b[2C\u001b[20B\u001b[38;5;153m❯ /\u001b[1mide\u001b[22m                             Manage \u001b[1mIDE\u001b[22m integrations and show status\r\u001b[2C\u001b[1B\u001b[38;5;246m  /sl\u001b[39m\u001b[1mide\u001b[22m\u001b[38;5;246ms                          Make a new Sl\u001b[39m\u001b[1mide\u001b[22m\u001b[38;5;246ms deck artifact from a brief\r\u001b[2C\u001b[1B  /vscode-workspace-title-colors   Apply one plain-English colour to both active and inactive VS\r\u001b[37C\u001b[1BCode title-bar backgrounds in a .code-workspac\u001b[85G file.\u001b[92GUse wh…\r\u001b[2C\u001b[2B\u001b[38;5;153m/ide\u001b[39m\u001b[30;1H\u001b[26;7H\u001b[?25h"
+],
+[
+36.543,
+"\u001b]0;◐ Claude Code\u0007"
+],
+[
+36.546,
+"\u001b[?25l\u001b[H\r\u001b[9B\u001b[48;5;237m\u001b[38;5;246m❯ \u001b[38;5;231m/ide\u001b[39m                                                                                              \r\u001b[2C\u001b[11B\u001b[49m\u001b[K\r\u001b[1B\u001b[38;5;174m·\u001b[3GZigzagging… \u001b[39m\u001b[K\r\u001b[1B\u001b[38;5;246m  ⎿\u001b[5G Tip: Run /install-slack-app to\u001b[37Guse Claud\u001b[48Gin Slack\u001b[39m\u001b[K\r\u001b[37C\u001b[1B                                           \u001b[38;5;246m◐ m\u001b[85Gdium ·\u001b[92G/effort\r\u001b[2B❯ \u001b[39m\u001b[K\u001b[30;1H\u001b[26;3H\u001b[?25h"
+],
+[
+36.554,
+"\u001b]0;✳ Claude Code\u0007"
+],
+[
+36.559,
+"\u001b[?25l\u001b[H\r\u001b[9B\u001b[K\r\u001b[12B\u001b[K\r\u001b[1B\u001b[38;5;153m▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔\u001b[81G\u001b[38;5;246m◐ medium · /effort\u001b[38;5;153m ▔\r\u001b[3C\u001b[1B\u001b[38;5;74m\u001b[1mSelect IDE\u001b[81G\u001b[22m\u001b[39m\u001b[K\r\u001b[1B   \u001b[38;5;246mConnect to an IDE for integrated development features.\u001b[39m\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B   \u001b[38;5;246mNo available IDEs detected. Make sure your IDE has the Claude Code extension or plugin \u001b[39m\u001b[K\r\u001b[2C\u001b[1B \u001b[38;5;246minstalled and is running.\u001b[39m\u001b[K\r\u001b[2C\u001b[1B\u001b[K\r\u001b[2C\u001b[1B \u001b[38;5;246m\u001b[3mEnter to confirm · Esc to cancel\u001b[23m\u001b[39m\u001b[K\u001b[30;1H"
+],
+[
+39.612,
+"\u001b[H\r\u001b[9B\u001b[48;5;237m\u001b[38;5;246m❯\u001b[39m \u001b[38;5;231m/ide\u001b[39m \r\u001b[1B\u001b[49m\u001b[38;5;246m  ⎿  \u001b[39mIDE\u001b[10Gselection\u001b[20Gcancelled\r\u001b[12B\u001b[K\r\u001b[3C\u001b[1B          \u001b[81G\u001b[38;5;246m◐ medium · /effort\r\u001b[1B\u001b[38;5;244m────────────────────────────────────────────────────────────────────────────────────────────────────\r\u001b[1B\u001b[39m❯ \r\u001b[1B\u001b[38;5;244m────────────────────────────────────────────────────────────────────────────────────────────────────\r\u001b[2C\u001b[1B\u001b[38;5;220m⚠ Transcript saving is off — inherited CLAUDE_CODE_CHILD_SESSION marker\u001b[38;5;246m · restart with CLAUDE_C…\r\u001b[2C\u001b[1B\u001b[35mhost:devcontainer-000000\u001b[38;5;246m  \u001b[36mOpus 5.5 · medium\u001b[38;5;246m  \u001b[2mctx:new\u001b[22m  \u001b[33m/tmp/claude-0/-home-user0-code-claude-san…\r\u001b[2C\u001b[1B\u001b[38;5;220m⏵⏵ auto mode on\u001b[38;5;246m (shift+tab to cycle)\u001b[39m\u001b[30;1H\u001b[26;3H\u001b[?25h"
+],
+[
+41.546,
+"\u001b[?25l\u001b[H\r\u001b[2C\u001b[19B\u001b[38;5;153m❯ /\u001b[1mhelp\u001b[22m                            Show \u001b[1mhelp\u001b[22m and available commands\r\u001b[2C\u001b[1B\u001b[38;5;246m  /debug                           Enable debug logging for this session and \u001b[39m\u001b[1mhelp\u001b[22m\u001b[38;5;246m diagnose\r\u001b[37C\u001b[1Bissues\r\u001b[2C\u001b[1B  /team-onboarding                 \u001b[39m\u001b[1mHelp\u001b[22m\u001b[38;5;246m teammates ramp on Claude Code with a guide from your\r\u001b[37C\u001b[1Busage\u001b[81G\u001b[39m\u001b[K\r\u001b[2C\u001b[2B\u001b[38;5;153m/help\u001b[39m\u001b[30;1H\u001b[26;8H\u001b[?25h"
+],
+[
+43.049,
+"\u001b[?25l\u001b[H\r\u001b[12B\u001b[38;5;153m▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔\u001b[81G\u001b[38;5;246m◐ medium · /effort\u001b[38;5;153m ▔\r\u001b[3C\u001b[1B\u001b[38;5;110m\u001b[1mHelp\u001b[9G\u001b[48;5;110m\u001b[38;5;16m General \u001b[20G\u001b[22m\u001b[39m\u001b[49mCommands\u001b[31GCustom\u001b[38Gcommands\r\u001b[3C\u001b[2BClaude\u001b[11Gunderstands\u001b[23Gyour\u001b[28Gcodebase,\u001b[38Gmakes\u001b[44Gedits\u001b[50Gwith\u001b[55Gyour\u001b[60Gpermission,\u001b[72Gand\u001b[76Gexecutes\u001b[85Gcommands\u001b[94G—\r\u001b[3C\u001b[1Bright\u001b[10Gfrom\u001b[15Gyour\u001b[20Gterminal.\r\u001b[3C\u001b[1B\u001b[1mShortcuts\r\u001b[3C\u001b[1B\u001b[22m!\u001b[6Gfor\u001b[10Gshell\u001b[16Gmode\u001b[30Gdouble\u001b[37Gtap\u001b[41Gesc\u001b[45Gto\u001b[48Gclear\u001b[54Ginput\u001b[67Gctrl\u001b[72G+\u001b[74Gshift\u001b[80G+\u001b[82G-\u001b[84Gto\u001b[87Gundo\r\u001b[2C\u001b[1B / for commands            shift + tab to auto-accept edits     ctrl\u001b[72G+\u001b[74Gz\u001b[76Gto\u001b[79Gsuspend\r\u001b[2C\u001b[1B @ for file paths          ctrl + o for verbose output          ctrl + v to paste images\u001b[K\r\u001b[3C\u001b[1B/btw\u001b[9Gfor\u001b[13Gside\u001b[18Gquestion\u001b[30Gctrl\u001b[35G+\u001b[37Gt to toggle\u001b[49Gtasks\u001b[67Galt\u001b[71G+\u001b[73Gp\u001b[75Gto\u001b[78Gswitch\u001b[85Gmodel\r\u001b[2C\u001b[1B                           \\⏎ for newline                       alt + o to toggle fast mode\u001b[K\r\u001b[37C\u001b[1B     \u001b[67Gctrl\u001b[72G+\u001b[74Gs\u001b[76Gto\u001b[79Gstash\u001b[85Gprompt\r\u001b[1B                                                                  ctrl + g to edit in $EDITOR\u001b[K\r\u001b[1B       \u001b[67G/keybindings\u001b[80Gto\u001b[83Gcustomize\r\u001b[1B\u001b[K\r\u001b[2C\u001b[1B For more help: \u001b]8;id=xxxxxx;https://code.claude.com/docs/en/overview\u0007https://code.claude.com/docs/en/overview\u001b]8;;\u0007\u001b[K\r\u001b[2C\u001b[1B\u001b[K\r\u001b[2C\u001b[1B \u001b[38;5;246m\u001b[3mEsc to cancel\u001b[23m\u001b[39m\u001b[K\u001b[30;1H\u001b[14;10H"
+],
+[
+46.103,
+"\u001b[H\r\u001b[12B\u001b[K\r\u001b[3C\u001b[1B\u001b[K\r\u001b[3C\u001b[2B\u001b[K\r\u001b[3C\u001b[1B\u001b[K\r\u001b[3C\u001b[1B\u001b[K\r\u001b[3C\u001b[1B\u001b[K\r\u001b[3C\u001b[1B\u001b[K\r\u001b[3C\u001b[1B\u001b[K\r\u001b[3C\u001b[1B\u001b[K\r\u001b[29C\u001b[1B\u001b[K\r\u001b[66C\u001b[1B    \u001b[72G \u001b[74G \u001b[76G  \u001b[79G  \u001b[38;5;246m◐ medium · /effort\r\u001b[1B\u001b[38;5;244m────────────────────────────────────────────────────────────────────────────────────────────────────\r\u001b[1B\u001b[39m❯ \u001b[67G\u001b[K\r\u001b[1B\u001b[38;5;244m────────────────────────────────────────────────────────────────────────────────────────────────────\r\u001b[2C\u001b[1B\u001b[38;5;220m⚠ Transcript saving is off — inherited CLAUDE_CODE_CHILD_SESSION marker\u001b[38;5;246m · restart with CLAUDE_C…\r\u001b[2C\u001b[1B\u001b[35mhost:devcontainer-000000\u001b[38;5;246m  \u001b[36mOpus 5.5 · medium\u001b[38;5;246m  \u001b[2mctx:new\u001b[22m  \u001b[33m/tmp/claude-0/-home-user0-code-claude-san…\r\u001b[2C\u001b[1B\u001b[38;5;220m⏵⏵ auto mode on\u001b[38;5;246m (shift+tab to cycle)\u001b[39m\u001b[30;1H\u001b[26;3H\u001b[?25h"
+],
+[
+48.049,
+"\u001b[?25l\u001b[H\r\u001b[2C\u001b[23B\u001b[38;5;246mNo commands match \"/vim\"\u001b[81G\u001b[39m\u001b[K\r\u001b[2C\u001b[2B/vim\u001b[30;1H\u001b[26;7H\u001b[?25h"
+],
+[
+49.551,
+"\u001b]0;◐ Claude Code\u0007"
+],
+[
+49.554,
+"\u001b[?25l\u001b[H\r\u001b[12B\u001b[48;5;237m\u001b[38;5;246m❯ \u001b[38;5;231m/vim\u001b[39m                                                                                              \r\u001b[9B\u001b[49m\u001b[38;5;174m✽\u001b[3GFlibbertigibbetin\u001b[38;5;216mg…\u001b[38;5;174m \r\u001b[1B\u001b[38;5;246m  ⎿  Tip: Use /permissions to pre-approve and pre-deny bash, edit, and MCP tools\r\u001b[2C\u001b[1B\u001b[39m                        \u001b[81G\u001b[38;5;246m◐ medium · /effort\r\u001b[2B❯ \u001b[39m\u001b[K\u001b[30;1H\u001b[26;3H\u001b[?25h"
+],
+[
+49.577,
+"\u001b]0;✳ Claude Code\u0007"
+],
+[
+49.578,
+"\u001b[?25l\u001b[H\r\u001b[12B\u001b[38;5;220m●\u001b[39m \u001b[38;5;220mUnknown command: /vim\u001b[39m\u001b[K\r\u001b[9B\u001b[K\r\u001b[1B\u001b[K\r\u001b[3B❯ \u001b[30;1H\u001b[26;3H\u001b[?25h"
+],
+[
+53.55,
+"\u001b[?25l\u001b[H\r\u001b[2C\u001b[25Bi\u001b[30;1H\u001b[26;4H\u001b[?25h"
+],
+[
+55.55,
+"\u001b[?25l\u001b[H\r\u001b[3C\u001b[25Bhello\u001b[10Gworld\u001b[30;1H\u001b[26;15H\u001b[?25h"
+],
+[
+56.102,
+"\u001b[?25l\u001b[H\r\u001b[80C\u001b[23B\u001b[K\u001b[30;1H\u001b[26;15H\u001b[?25h"
+],
+[
+57.551,
+"\u001b[?25l\u001b[H\r\u001b[70C\u001b[23B\u001b[38;5;246mCtrl+Y to paste deleted text\r\u001b[2C\u001b[2B\u001b[39m\u001b[K\u001b[30;1H\u001b[26;3H\u001b[?25h"
+],
+[
+58.555,
+"\u001b[?25l\u001b[H\r\u001b[2C\u001b[23B\u001b[38;5;246mNo commands match \"/vim\"\u001b[71G\u001b[39m\u001b[K\r\u001b[2C\u001b[2B/vim\u001b[30;1H\u001b[26;7H\u001b[?25h"
+]
+]
+},
+"vim-and-working": {
+"cols": 100,
+"rows": 30,
+"inputs": [
+[
+8.002,
+"abc"
+],
+[
+9.504,
+"\u001b"
+],
+[
+11.004,
+"\u001b[200~/help\u001b[201~"
+],
+[
+12.505,
+"\r"
+],
+[
+15.505,
+"\u001b"
+],
+[
+17.506,
+"i"
+],
+[
+19.007,
+"\u0015"
+],
+[
+20.008,
+"\u001b"
+],
+[
+21.009,
+"x"
+],
+[
+22.01,
+"/exit"
+],
+[
+23.011,
+"\r"
+],
+[
+25.011,
+"\u001b"
+]
+],
+"chunks": [
+[
+0.29,
+"\u001b7\u001b[r\u001b8\u001b[?25h"
+],
+[
+0.315,
+"\u001b[?25l"
+],
+[
+0.315,
+"\u001b[?2004h\u001b[?2031h\u001b[?1004h"
+],
+[
+0.323,
+"\u001b[>0q\u001b[?u\u001b[c"
+],
+[
+0.572,
+"\u001b[>4m\u001b[<u\u001b[?1004l\u001b[?2031l\u001b[?2004l"
+],
+[
+0.687,
+"\u001b[?2004h\u001b[?2031h\u001b[?1004h"
+],
+[
+0.698,
+"\u001b]0;✳ Claude Code\u0007"
+],
+[
+0.727,
+"\u001b[?1049h\u001b[2J\u001b[H\u001b[?1000h\u001b[?1002h\u001b[?1003h\u001b[?1006h\u001b[?25l\u001b[H\r\u001b[1B\u001b[38;5;174m ▐\u001b[48;5;16m▛███▛█\u001b[12G\u001b[39m\u001b[49m\u001b[1mClaude Code\u001b[24G\u001b[22m\u001b[38;5;246mv2.1.292\r\u001b[1B\u001b[38;5;174m▝▜\u001b[48;5;16m█████\u001b[49m█▀\u001b[12G\u001b[38;5;246mOpus 5.5 · Claude Max\r\u001b[1B\u001b[38;5;174m ▝▝   ▝▝ \u001b[12G\u001b[38;5;246m/…/00000000-0000-4000-8000-000000000000/scratchpad/cap/d2 · \u001b[38;5;220m/rc connecting…\r\u001b[80C\u001b[21B\u001b[38;5;246m◐ medium · /effort\r\u001b[1B\u001b[38;5;244m────────────────────────────────────────────────────────────────────────────────────────────────────\r\u001b[1B\u001b[39m❯ \u001b[2mTry \"write a test for <filepath>\"\r\u001b[1B\u001b[22m\u001b[38;5;244m────────────────────────────────────────────────────────────────────────────────────────────────────\r\u001b[2C\u001b[2B\u001b[38;5;246m-- INSERT --\u001b[16G\u001b[38;5;220m⏵⏵ auto mode on\u001b[38;5;246m (shift+tab to cycle) · ← for agents\u001b[39m\u001b[30;1H\u001b[27;3H\u001b[?25h"
+],
+[
+0.832,
+"\u001b[>0q\u001b[?u\u001b[c"
+],
+[
+0.881,
+"\u001b[?25l\u001b[H\r\u001b[2C\u001b[28B\u001b[35mhost:devcontainer-000000\u001b[38;5;246m  \u001b[36mOpus 5.5 · medium\u001b[38;5;246m  \u001b[2mctx:new\u001b[22m  \u001b[33m/tmp/claude-0/-home-user0-code-claude-san…\u001b[39m\u001b[30;1H\u001b[27;3H\u001b[?25h"
+],
+[
+1.58,
+"\u001b[?25l\u001b[H\r\u001b[71C\u001b[3B\u001b]8;id=xxxxxx;https://claude.ai/code/session_000000000000000000000000?from=cli\u0007\u001b[38;5;114m/rc\u001b[39m\u001b]8;;\u0007\u001b[K\u001b[30;1H\u001b[27;3H\u001b[?25h"
+],
+[
+8.002,
+"\u001b(B\u000f\u001b[?2004h\u001b[?1000h\u001b[?1002h\u001b[?1003h\u001b[?1006h"
+],
+[
+8.013,
+"\u001b[?25l\u001b[H\r\u001b[2C\u001b[26Babc\u001b[K\r\u001b[51C\u001b[3B\u001b[K\u001b[30;1H\u001b[27;6H\u001b[?25h"
+],
+[
+9.56,
+"\u001b[?25l\u001b[H\r\u001b[2C\u001b[29B\u001b[38;5;220m⏵⏵ auto mode on\u001b[38;5;246m (shift+tab to cycle)\u001b[39m\u001b[K\u001b[30;1H\u001b[27;5H\u001b[?25h"
+],
+[
+10.705,
+"\u001b[?25l\u001b[H\r\u001b[80C\u001b[24B\u001b[K\u001b[30;1H\u001b[27;5H\u001b[?25h"
+],
+[
+11.009,
+"\u001b[?25l\u001b[H\r\u001b[5C\u001b[26B/help\u001b[30;1H\u001b[27;10H\u001b[?25h"
+],
+[
+12.597,
+"\u001b]0;◐ Claude Code\u0007"
+],
+[
+12.601,
+"\u001b[?25l\u001b[H\r\u001b[6B\u001b[48;5;237m\u001b[38;5;246m❯ \u001b[38;5;231mabc/help\u001b[39m                                                                                          \r\u001b[17B\u001b[49m\u001b[38;5;174m✢\u001b[3GBoogieing… \r\u001b[3B\u001b[38;5;246m❯ \u001b[39m\u001b[K\r\u001b[38C\u001b[3B\u001b[38;5;246m · ← for agents\u001b[39m\u001b[30;1H\u001b[27;3H\u001b[?25h"
+],
+[
+12.743,
+"\u001b[?25l\u001b[H\r\u001b[23B\u001b[38;5;174m*\u001b[39m\u001b[30;1H\u001b[27;3H\u001b[?25h"
+],
+[
+12.855,
+"\u001b[?25l\u001b[H\r\u001b[23B\u001b[38;5;174m✶\u001b[39m\u001b[30;1H\u001b[27;3H\u001b[?25h"
+],
+[
+12.967,
+"\u001b[?25l\u001b[H\r\u001b[23B\u001b[38;5;174m✻\u001b[39m\u001b[30;1H\u001b[27;3H\u001b[?25h"
+],
+[
+13.185,
+"\u001b[?25l\u001b[H\r\u001b[23B\u001b[38;5;174m✽\u001b[39m\u001b[30;1H\u001b[27;3H\u001b[?25h"
+],
+[
+13.318,
+"\u001b[?25l\u001b[H\r\u001b[2C\u001b[23B\u001b[38;5;174mFlutt\u001b[9Gring… \u001b[39m\u001b[30;1H\u001b[27;3H\u001b[?25h"
+],
+[
+13.333,
+"\u001b[?25l\u001b[H\r\u001b[14C\u001b[23B\u001b[38;5;246m(0s · \u001b[38;5;248mthinking\u001b[38;5;246m)\u001b[39m\u001b[30;1H\u001b[27;3H\u001b[?25h"
+],
+[
+13.522,
+"\u001b[?25l\u001b[H\r\u001b[23B\u001b[38;5;174m✻\u001b[16G\u001b[38;5;246m1\u001b[21G\u001b[38;5;249mthinking\u001b[39m\u001b[30;1H\u001b[27;3H\u001b[?25h"
+],
+[
+13.557,
+"\u001b]0;◑ Claude Code\u0007"
+],
+[
+13.748,
+"\u001b[?25l\u001b[H\r\u001b[8B\u001b[38;5;231m●\u001b[39m\u001b[30;1H\u001b[27;3H\u001b[?25h"
+],
+[
+13.763,
+"\u001b[?25l\u001b[H\r\u001b[23B\u001b[38;5;174m✶\u001b[21G\u001b[38;5;246m↓\u001b[39m \u001b[38;5;246m25 tokens · \u001b[38;5;249mthinking\u001b[38;5;246m)\u001b[39m\u001b[30;1H\u001b[27;3H\u001b[?25h"
+],
+[
+13.861,
+"\u001b[?25l\u001b[H\r\u001b[23B\u001b[38;5;174m*\u001b[23G\u001b[38;5;246m50\u001b[39m\u001b[30;1H\u001b[27;3H\u001b[?25h"
+],
+[
+13.968,
+"\u001b[?25l\u001b[H\r\u001b[47C\u001b[28B\u001b[32mctx:4%\u001b[38;5;246m \u001b[56G\u001b[33m/tmp/claude-0/-home-user0-code-claude-sand\u001b[39m\u001b[30;1H\u001b[27;3H\u001b[?25h"
+],
+[
+13.983,
+"\u001b[?25l\u001b[H\r\u001b[23B\u001b[38;5;174m✢\u001b[23G\u001b[38;5;246m88\u001b[39m\u001b[30;1H\u001b[27;3H\u001b[?25h"
+],
+[
+14.041,
+"\u001b[?25l\u001b[H\r\u001b[2C\u001b[8BI'm\u001b[7Gnot\u001b[11Gsure\u001b[16Gwhat\u001b[21Gyou\u001b[25Gmeant\u001b[31Gby\u001b[34G\u001b[38;5;153mabc/help\u001b[39m.\u001b[44GThere's\u001b[52Gno\u001b[55G\u001b[38;5;153mabc\u001b[59G\u001b[39mskill\u001b[65Gor\u001b[68Gcommand\u001b[76Ghere.\u001b[82GIf\u001b[85Gyou\u001b[89Gmeant\u001b[95G\u001b[38;5;153m/help\u001b[39m,\u001b[30;1H\u001b[27;3H\u001b[?25h"
+],
+[
+14.088,
+"\u001b[?25l\u001b[H\r\u001b[22C\u001b[23B\u001b[38;5;246m113 tokens · \u001b[38;5;249mthinking\u001b[38;5;246m)\u001b[39m\u001b[30;1H\u001b[27;3H\u001b[?25h"
+],
+[
+14.206,
+"\u001b[?25l\u001b[H\r\u001b[23B\u001b[38;5;174m·\u001b[24G\u001b[38;5;246m38\u001b[36G\u001b[38;5;248mthinking\u001b[39m\u001b[30;1H\u001b[27;3H\u001b[?25h"
+],
+[
+14.313,
+"\u001b[?25l\u001b[H\r\u001b[23C\u001b[23B\u001b[38;5;246m63\u001b[39m\u001b[30;1H\u001b[27;3H\u001b[?25h"
+],
+[
+14.426,
+"\u001b[?25l\u001b[H\r\u001b[23C\u001b[23B\u001b[38;5;246m87\u001b[36G\u001b[38;5;247mthinking\u001b[39m\u001b[30;1H\u001b[27;3H\u001b[?25h"
+],
+[
+14.442,
+"\u001b[?25l\u001b[H\r\u001b[2C\u001b[9Bthat's\u001b[10Ga\u001b[12Gbuilt-in\u001b[21Gcommand:\u001b[30Gtype\u001b[35G\u001b[38;5;153m/help\u001b[41G\u001b[39mby\u001b[44Gitself\u001b[51Gat\u001b[54Gthe\u001b[58Gprompt\u001b[65Gto\u001b[68Gsee\u001b[72Gthe\u001b[76Gcommands\u001b[85Gand\u001b[89Gshortcuts.\r\u001b[14B\u001b[K\u001b[30;1H\u001b[27;3H\u001b[?25h"
+],
+[
+14.517,
+"\u001b]0;◐ Claude Code\u0007"
+],
+[
+14.792,
+"\u001b[?25l\u001b[H\r\u001b[2C\u001b[11BIf\u001b[6Gyou\u001b[10Gtell\u001b[15Gme\u001b[18Gwhat\u001b[23Gyou\u001b[27Gwant\u001b[32Gto\u001b[35Gdo,\u001b[39GI\u001b[41Gcan\u001b[45Gtell\u001b[50Gyou\u001b[54Gwhich\u001b[60Gskill\u001b[66Gor\u001b[69Gcommand\u001b[77Gfits.\u001b[83GA\u001b[85Gfew\u001b[89Gthat\u001b[94Gare\r\u001b[2C\u001b[1Bavailable:\r\u001b[2C\u001b[2B-\u001b[30;1H\u001b[27;3H\u001b[?25h"
+],
+[
+15.083,
+"\u001b[?25l\u001b[H\r\u001b[4C\u001b[14B\u001b[38;5;153m/code-review\u001b[39m:\u001b[19Greview\u001b[26Ga\u001b[28Gdiff\u001b[33Gor\u001b[36GPR\r\u001b[2C\u001b[1B-\u001b[30;1H\u001b[27;3H\u001b[?25h"
+],
+[
+15.183,
+"\u001b[?25l\u001b[H\r\u001b[4C\u001b[15B\u001b[38;5;153m/github-inbox\u001b[39m:\u001b[20Gwork\u001b[25Gthrough\u001b[33Gyour\u001b[38GGitHub\u001b[45Gnotifications\r\u001b[2C\u001b[1B-\u001b[30;1H\u001b[27;3H\u001b[?25h"
+],
+[
+15.477,
+"\u001b]0;◑ Claude Code\u0007"
+],
+[
+15.482,
+"\u001b[?25l\u001b[H\r\u001b[4C\u001b[16B\u001b[38;5;153m/router\u001b[39m:\u001b[14Gcarry\u001b[20Ga\u001b[22Glarge\u001b[28Gpiece\u001b[34Gof\u001b[37Gwork\u001b[42Gacross\u001b[49Gseveral\u001b[57Gcontext\u001b[65Gwindows\r\u001b[2C\u001b[1B-\u001b[30;1H\u001b[27;3H\u001b[?25h"
+],
+[
+15.574,
+"\u001b]0;✳ Claude Code\u0007"
+],
+[
+15.576,
+"\u001b[?25l\u001b[H\r\u001b[4C\u001b[17B\u001b[38;5;153m/handoff\u001b[39m:\u001b[15Gwrite\u001b[21Ga\u001b[23Ghandoff\u001b[31Gdocument\u001b[40Gfor\u001b[44Ganother\u001b[52Gagent\r\u001b[2C\u001b[1B-\u001b[5G`/lo\r\u001b[1B\u001b[38;5;246m  ⎿  Interrupted · What should Claude do instead?\r\u001b[7B\u001b[39m❯ \u001b[30;1H\u001b[27;3H\u001b[?25h"
+],
+[
+17.511,
+"\u001b[?25l\u001b[H\r\u001b[2C\u001b[29B\u001b[38;5;246m-- INSERT --\u001b[39m \u001b[38;5;220m⏵⏵ auto mode on\u001b[38;5;246m (shift+tab to cycl\u001b[51G) · ← for agents\u001b[39m\u001b[30;1H\u001b[27;3H\u001b[?25h"
+],
+[
+20.065,
+"\u001b[?25l\u001b[H\r\u001b[2C\u001b[29B\u001b[38;5;220m⏵⏵ auto mode on\u001b[38;5;246m (shift+tab to cycle) · ← for ag\u001b[51Gnts\u001b[39m\u001b[K\u001b[30;1H\u001b[27;3H\u001b[?25h"
+],
+[
+22.02,
+"\u001b[?25l\u001b[H\r\u001b[2C\u001b[26Bt\r\u001b[2C\u001b[3B\u001b[38;5;246m-- INSERT --\u001b[39m \u001b[38;5;220m⏵⏵ auto mode on\u001b[38;5;246m (shift+tab to cycl\u001b[51G)\u001b[39m\u001b[K\u001b[30;1H\u001b[27;4H\u001b[?25h"
+],
+[
+23.049,
+"\u001b]0;◑ Claude Code\u0007"
+],
+[
+23.054,
+"\u001b[?25l\u001b[H\u001b[38;5;174m ▐\u001b[48;5;16m▛███▛█\u001b[12G\u001b[39m\u001b[49m\u001b[1mClaude Code\u001b[24G\u001b[22m\u001b[38;5;246mv2.1.292\r\u001b[1B\u001b[38;5;174m▝▜\u001b[48;5;16m█\u001b[7G█\u001b[49m█▀\u001b[12G\u001b[38;5;246mOpus 5.5 · Claude Max\r\u001b[1B\u001b[38;5;174m ▝▝   ▝▝ \u001b[12G\u001b[38;5;246m/…/7aaa\u001b[20G1a7-c9a8-4dc4-bb0b-c3575526a075/scratchpad/cap/d2 · \u001b]8;id=xxxxxx;https://claude.ai/code/session_000000000000000000000000?from=cli\u0007\u001b[38;5;114m/rc\u001b]8;;\u0007\r\u001b[1B\u001b[39m\u001b[K\r\u001b[2B\u001b[48;5;237m\u001b[38;5;246m❯ \u001b[38;5;231mabc/help\u001b[39m                                                                                          \r\u001b[1B\u001b[49m\u001b[K\r\u001b[1B\u001b[38;5;231m●\u001b[3G\u001b[39mI'm\u001b[7Gnot\u001b[11Gsure\u001b[16Gwhat\u001b[21Gyou\u001b[25Gmeant\u001b[31Gby\u001b[34G\u001b[38;5;153mabc/help\u001b[39m.\u001b[44GThere's\u001b[52Gno\u001b[55G\u001b[38;5;153mabc\u001b[59G\u001b[39mskill\u001b[65Gor\u001b[68Gcommand\u001b[76Ghere.\u001b[82GIf\u001b[85Gyou\u001b[89Gmeant\u001b[95G\u001b[38;5;153m/help\u001b[39m,\r\u001b[1B \u001b[3Gthat's a built-in\u001b[21Gc\u001b[23Gmmand: type \u001b[38;5;153m/help\u001b[39m by\u001b[44Gitself at the prompt\u001b[65Gto\u001b[68Gsee the\u001b[76Gcommands\u001b[85Gand\u001b[89Gshor\u001b[94Gcuts.\u001b[K\r\u001b[2C\u001b[1B\u001b[K\r\u001b[2C\u001b[1BIf\u001b[6Gyou\u001b[10Gtell\u001b[15Gme\u001b[18Gwhat\u001b[23Gyou\u001b[27Gwant\u001b[32Gto\u001b[35Gdo,\u001b[39GI\u001b[41Gcan\u001b[45Gtell\u001b[50Gyou\u001b[54Gwhich\u001b[60Gskill\u001b[66Gor\u001b[69Gcommand\u001b[77Gfits.\u001b[83GA\u001b[85Gfew\u001b[89Gthat\u001b[94Gare\r\u001b[2C\u001b[1Bavailabl\u001b[12G:\u001b[K\r\u001b[2C\u001b[1B\u001b[K\r\u001b[2C\u001b[1B-\u001b[5G\u001b[38;5;153m/code-review\u001b[39m:\u001b[19Greview\u001b[26Ga\u001b[28Gdiff\u001b[33Gor\u001b[36GPR\r\u001b[5C\u001b[1B\u001b[38;5;153mgithub-inbox\u001b[39m: work through\u001b[33Gyour GitHub\u001b[45Gnotifications\r\u001b[5C\u001b[1B\u001b[38;5;153mrouter\u001b[39m: carry\u001b[20Ga large piece \u001b[35Gf work across several context\u001b[65Gwindows\r\u001b[5C\u001b[1B\u001b[38;5;153mhandoff\u001b[39m: w\u001b[17Gite a handoff document for another agent\u001b[K\r\u001b[4C\u001b[1B`/lo\u001b[K\r\u001b[1B\u001b[38;5;246m  ⎿  Interrupted · What should Claude do instead?\r\u001b[1B\u001b[39m\u001b[K\r\u001b[1B\u001b[48;5;237m\u001b[38;5;246m❯ \u001b[38;5;231mt\u001b[39m                                                                                                 \r\u001b[2B\u001b[49m\u001b[38;5;174m✻\u001b[3GEffecting… \r\u001b[1B\u001b[38;5;246m  ⎿  Tip: Running multiple Claude sessions? Use /color and /rename to tell them apart at a glance.\r\u001b[3B❯ \u001b[39m\u001b[K\r\u001b[51C\u001b[3B\u001b[38;5;246m · ← for agents\u001b[39m\u001b[30;1H\u001b[27;3H\u001b[?25h"
+],
+[
+23.166,
+"\u001b[?25l\u001b[H\r\u001b[22B\u001b[38;5;174m✽\u001b[39m\u001b[30;1H\u001b[27;3H\u001b[?25h"
+],
+[
+23.599,
+"\u001b[?25l\u001b[H\r\u001b[22B\u001b[38;5;174m✻\u001b[39m\u001b[30;1H\u001b[27;3H\u001b[?25h"
+],
+[
+23.711,
+"\u001b[?25l\u001b[H\r\u001b[22B\u001b[38;5;174m✶\u001b[39m\u001b[30;1H\u001b[27;3H\u001b[?25h"
+],
+[
+23.762,
+"\u001b[?25l\u001b[H\r\u001b[13C\u001b[22B\u001b[38;5;246m(0s · \u001b[38;5;249mthinking\u001b[38;5;246m)\u001b[39m\u001b[30;1H\u001b[27;3H\u001b[?25h"
+],
+[
+23.824,
+"\u001b[?25l\u001b[H\r\u001b[22B\u001b[38;5;174m*\u001b[39m\u001b[30;1H\u001b[27;3H\u001b[?25h"
+],
+[
+23.936,
+"\u001b[?25l\u001b[H\r\u001b[22B\u001b[38;5;174m✢\u001b[39m\u001b[30;1H\u001b[27;3H\u001b[?25h"
+],
+[
+24.009,
+"\u001b]0;◐ Claude Code\u0007"
+],
+[
+24.029,
+"\u001b[?25l\u001b[H\r\u001b[14C\u001b[22B\u001b[38;5;246m1\u001b[39m\u001b[30;1H\u001b[27;3H\u001b[?25h"
+],
+[
+24.048,
+"\u001b[?25l\u001b[H\r\u001b[19C\u001b[22B\u001b[38;5;246m↓\u001b[39m \u001b[38;5;246m38 tokens · \u001b[38;5;249mthinking\u001b[38;5;246m)\u001b[39m\u001b[30;1H\u001b[27;3H\u001b[?25h"
+],
+[
+24.127,
+"\u001b[?25l\u001b[H\u001b[2G\u001b[38;5;174m▝▝   ▝▝ \u001b[12G\u001b[38;5;246m/…/00000000-0000-4000-8000-000000000000/scratchpad/cap/d2 · \u001b]8;id=xxxxxx;https://claude.ai/code/session_000000000000000000000000?from=cli\u0007\u001b[38;5;114m/rc\u001b]8;;\u0007\r\u001b[1B\u001b[39m\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B\u001b[48;5;237m\u001b[38;5;246m❯ \u001b[38;5;231mabc/help\u001b[39m                                                                                          \r\u001b[2B\u001b[49m\u001b[38;5;231m●\u001b[39m I'm not sure what you meant by \u001b[38;5;153mabc/help\u001b[39m. There's no \u001b[38;5;153mabc\u001b[39m skill or command here. If you meant \u001b[38;5;153m/help\u001b[39m,\r\u001b[2C\u001b[1Bthat's\u001b[10Ga\u001b[12Gbuilt-in\u001b[21Gcommand:\u001b[30Gtype\u001b[35G\u001b[38;5;153m/help\u001b[41G\u001b[39mby\u001b[44Gitself\u001b[51Gat\u001b[54Gthe\u001b[58Gprompt\u001b[65Gto\u001b[68Gsee\u001b[72Gthe\u001b[76Gcommands\u001b[85Gand\u001b[89Gshortcuts.\r\u001b[1B\u001b[K\r\u001b[2C\u001b[1BIf you\u001b[10Gtell me what you wan\u001b[31G to\u001b[35Gdo, I\u001b[41Gcan \u001b[46Gel\u001b[49G you\u001b[54Gw\u001b[56Gich skill \u001b[67Gr command fits. A\u001b[85Gfew\u001b[89Gt\u001b[91Gat are\u001b[K\r\u001b[2C\u001b[1Bavailable:\r\u001b[2C\u001b[1B\u001b[K\r\u001b[2C\u001b[1B- \u001b[38;5;153m/code-review\u001b[39m:\u001b[19Greview\u001b[26Ga\u001b[28Gdiff\u001b[33Gor\u001b[36GPR\r\u001b[2C\u001b[1B-\u001b[5G\u001b[38;5;153m/github-inbox\u001b[39m:\u001b[20Gwork\u001b[25Gthrough\u001b[33Gyour\u001b[38GGitHub\u001b[45Gnotifications\r\u001b[5C\u001b[1B\u001b[38;5;153mr\u001b[8Gute\u001b[12G\u001b[39m: carry a large\u001b[28Gp\u001b[30Gece of work\u001b[42Gacross\u001b[49Gseveral\u001b[57Gcontext\u001b[65Gwindows\r\u001b[5C\u001b[1B\u001b[38;5;153mhandoff\u001b[39m: write a handoff document for a\u001b[48Gher \u001b[53Ggent\u001b[K\r\u001b[4C\u001b[1B`/lo\u001b[K\r\u001b[1B\u001b[38;5;246m  ⎿  Interrupted · What should Claude do instead?\u001b[39m\u001b[K\r\u001b[2C\u001b[1B\u001b[K\r\u001b[1B\u001b[48;5;237m\u001b[38;5;246m❯ \u001b[38;5;231mt\u001b[39m                                                                                                 \r\u001b[2B\u001b[49m\u001b[38;5;231m●\u001b[39m\u001b[K\u001b[30;1H\u001b[27;3H\u001b[?25h"
+],
+[
+24.161,
+"\u001b[?25l\u001b[H\r\u001b[22B\u001b[38;5;174m·\u001b[22G\u001b[38;5;246m63\u001b[34G\u001b[38;5;248mthinking\u001b[39m\u001b[30;1H\u001b[27;3H\u001b[?25h"
+],
+[
+24.273,
+"\u001b[?25l\u001b[H\r\u001b[21C\u001b[22B\u001b[38;5;246m88\u001b[39m\u001b[30;1H\u001b[27;3H\u001b[?25h"
+],
+[
+24.395,
+"\u001b[?25l\u001b[H\r\u001b[21C\u001b[22B\u001b[38;5;246m113 tokens · \u001b[38;5;247mthinking\u001b[38;5;246m)\u001b[39m\u001b[30;1H\u001b[27;3H\u001b[?25h"
+],
+[
+24.498,
+"\u001b[?25l\u001b[H\r\u001b[22C\u001b[22B\u001b[38;5;246m50\u001b[39m\u001b[30;1H\u001b[27;3H\u001b[?25h"
+],
+[
+24.611,
+"\u001b[?25l\u001b[H\r\u001b[22B\u001b[38;5;174m✢\u001b[23G\u001b[38;5;246m61\u001b[35Gthinking\u001b[39m\u001b[30;1H\u001b[27;3H\u001b[?25h"
+],
+[
+24.713,
+"\u001b[?25l\u001b[H\u001b[K\r\u001b[2B\u001b[48;5;237m\u001b[38;5;246m❯ \u001b[38;5;231mabc/help\u001b[39m                                                                                          \r\u001b[1B\u001b[49m\u001b[K\r\u001b[1B\u001b[38;5;231m●\u001b[3G\u001b[39mI'm\u001b[7Gnot\u001b[11Gsure\u001b[16Gwhat\u001b[21Gyou\u001b[25Gmeant\u001b[31Gby\u001b[34G\u001b[38;5;153mabc/help\u001b[39m.\u001b[44GThere's\u001b[52Gno\u001b[55G\u001b[38;5;153mabc\u001b[59G\u001b[39mskill\u001b[65Gor\u001b[68Gcommand\u001b[76Ghere.\u001b[82GIf\u001b[85Gyou\u001b[89Gmeant\u001b[95G\u001b[38;5;153m/help\u001b[39m,\r\u001b[1B \u001b[3Gthat's a built-in\u001b[21Gc\u001b[23Gmmand: type \u001b[38;5;153m/help\u001b[39m by\u001b[44Gitself at the prompt\u001b[65Gto\u001b[68Gsee the\u001b[76Gcommands\u001b[85Gand\u001b[89Gshor\u001b[94Gcuts.\u001b[K\r\u001b[2C\u001b[1B\u001b[K\r\u001b[2C\u001b[1BIf\u001b[6Gyou\u001b[10Gtell\u001b[15Gme\u001b[18Gwhat\u001b[23Gyou\u001b[27Gwant\u001b[32Gto\u001b[35Gdo,\u001b[39GI\u001b[41Gcan\u001b[45Gtell\u001b[50Gyou\u001b[54Gwhich\u001b[60Gskill\u001b[66Gor\u001b[69Gcommand\u001b[77Gfits.\u001b[83GA\u001b[85Gfew\u001b[89Gthat\u001b[94Gare\r\u001b[2C\u001b[1Bavailabl\u001b[12G:\u001b[K\r\u001b[2C\u001b[1B\u001b[K\r\u001b[2C\u001b[1B-\u001b[5G\u001b[38;5;153m/code-review\u001b[39m:\u001b[19Greview\u001b[26Ga\u001b[28Gdiff\u001b[33Gor\u001b[36GPR\r\u001b[5C\u001b[1B\u001b[38;5;153mgithub-inbox\u001b[39m: work through\u001b[33Gyour GitHub\u001b[45Gnotifications\r\u001b[5C\u001b[1B\u001b[38;5;153mrouter\u001b[39m: carry\u001b[20Ga large piece \u001b[35Gf work across several context\u001b[65Gwindows\r\u001b[5C\u001b[1B\u001b[38;5;153mhandoff\u001b[39m: w\u001b[17Gite a handoff document for another agent\u001b[K\r\u001b[4C\u001b[1B`/lo\u001b[K\r\u001b[1B\u001b[38;5;246m  ⎿  Interrupted · What should Claude do instead?\r\u001b[1B\u001b[39m\u001b[K\r\u001b[1B\u001b[48;5;237m\u001b[38;5;246m❯ \u001b[38;5;231mt\u001b[39m                                                                                                 \r\u001b[1B\u001b[49m\u001b[K\r\u001b[1B\u001b[38;5;231m●\u001b[3G\u001b[39mI'm\u001b[7Gnot\u001b[11Gsure\u001b[16Gwhat\u001b[21Gyou\u001b[25Gmeant\u001b[31Gby\u001b[34G\"t\".\u001b[39GIt\u001b[42Glooks\u001b[48Glike\u001b[53Ga\u001b[55Gstray\u001b[61Gkeystroke\u001b[71Gafter\u001b[77Gthe\u001b[81Ginterrupt.\u001b[92GWhat\r\u001b[1B \u001b[3Gwould\u001b[9Gyou\u001b[13Glike\u001b[18Gto\u001b[21Gdo?\u001b[30;1H\u001b[27;3H\u001b[?25h"
+],
+[
+24.756,
+"\u001b]0;✳ Claude Code\u0007"
+],
+[
+24.758,
+"\u001b[?25l\u001b[H\u001b[38;5;174m ▝▝   ▝▝ \u001b[12G\u001b[38;5;246m/…/00000000-0000-4000-8000-000000000000/scratchpad/cap/d2 · \u001b]8;id=xxxxxx;https://claude.ai/code/session_000000000000000000000000?from=cli\u0007\u001b[38;5;114m/rc\u001b]8;;\u0007\r\u001b[2B\u001b[39m\u001b[K\r\u001b[1B\u001b[48;5;237m\u001b[38;5;246m❯ \u001b[38;5;231mabc/help\u001b[39m                                                                                          \r\u001b[1B\u001b[49m\u001b[K\r\u001b[1B\u001b[38;5;231m●\u001b[3G\u001b[39mI'm not sure what\u001b[21Gy\u001b[23Gu meant by \u001b[38;5;153mabc/help\u001b[39m.\u001b[44GThere's no \u001b[38;5;153mabc\u001b[39m skill\u001b[65Gor\u001b[68Gcommand\u001b[76Ghere. If\u001b[85Gyou\u001b[89Gmean\u001b[94G \u001b[38;5;153m/help\u001b[39m,\r\u001b[2C\u001b[1Bthat's\u001b[10Ga\u001b[12Gbuilt-in\u001b[21Gcommand:\u001b[30Gtype\u001b[35G\u001b[38;5;153m/help\u001b[41G\u001b[39mby\u001b[44Gitself\u001b[51Gat\u001b[54Gthe\u001b[58Gprompt\u001b[65Gto\u001b[68Gsee\u001b[72Gthe\u001b[76Gcommands\u001b[85Gand\u001b[89Gshortcuts.\r\u001b[2C\u001b[1B\u001b[K\r\u001b[2C\u001b[1BIf you t\u001b[12Gll\u001b[15Gme\u001b[18Gwhat\u001b[23Gyou\u001b[27Gwant\u001b[32Gto\u001b[35Gdo,\u001b[39GI\u001b[41Gcan\u001b[45Gtell\u001b[50Gyou\u001b[54Gwhich\u001b[60Gskill\u001b[66Gor\u001b[69Gcommand\u001b[77Gfits.\u001b[83GA\u001b[85Gfew\u001b[89Gthat\u001b[94Gare\r\u001b[2C\u001b[1Bavailable:\r\u001b[2C\u001b[1B\u001b[K\r\u001b[5C\u001b[1B\u001b[38;5;153mcode-review\u001b[39m: review a diff\u001b[33Gor PR\u001b[K\r\u001b[5C\u001b[1B\u001b[38;5;153mgithub-inbox\u001b[39m:\u001b[20Gwork through y\u001b[35Gur GitHub notifications\u001b[K\r\u001b[5C\u001b[1B\u001b[38;5;153mrouter\u001b[39m: ca\u001b[17Gry a large piece of work across several context\u001b[65Gwindows\r\u001b[4C\u001b[1B\u001b[38;5;153m/handoff\u001b[39m:\u001b[15Gwrite\u001b[21Ga\u001b[23Ghandoff\u001b[31Gdocument\u001b[40Gfor\u001b[44Ganother\u001b[52Gagent\r\u001b[1B  - `/lo\u001b[K\r\u001b[1B\u001b[38;5;246m  ⎿  Interrupted · What should Claude do instead?\r\u001b[1B\u001b[39m\u001b[K\r\u001b[1B\u001b[48;5;237m\u001b[38;5;246m❯ \u001b[38;5;231mt\u001b[39m                                                                                                 \r\u001b[1B\u001b[49m\u001b[K\r\u001b[1B\u001b[38;5;231m●\u001b[3G\u001b[39mI'm not sure what\u001b[21Gy\u001b[23Gu\u001b[25Gmeant\u001b[31Gby\u001b[34G\"t\".\u001b[39GIt\u001b[42Glooks\u001b[48Glike\u001b[53Ga\u001b[55Gstray\u001b[61Gkeystroke\u001b[71Gafter\u001b[77Gthe\u001b[81Ginterrupt.\u001b[92GWhat\r\u001b[2C\u001b[1Bwould\u001b[9Gyou\u001b[13Glike\u001b[18Gto\u001b[21Gdo?\r\u001b[1B\u001b[K\r\u001b[1B\u001b[38;5;246m✻\u001b[39m \u001b[38;5;246mSautéed\u001b[11Gfor 1s · done 16:30\u001b[39m\u001b[K\r\u001b[3B❯ \u001b[30;1H\u001b[27;3H\u001b[?25h"
+],
+[
+25.074,
+"\u001b[?25l\u001b[H\r\u001b[2C\u001b[29B\u001b[38;5;220m⏵⏵ auto mode on\u001b[38;5;246m (shift+tab to cycle) · ← for ag\u001b[51Gnts\u001b[39m\u001b[K\u001b[30;1H\u001b[27;3H\u001b[?25h"
+]
+]
+},
+"trust": {
+"cols": 100,
+"rows": 30,
+"inputs": [
+[
+8.004,
+"\u001b[B"
+]
+],
+"chunks": [
+[
+0.515,
+"\u001b7\u001b[r\u001b8\u001b[?25h"
+],
+[
+0.536,
+"\u001b[?25l"
+],
+[
+0.536,
+"\u001b[?2004h\u001b[?2031h\u001b[?1004h"
+],
+[
+0.54,
+"\r\r\n\u001b[38;5;220m────────────────────────────────────────────────────────────────────────────────────────────────────\u001b[39m\r\r\n\u001b[2G\u001b[38;5;220m\u001b[1mAccessing\u001b[12Gworkspace:\u001b[22m\u001b[39m\r\r\n\r\r\n\u001b[2G\u001b[1m/root/csv-trust-abcd\u001b[22m\r\r\n\r\r\n\u001b[2GQuick\u001b[8Gsafety\u001b[15Gcheck:\u001b[22GIs\u001b[25Gthis\u001b[30Ga\u001b[32Gproject\u001b[40Gyou\u001b[44Gcreated\u001b[52Gor\u001b[55Gone\u001b[59Gyou\u001b[63Gtrust?\u001b[70G(Like\u001b[76Gyour\u001b[81Gown\u001b[85Gcode,\u001b[91Ga\r\r\n\u001b[2Gwell-known\u001b[13Gopen\u001b[18Gsource\u001b[25Gproject,\u001b[34Gor\u001b[37Gwork\u001b[42Gfrom\u001b[47Gyour\u001b[52Gteam).\u001b[59GIf\u001b[62Gnot,\u001b[67Gtake\u001b[72Ga\u001b[74Gmoment\u001b[81Gto\u001b[84Greview\u001b[91Gwhat's\u001b[98Gin\r\r\n\u001b[2Gthis\u001b[7Gfolder\u001b[14Gfirst.\r\r\n\r\r\n\u001b[2GClaude\u001b[9GCode'll\u001b[17Gbe\u001b[20Gable\u001b[25Gto\u001b[28Gread,\u001b[34Gedit,\u001b[40Gand\u001b[44Gexecute\u001b[52Gfiles\u001b[58Ghere.\r\r\n\r\r\n\u001b[2G\u001b]8;id=xxxxxx;https://code.claude.com/docs/en/security\u0007\u001b[38;5;246mSecurity guide\u001b[39m\u001b]8;;\u0007\r\r\n\r\r\n\u001b[2G\u001b[38;5;153m❯\u001b[4GNo,\u001b[8Gexit\u001b[39m\r\r\n\u001b[4GYes,\u001b[9GI\u001b[11Gtrust\u001b[17Gthis\u001b[22Gfolder\r\r\n\r\r\n\u001b[2G\u001b[38;5;246mEnter\u001b[8Gto\u001b[11Gconfirm\u001b[19G·\u001b[21GEsc\u001b[25Gto\u001b[28Gcancel\u001b[39m\r\r\n\u001b[1C\u001b[4A"
+],
+[
+0.541,
+"\u001b[>0q\u001b[?u"
+],
+[
+0.541,
+"\u001b[c"
+],
+[
+8.005,
+"\u001b(B\u000f\u001b[?2004h"
+],
+[
+8.009,
+"\u001b[1D\u001b[4B\r\u001b[1C\u001b[4A \u001b[4GNo, exit\r\u001b[1C\u001b[1B\u001b[38;5;153m❯\u001b[4GYes, I trust this folder\u001b[39m\r\r\n\r\n\r\n\u001b[1C\u001b[3A"
+]
+]
+},
+"mcp-and-multiline": {
+"cols": 100,
+"rows": 30,
+"inputs": [
+[
+8.008,
+"\u001b[B"
+],
+[
+10.01,
+"\u001b"
+],
+[
+14.012,
+"the quick brown fox jumps over the lazy dog and keeps running far beyond the edge of the box while"
+],
+[
+16.014,
+" typing more"
+],
+[
+18.016,
+"\u001b\r"
+],
+[
+19.017,
+"second line"
+],
+[
+21.018,
+"\u0003"
+],
+[
+22.518,
+"\u0003"
+]
+],
+"chunks": [
+[
+0.301,
+"\u001b7\u001b[r\u001b8\u001b[?25h"
+],
+[
+0.325,
+"\u001b[?25l"
+],
+[
+0.325,
+"\u001b[?2004h\u001b[?2031h\u001b[?1004h"
+],
+[
+0.329,
+"\r\r\n\u001b[38;5;220m────────────────────────────────────────────────────────────────────────────────────────────────────\u001b[39m\r\r\n\u001b[3G\u001b[38;5;220m\u001b[1mNew\u001b[7GMCP\u001b[11Gserver\u001b[18Gfound\u001b[24Gin\u001b[27Gthis\u001b[32Gproject:\u001b[41Gdummy\u001b[22m\u001b[39m\r\r\n\r\r\n\u001b[3GMCP\u001b[7Gservers\u001b[15Gmay\u001b[19Gexecute\u001b[27Gcode\u001b[32Gor\u001b[35Gaccess\u001b[42Gsystem\u001b[49Gresources.\u001b[60GAll\u001b[64Gtool\u001b[69Gcalls\u001b[75Grequire\u001b[83Gapproval.\u001b[93GLearn\r\r\n\u001b[3Gmore\u001b[8Gin\u001b[11Gthe\u001b[15G\u001b]8;id=xxxxxx;https://code.claude.com/docs/en/mcp\u0007MCP documentation\u001b]8;;\u0007.\r\r\n\r\r\n\u001b[5GUse\u001b[9Gthis\u001b[14GMCP\u001b[18Gserver\r\r\n\u001b[5GUse\u001b[9Gthis\u001b[14Gand\u001b[18Gall\u001b[22Gfuture\u001b[29GMCP\u001b[33Gservers\u001b[41Gin\u001b[44Gthis\u001b[49Gproject\r\r\n\u001b[3G\u001b[38;5;153m❯\u001b[5GContinue\u001b[14Gwithout\u001b[22Gusing\u001b[28Gthis\u001b[33GMCP\u001b[37Gserver\u001b[39m\r\r\n\r\r\n\u001b[3G\u001b[38;5;246m\u001b[3mEnter\u001b[9Gto\u001b[12Gconfirm\u001b[20G·\u001b[22GEsc\u001b[26Gto\u001b[29Gcancel\u001b[23m\u001b[39m\r\r\n\u001b[2C\u001b[3A"
+],
+[
+0.33,
+"\u001b[>0q\u001b[?u"
+],
+[
+0.33,
+"\u001b[c"
+],
+[
+8.008,
+"\u001b(B\u000f\u001b[?2004h"
+],
+[
+8.012,
+"\u001b[2D\u001b[3B\r\u001b[2C\u001b[5A\u001b[38;5;153m❯\u001b[5GUse this MCP server\r\u001b[2C\u001b[2B\u001b[39m \u001b[5GContinue without using this MCP server\r\r\n\r\n\r\n\u001b[2C\u001b[5A"
+],
+[
+10.074,
+"\u001b[>4m\u001b[<u\u001b[?1004l\u001b[?2031l\u001b[?2004l"
+],
+[
+10.075,
+"\u001b[2D\u001b[5B\u001b[2K\u001b[1A\u001b[2K\u001b[1A\u001b[2K\u001b[1A\u001b[2K\u001b[1A\u001b[2K\u001b[1A\u001b[2K\u001b[1A\u001b[2K\u001b[1A\u001b[2K\u001b[1A\u001b[2K\u001b[1A\u001b[2K\u001b[1A\u001b[2K\u001b[1A\u001b[2K\u001b[G\u001b[1A\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B\u001b[K\r\u001b[11A"
+],
+[
+10.086,
+"\u001b[?2004h\u001b[?2031h\u001b[?1004h"
+],
+[
+10.087,
+"\u001b[>0q"
+],
+[
+10.087,
+"\u001b[c"
+],
+[
+10.316,
+"\u001b[>4m\u001b[<u\u001b[?1004l\u001b[?2031l\u001b[?2004l"
+],
+[
+10.428,
+"\u001b[?2004h\u001b[?2031h\u001b[?1004h"
+],
+[
+10.437,
+"\u001b]0;✳ Claude Code\u0007"
+],
+[
+10.465,
+"\u001b[?1049h\u001b[2J\u001b[H\u001b[?1000h\u001b[?1002h\u001b[?1003h\u001b[?1006h\u001b[?25l\u001b[H\r\u001b[1B\u001b[38;5;174m ▐\u001b[48;5;16m▛███▛█\u001b[12G\u001b[39m\u001b[49m\u001b[1mClaude Code\u001b[24G\u001b[22m\u001b[38;5;246mv2.1.292\r\u001b[1B\u001b[38;5;174m▝▜\u001b[48;5;16m█████\u001b[49m█▀\u001b[12G\u001b[38;5;246mOpus 5.5 · Claude Max\r\u001b[1B\u001b[38;5;174m ▝▝   ▝▝ \u001b[12G\u001b[38;5;246m/…/00000000-0000-4000-8000-000000000000/scratchpad/cap/d3 · \u001b[38;5;220m/rc connecting…\r\u001b[80C\u001b[21B\u001b[38;5;246m◐ medium · /effort\r\u001b[1B\u001b[38;5;244m────────────────────────────────────────────────────────────────────────────────────────────────────\r\u001b[1B\u001b[39m❯ \u001b[2mTry \"refactor <filepath>\"\r\u001b[1B\u001b[22m\u001b[38;5;244m────────────────────────────────────────────────────────────────────────────────────────────────────\r\u001b[2C\u001b[2B\u001b[38;5;220m⏵⏵ auto mode on\u001b[38;5;246m (shift+tab to cycle) · ← for agents\u001b[39m\u001b[30;1H\u001b[27;3H\u001b[?25h"
+],
+[
+10.577,
+"\u001b[>0q\u001b[c"
+],
+[
+10.614,
+"\u001b[?25l\u001b[H\r\u001b[2C\u001b[28B\u001b[35mhost:devcontainer-000000\u001b[38;5;246m  \u001b[36mOpus 5.5 · medium\u001b[38;5;246m  \u001b[2mctx:new\u001b[22m  \u001b[33m/tmp/claude-0/-home-user0-code-claude-san…\u001b[39m\u001b[30;1H\u001b[27;3H\u001b[?25h"
+],
+[
+11.227,
+"\u001b[?25l\u001b[H\r\u001b[71C\u001b[3B\u001b]8;id=xxxxxx;https://claude.ai/code/session_000000000000000000000000?from=cli\u0007\u001b[38;5;114m/rc\u001b[39m\u001b]8;;\u0007\u001b[K\u001b[30;1H\u001b[27;3H\u001b[?25h"
+],
+[
+14.024,
+"\u001b[?25l\u001b[H\r\u001b[80C\u001b[23B\u001b[38;5;246m◐ medium · /effort\r\u001b[1B\u001b[38;5;244m────────────────────────────────────────────────────────────────────────────────────────────────────\r\u001b[1B\u001b[39m❯ the quick brown fox jumps over the lazy dog and keeps running far beyond the edge of the box\u001b[K\r\u001b[1B  while\u001b[K\r\u001b[38C\u001b[3B\u001b[K\u001b[30;1H\u001b[27;8H\u001b[?25h"
+],
+[
+16.019,
+"\u001b[?25l\u001b[H\r\u001b[8C\u001b[26Btyping\u001b[16Gmore\u001b[30;1H\u001b[27;20H\u001b[?25h"
+],
+[
+18.023,
+"\u001b[?25l\u001b[H\r\u001b[73C\u001b[22B\u001b[38;5;246mctrl+g to edit in VS Code\r\u001b[1B\u001b[38;5;244m────────────────────────────────────────────────────────────────────────────────────────────────────\r\u001b[1B\u001b[39m❯ the quick brown fox jumps over the lazy dog and keeps running far beyond the edge of the box\u001b[K\r\u001b[1B  w\u001b[5Gile typing more\u001b[K\r\u001b[2C\u001b[1B\u001b[K\u001b[30;1H\u001b[27;3H\u001b[?25h"
+],
+[
+19.022,
+"\u001b[?25l\u001b[H\r\u001b[2C\u001b[26Bsecond\u001b[10Gline\u001b[30;1H\u001b[27;14H\u001b[?25h"
+],
+[
+21.026,
+"\u001b[?25l\u001b[H\r\u001b[73C\u001b[22B\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B\u001b[K\r\u001b[2C\u001b[1B     \u001b[9G      \u001b[16G    \u001b[81G\u001b[38;5;246m◐ medium · /effort\r\u001b[1B\u001b[38;5;244m────────────────────────────────────────────────────────────────────────────────────────────────────\r\u001b[1B\u001b[39m❯ \u001b[2mTry \"refactor <filepath>\"\u001b[22m\u001b[K\r\u001b[1B\u001b[38;5;244m────────────────────────────────────────────────────────────────────────────────────────────────────\r\u001b[2C\u001b[1B\u001b[38;5;246mPress Ctrl-C again to exit\u001b[39m\u001b[K\u001b[30;1H\u001b[28;3H\u001b[?25h"
+],
+[
+21.826,
+"\u001b[?25l\u001b[H\r\u001b[80C\u001b[24B\u001b[38;5;246m◐ medium · /effort\r\u001b[1B\u001b[38;5;244m────────────────────────────────────────────────────────────────────────────────────────────────────\r\u001b[1B\u001b[39m❯ \u001b[2mTry \"refactor <filepath>\"\u001b[22m\u001b[K\r\u001b[1B\u001b[38;5;244m────────────────────────────────────────────────────────────────────────────────────────────────────\r\u001b[1B\u001b[39m  \u001b[35mhost:devcontainer-000000\u001b[38;5;246m  \u001b[36mOpus 5.5 · medium\u001b[38;5;246m  \u001b[2mctx:new\u001b[22m  \u001b[33m/tmp/claude-0/-home-user0-code-claude-san…\u001b[39m\u001b[K\r\u001b[2C\u001b[1B\u001b[38;5;220m⏵⏵ auto mode on\u001b[38;5;246m (shift+tab to cycle) · ← for agents\u001b[39m\u001b[30;1H\u001b[27;3H\u001b[?25h"
+],
+[
+22.523,
+"\u001b[?25l\u001b[H\r\u001b[80C\u001b[24B\u001b[K\r\u001b[1B                                                                                \u001b[38;5;246m◐ medium · /effort\u001b[39m\u001b[K\r\u001b[1B\u001b[38;5;244m────────────────────────────────────────────────────────────────────────────────────────────────────\r\u001b[1B\u001b[39m❯ \u001b[2mTry \"refactor <filepath>\"\u001b[22m\u001b[K\r\u001b[1B\u001b[38;5;244m────────────────────────────────────────────────────────────────────────────────────────────────────\r\u001b[2C\u001b[1B\u001b[38;5;246mPress Ctrl-C again to exit\u001b[39m\u001b[K\u001b[30;1H\u001b[28;3H\u001b[?25h"
+]
+]
+},
+"resumed-spoof": {
+"cols": 100,
+"rows": 40,
+"inputs": [],
+"chunks": [
+[
+0.297,
+"\u001b7\u001b[r\u001b8\u001b[?25h"
+],
+[
+0.322,
+"\u001b[?25l"
+],
+[
+0.322,
+"\u001b[?2004h\u001b[?2031h\u001b[?1004h"
+],
+[
+0.331,
+"\u001b[>0q\u001b[?u"
+],
+[
+0.331,
+"\u001b[c"
+],
+[
+0.629,
+"\u001b[>4m\u001b[<u\u001b[?1004l\u001b[?2031l\u001b[?2004l"
+],
+[
+0.781,
+"\u001b[?2004h\u001b[?2031h\u001b[?1004h"
+],
+[
+0.794,
+"\u001b]0;✳ Claude Code\u0007"
+],
+[
+0.829,
+"\u001b[?1049h\u001b[2J\u001b[H\u001b[?1000h\u001b[?1002h\u001b[?1003h\u001b[?1006h\u001b[?25l\u001b[H\u001b[38;5;231m●\u001b[3G\u001b[39mI'm\u001b[7Gnot\u001b[11Gsure\u001b[16Gwhat\u001b[21Gyou\u001b[25Gmeant\u001b[31Gby\u001b[34G\u001b[38;5;153mabc/help\u001b[39m.\u001b[44GThere's\u001b[52Gno\u001b[55G\u001b[38;5;153mabc\u001b[59G\u001b[39mskill\u001b[65Gor\u001b[68Gcommand\u001b[76Ghere.\u001b[82GIf\u001b[85Gyou\u001b[89Gmeant\u001b[95G\u001b[38;5;153m/help\u001b[39m,\r\u001b[2C\u001b[1Bthat's\u001b[10Ga\u001b[12Gbuilt-in\u001b[21Gcommand:\u001b[30Gtype\u001b[35G\u001b[38;5;153m/help\u001b[41G\u001b[39mby\u001b[44Gitself\u001b[51Gat\u001b[54Gthe\u001b[58Gprompt\u001b[65Gto\u001b[68Gsee\u001b[72Gthe\u001b[76Gcommands\u001b[85Gand\u001b[89Gshortcuts.\r\u001b[2C\u001b[2BIf\u001b[6Gyou\u001b[10Gtell\u001b[15Gme\u001b[18Gwhat\u001b[23Gyou\u001b[27Gwant\u001b[32Gto\u001b[35Gdo,\u001b[39GI\u001b[41Gcan\u001b[45Gtell\u001b[50Gyou\u001b[54Gwhich\u001b[60Gskill\u001b[66Gor\u001b[69Gcommand\u001b[77Gfits.\u001b[83GA\u001b[85Gfew\u001b[89Gthat\u001b[94Gare\r\u001b[2C\u001b[1Bavailable:\r\u001b[2C\u001b[2B-\u001b[5G\u001b[38;5;153m/code-review\u001b[39m:\u001b[19Greview\u001b[26Ga\u001b[28Gdiff\u001b[33Gor\u001b[36GPR\r\u001b[2C\u001b[1B-\u001b[5G\u001b[38;5;153m/github-inbox\u001b[39m:\u001b[20Gwork\u001b[25Gthrough\u001b[33Gyour\u001b[38GGitHub\u001b[45Gnotifications\r\u001b[2C\u001b[1B-\u001b[5G\u001b[38;5;153m/router\u001b[39m:\u001b[14Gcarry\u001b[20Ga\u001b[22Glarge\u001b[28Gpiece\u001b[34Gof\u001b[37Gwork\u001b[42Gacross\u001b[49Gseveral\u001b[57Gcontext\u001b[65Gwindows\r\u001b[2C\u001b[1B-\u001b[5G\u001b[38;5;153m/handoff\u001b[39m:\u001b[15Gwrite\u001b[21Ga\u001b[23Ghandoff\u001b[31Gdocument\u001b[40Gfor\u001b[44Ganother\u001b[52Gagent\r\u001b[2C\u001b[1B-\u001b[5G`/lo\r\u001b[1B\u001b[38;5;246m  ⎿  Interrupted · What should Claude do instead?\r\u001b[2B\u001b[48;5;237m❯ \u001b[38;5;231mt\u001b[39m                                                                                                 \r\u001b[2B\u001b[49m\u001b[38;5;231m●\u001b[3G\u001b[39mSPOOF-A\r\u001b[2C\u001b[2B---\r\u001b[2C\u001b[2B──────────────────────────────────────────────────────────────────────────────────────────────────\r\u001b[2C\u001b[1B──\r\u001b[2C\u001b[1B❯ plain\u001b[11Gfake\u001b[16Gbox\r\u001b[2C\u001b[1B──────────────────────────────────────────────────────────────────────────────────────────────────\r\u001b[2C\u001b[1B──\r\u001b[2C\u001b[2B❯\u001b[5G1.\u001b[8GYes\r\u001b[2C\u001b[2BSPOOF-B\u001b[11GESC-MOVED\u001b[21G\u001b[31mred\u001b[25G\u001b[39mbell\u001b[31Gend\r\u001b[2C\u001b[1B❯ col0?\r\u001b[2C\u001b[1B\u001b[38;5;153m──────────────────────────────────────────────────────────────────────────────────────────────────\r\u001b[2C\u001b[1B──\r\u001b[2C\u001b[1B❯ in code\r\u001b[2B\u001b[38;5;246m✻\u001b[3GSautéed for 1s · done 16:30\r\u001b[80C\u001b[1B◐ medium · /effort\r\u001b[1B\u001b[38;5;244m────────────────────────────────────────────────────────────────────────────────────────────────────\r\u001b[1B\u001b[39m❯ \r\u001b[1B\u001b[38;5;244m────────────────────────────────────────────────────────────────────────────────────────────────────\r\u001b[2C\u001b[2B\u001b[38;5;220m⏵⏵ auto mode on\u001b[38;5;246m (shift+tab to cycle) · ← for agents\u001b[39m\u001b[40;1H\u001b[37;3H\u001b[?25h"
+],
+[
+0.934,
+"\u001b[>0q\u001b[?u\u001b[c"
+],
+[
+0.982,
+"\u001b[?25l\u001b[H\r\u001b[2C\u001b[38B\u001b[35mhost:devcontainer-000000\u001b[38;5;246m  \u001b[36mOpus 5.5 · medium\u001b[38;5;246m  \u001b[32mctx:4%\u001b[38;5;246m  \u001b[33m/tmp/claude-0/-home-user0-code-claude-sand…\u001b[39m\u001b[40;1H\u001b[37;3H\u001b[?25h"
+]
+]
+}
+}
+}
