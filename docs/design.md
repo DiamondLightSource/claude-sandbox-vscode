@@ -424,7 +424,9 @@ Tighten, **My presets…** (from `claudeSandbox.presets`, a list of
 `{title, prompt}` in user settings), **Ask about selection…** (an input box)
 and **Mention in Claude**. Keybindings share one chord prefix,
 `Ctrl+Alt+C`: Start `Ctrl+Alt+C Ctrl+Alt+C`, then a letter for Explain `E`,
-Reword `R`, Tighten `T`, My presets `P`, Ask `A`, Mention `M`, Review All `V`.
+Reword `R`, Tighten `T`, My presets `P`, Ask `A`, Mention `M`, Review All `V`
+(Next and Previous Change take `F8` and `Shift+F8`, scoped to Review All: see
+the Claude Changes view).
 The earlier single `Ctrl+Alt+<letter>` keys collided with VS Code's own
 (`Ctrl+Alt+I` is Open Chat on Linux and Windows); VS Code binds nothing to
 `Ctrl+Alt+C` on Linux or Windows (Copy Path is `Ctrl+Shift+Alt+C` /
@@ -460,5 +462,16 @@ opens every listed file in VS Code's multi-file diff editor:
 `[resource, HEAD, now]` row per file, a missing side `undefined` (VS Code shows
 a new file as added, a deleted one as deleted); symlinks left out. No host git
 command runs; VS Code reads the contents.
+**Next Change** and **Previous Change** (the view's title bar, the palette)
+run VS Code's own `multiDiffEditor.goToNextChange` / `goToPreviousChange`
+(VS Code 1.106+; an older one gets a message), which step through the active
+multi-file diff editor's changes and on into the next or previous file. When
+Review All is not the active editor (its tab's label is not the "Claude
+changes (N files)" title) they open it instead, at the first change. They
+take `F8` and `Shift+F8`, VS Code's next and previous problem, only where
+stepping through changes is what the user is doing: with Review All active
+(the `claudeSandbox.reviewing` context key, from the active tab's label) or
+the Changes view focused. These are the only keys outside the `Ctrl+Alt+C`
+prefix.
 `claudeSandbox.autoOpenDiffs` (off by default) opens each change's diff as a
 preview. Grouping by prompt is a later addition.

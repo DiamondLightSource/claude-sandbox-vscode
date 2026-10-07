@@ -173,3 +173,8 @@ export function reviewPlan(changes: readonly Change[], inHead: (c: Change) => bo
   }
   return { rows, symlinks, title: `Claude changes (${rows.length} file${rows.length === 1 ? "" : "s"})` };
 }
+
+/** Whether a tab's label is Review All's title (reviewPlan's), not another multi-file diff's. */
+export function isReviewTitle(label: string): boolean {
+  return /^Claude changes \(\d+ files?\)$/.test(label);
+}

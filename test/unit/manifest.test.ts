@@ -31,12 +31,20 @@ describe("rule 11: settings the workspace cannot set", () => {
 
 describe("the manifest", () => {
   it("keybindings: one Ctrl+Alt+C chord prefix, nothing on VS Code's own Ctrl+Alt+<letter> keys", () => {
-    const kb = pkg.contributes.keybindings as { command: string; key: string; mac?: string }[];
-    for (const k of kb) {
+    const kb = pkg.contributes.keybindings as { command: string; key: string; mac?: string; when?: string }[];
+    // F8 and Shift+F8 (VS Code's next and previous problem) step through changes, but only in
+    // Review All or with the Changes view focused
+    const steps = kb.filter((k) => k.command === "claudeSandbox.nextChange" || k.command === "claudeSandbox.previousChange");
+    assert.deepEqual(steps.map((k) => k.key).sort(), ["f8", "shift+f8"]);
+    for (const k of steps) {
+      assert.equal(k.when, "claudeSandbox.reviewing && activeEditor == 'multiDiffEditor' || focusedView == 'claudeSandbox.changes'", k.command);
+    }
+    const chords = kb.filter((k) => !steps.includes(k));
+    for (const k of chords) {
       assert.match(k.key, /^ctrl\+alt\+c (?:ctrl\+alt\+c|[a-z])$/, k.command);
       assert.equal(k.mac, undefined, "the same chord on every platform");
     }
-    assert.equal(new Set(kb.map((k) => k.key)).size, kb.length, "no two the same");
+    assert.equal(new Set(chords.map((k) => k.key)).size, chords.length, "no two the same");
     assert.ok(!kb.some((k) => k.key === "ctrl+alt+i"), "Ctrl+Alt+I is VS Code's Open Chat");
   });
   it("runs in the devcontainer, activates after startup", () => {

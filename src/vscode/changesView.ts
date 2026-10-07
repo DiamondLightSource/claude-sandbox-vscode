@@ -7,11 +7,13 @@
 // Each path is lstat-ed (metadata only, never followed): a folder is not listed, and a symlink
 // is listed as one but never opened, so a link the jail planted to a file outside the workspace
 // is not shown in a diff. "Review All" opens every listed file in VS Code's multi-file diff
-// editor (vscode.changes), symlinks left out the same way.
+// editor (vscode.changes), symlinks left out the same way. Next and Previous Change step through
+// that editor's changes (VS Code's own commands, which go on into the next file), opening it first
+// when it is not the active editor.
 
 import * as path from "node:path";
 import * as vscode from "vscode";
-import { ChangeSet, entryKind as entry, reviewPlan, splitByGit, type Change, type Entry } from "../changes.ts";
+import { ChangeSet, entryKind as entry, isReviewTitle, reviewPlan, splitByGit, type Change, type Entry } from "../changes.ts";
 
 /** The collapsed group of listed files git shows no change for now. */
 const QUIET = { quiet: true } as const;
@@ -19,6 +21,8 @@ type Node = Change | typeof QUIET;
 
 const EMPTY_SCHEME = "claude-sandbox-empty";
 const AUTO_OPEN_MS = 400;
+/** VS Code's (1.106+) next and previous change in the active multi-file diff editor. */
+const STEP = { next: "multiDiffEditor.goToNextChange", previous: "multiDiffEditor.goToPreviousChange" } as const;
 /** Watcher events come in bursts (a checkout, an install): the view is redrawn at most this often. */
 const REFRESH_MS = 100;
 
@@ -73,6 +77,8 @@ export class ChangesView implements vscode.TreeDataProvider<Node>, vscode.Dispos
   private watching: vscode.Disposable[] = [];
   private readonly autoTimers = new Map<string, NodeJS.Timeout>();
   private refreshTimer: NodeJS.Timeout | undefined;
+  /** The claudeSandbox.reviewing context key's value. */
+  private reviewingNow = false;
   /** The count changed (status bar). */
   onCount: (unreviewed: number) => void = () => undefined;
 
@@ -92,7 +98,41 @@ export class ChangesView implements vscode.TreeDataProvider<Node>, vscode.Dispos
         for (const c of this.set.list()) any = this.set.markReviewed(c.path) || any;
         if (any) this.refresh();
       }),
+      vscode.commands.registerCommand("claudeSandbox.nextChange", () => this.step("next")),
+      vscode.commands.registerCommand("claudeSandbox.previousChange", () => this.step("previous")),
+      // claudeSandbox.reviewing: Review All is the active editor (F8 and Shift+F8 step through it)
+      vscode.window.tabGroups.onDidChangeTabs(() => this.reviewingChanged()),
+      vscode.window.tabGroups.onDidChangeTabGroups(() => this.reviewingChanged()),
     );
+  }
+
+  /** Review All is the active editor. */
+  private get reviewing(): boolean {
+    const tab = vscode.window.tabGroups.activeTabGroup.activeTab;
+    return tab !== undefined && isReviewTitle(tab.label);
+  }
+
+  private reviewingChanged(): void {
+    const now = this.reviewing;
+    if (now === this.reviewingNow) return;
+    this.reviewingNow = now;
+    void vscode.commands.executeCommand("setContext", "claudeSandbox.reviewing", now);
+  }
+
+  /**
+   * The next or previous change in Review All, on into the next file. Review All is opened first
+   * when it is not the active editor: it opens at the first file's first change.
+   */
+  private async step(dir: keyof typeof STEP): Promise<void> {
+    if (!this.reviewing) {
+      await this.reviewAll();
+      return;
+    }
+    try {
+      await vscode.commands.executeCommand(STEP[dir]);
+    } catch {
+      void vscode.window.showInformationMessage("Claude Sandbox: stepping through changes needs VS Code 1.106 or later.");
+    }
   }
 
   /** A session started: a new list, and watching until stop(). */

@@ -3,7 +3,7 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import { describe, it } from "node:test";
-import { ChangeSet, entryKind, reviewPlan, SAVE_WINDOW_MS, splitByGit } from "../../src/changes.ts";
+import { ChangeSet, entryKind, isReviewTitle, reviewPlan, SAVE_WINDOW_MS, splitByGit } from "../../src/changes.ts";
 
 const set = () => new ChangeSet({ roots: ["/w", "/v/"] });
 
@@ -115,6 +115,11 @@ describe("Review All (vscode.changes rows)", () => {
     assert.equal(plan.symlinks, 1);
     assert.equal(plan.title, "Claude changes (4 files)");
     assert.equal(reviewPlan([], () => true).title, "Claude changes (0 files)");
+  });
+  it("Review All's tab is told apart by its title", () => {
+    const one = reviewPlan([{ path: "/w/a.py", kind: "changed", at: 0, reviewed: false, symlink: false }], () => true).title;
+    for (const t of [one, "Claude changes (4 files)"]) assert.ok(isReviewTitle(t), t);
+    for (const t of ["Changes", "Claude changes", "Claude changes (4 files) - x", "mod.py (HEAD ↔ now)"]) assert.ok(!isReviewTitle(t), t);
   });
 });
 
