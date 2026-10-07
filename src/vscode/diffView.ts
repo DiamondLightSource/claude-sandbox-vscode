@@ -98,7 +98,9 @@ export class DiffEditors implements DiffPresenter, vscode.Disposable {
     const right = vscode.Uri.from({ scheme: PROPOSAL_SCHEME, path: `/${view.id}/${base}` });
     this.tabs.add(view.id, { view, left, right, proposal: new TextEncoder().encode(view.proposed) });
     const title = `${view.title}${view.exists ? "" : " (new file)"}`;
-    void vscode.commands.executeCommand("vscode.diff", left, right, title, { preview: false, preserveFocus: false });
+    // focus stays in the Claude terminal: Enter there answers Claude's prompt; in the diff it
+    // would have typed a newline into the proposal
+    void vscode.commands.executeCommand("vscode.diff", left, right, title, { preview: false, preserveFocus: true });
   }
 
   /** The bridge closes it: no answer. */

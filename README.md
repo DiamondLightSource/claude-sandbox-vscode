@@ -14,8 +14,9 @@ server).
 
 1. **Install claude-sandbox.** If it isn't installed in the container, a
    notification offers **Install**, which runs
-   `uvx --no-cache claude-sandbox@latest install` (with sudo when you are not
-   root) in a terminal you can watch. Nothing runs until you click. uvx is
+   `uvx --no-cache --from 'claude-sandbox>=5.0.0b1' claude-sandbox install`
+   (with sudo when you are not root; the extension needs claude-sandbox
+   5.0.0b1 or later, and an older install gets the same offer) in a terminal you can watch. Nothing runs until you click. uvx is
    used only from `/usr/local/bin`, `/usr/bin` or `~/.cargo/bin` (never from
    `PATH`, and not `~/.local/bin`, which the sandbox can write); without one
    there, the notification links to the
