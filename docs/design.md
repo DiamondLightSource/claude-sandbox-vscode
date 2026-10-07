@@ -289,7 +289,7 @@ Vim mode: in NORMAL mode the box is unchanged and no indicator is shown
 is harmless: captured, a bracketed paste in NORMAL mode is inserted as text
 and Enter submits it.
 
-`claudeSandbox.reviewEdits` (on by default) adds `Edit`, `Write` and
+`claudeSandbox.reviewEdits` (off by default) adds `Edit`, `Write` and
 `NotebookEdit` to `permissions.ask` in the merged `--settings` (after any ask
 list of the user's, without repeats; not `MultiEdit`, which 2.1.292 does not
 know), so each of those edits asks, in auto mode too, and arrives here as an

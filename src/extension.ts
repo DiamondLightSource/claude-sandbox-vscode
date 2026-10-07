@@ -52,12 +52,12 @@ export function activate(context: vscode.ExtensionContext): void {
 
   const folders = (): string[] =>
     (vscode.workspace.workspaceFolders ?? []).filter((f) => f.uri.scheme === "file").map((f) => f.uri.fsPath);
-  // claudeSandbox.reviewEdits (default on): Edit/Write/NotebookEdit always ask, so each file
+  // claudeSandbox.reviewEdits (default off): Edit/Write/NotebookEdit always ask, so each file
   // edit opens as a diff here, whatever the permission mode
   const sessionSettings = (l: IdeLink): LinkSettings =>
-    vscode.workspace.getConfiguration("claudeSandbox").get<boolean>("reviewEdits", true) === false
-      ? l.settings
-      : withReviewEdits(l.settings);
+    vscode.workspace.getConfiguration("claudeSandbox").get<boolean>("reviewEdits", false) === true
+      ? withReviewEdits(l.settings)
+      : l.settings;
   const errorMessage = (err: unknown): void => {
     void vscode.window.showErrorMessage(`Claude Sandbox: ${err instanceof Error ? err.message : String(err)}`);
   };
