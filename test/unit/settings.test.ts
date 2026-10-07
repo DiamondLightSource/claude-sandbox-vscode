@@ -53,7 +53,7 @@ describe("hook commands", () => {
   });
   it("the SessionStart command starts socat only if it is not listening, then writes the lock no-clobber", () => {
     const c = sessionStartCommand(23456, TOKEN, SOCK, ["/w"]);
-    assert.match(c, /^exec >\/dev\/null; if ! grep -q ' 0100007F:5BA0 00000000:0000 0A ' \/proc\/net\/tcp/);
+    assert.match(c, /^exec >\/dev\/null 2>&1; if ! grep -q ' 0100007F:5BA0 00000000:0000 0A ' \/proc\/net\/tcp/);
     assert.match(c, /then \(setsid socat TCP4-LISTEN:23456,bind=127\.0\.0\.1,reuseaddr,fork 'UNIX-CONNECT:/);
     assert.match(c, /\[ "\$i" -ge 100 \] && exit 0/, "no lock when socat never listens");
     assert.ok(c.lastIndexOf("/proc/net/tcp") < c.indexOf("printf"), "the lock after socat listens");

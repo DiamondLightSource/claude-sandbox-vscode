@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { afterEach, beforeEach, describe, it } from "node:test";
-import { Bridge, DIFFS_MAX, RESEND_MS, TOOLS } from "../../src/mcp.ts";
+import { Bridge, DIFFS_MAX, ENVELOPE_MAX, ID_MAX, JSON_ESCAPE_MAX, PROPOSAL_MAX, RESEND_MS, TOOLS } from "../../src/mcp.ts";
+import { HIGH_WATER, MAX_QUEUED } from "../../src/websocket.ts";
 import { Workspace } from "../../src/paths.ts";
 import { IDE_CONNECTED, INITIALIZE, INITIALIZED, TOOLS_LIST, openDiff, texts, toolCall } from "../helpers/client.ts";
 import { FakeDiagnostics, FakePeer, FakePresenter, MemLogger, SECRET, tmpWorkspace, type Tmp } from "../helpers/fakes.ts";
@@ -309,5 +310,45 @@ describe("rule 8: hostile JSON", () => {
     send({ jsonrpc: "2.0", id: 9, method: "\u001b[31mred\u2028x" });
     assert.doesNotMatch(logger.text, /[\u0000-\u0009\u000b-\u001f\u2028]/);
     assert.match(logger.text, /\\u001b/);
+  });
+});
+
+describe("rule 8: the largest answer (FILE_SAVED) always fits under the output cap", () => {
+  it("PROPOSAL_MAX is derived from MAX_QUEUED: worst-case escaping, the envelope and HIGH_WATER fit", () => {
+    assert.ok(PROPOSAL_MAX * JSON_ESCAPE_MAX + ENVELOPE_MAX + HIGH_WATER <= MAX_QUEUED);
+    assert.ok(PROPOSAL_MAX >= 4 * 1024 * 1024, "room for a large source file");
+    // JSON.stringify never writes a byte of UTF-8 text as more than JSON_ESCAPE_MAX bytes
+    const chars = [...Array(0x80).keys()].map((c) => String.fromCharCode(c));
+    chars.push("\u0080", "\u2028", "\uffff", "\ud800", "\udfff", "\ud83d\ude00");
+    for (const c of chars) {
+      assert.ok(JSON.stringify(c).length - 2 <= JSON_ESCAPE_MAX * Buffer.byteLength(c), JSON.stringify(c));
+    }
+  });
+  it("a proposal of PROPOSAL_MAX control characters, with the longest id, is answered within the cap", () => {
+    const { peer, send } = ready();
+    const id = "\u0001".repeat(ID_MAX);
+    send({ ...openDiff(0, target, "\u0001".repeat(PROPOSAL_MAX)), id });
+    const v = presenter.shown[0]!;
+    assert.ok(bridge.decide(v.id, { kind: "accept" }));
+    const reply = peer.reply(id)!;
+    assert.equal(texts(reply)[0], "FILE_SAVED");
+    assert.ok(Buffer.byteLength(JSON.stringify(reply)) + 10 <= MAX_QUEUED - HIGH_WATER);
+  });
+  it("a larger proposal is refused before anything is read; a longer string id is invalid", () => {
+    const { peer, send } = ready();
+    send(openDiff(3, target, "x".repeat(PROPOSAL_MAX + 1)));
+    assert.equal(presenter.shown.length, 0);
+    assert.equal((peer.reply(3)!.result as { isError?: boolean }).isError, true);
+    send({ jsonrpc: "2.0", id: "x".repeat(ID_MAX + 1), method: "ping" });
+    assert.equal((peer.reply(null)!.error as { code: number }).code, -32600);
+  });
+  it("text the user made larger than PROPOSAL_MAX is not sent: an error answer, not FILE_SAVED", () => {
+    const { peer, send } = ready();
+    send(openDiff(3, target, "small\n"));
+    assert.ok(bridge.decide(presenter.shown[0]!.id, { kind: "accept", contents: "y".repeat(PROPOSAL_MAX + 1) }));
+    const r = peer.reply(3)!;
+    assert.equal((r.result as { isError?: boolean }).isError, true);
+    assert.notEqual(texts(r)[0], "FILE_SAVED");
+    assert.ok(Buffer.byteLength(JSON.stringify(r)) < 4096);
   });
 });

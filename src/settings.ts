@@ -69,8 +69,10 @@ const LOCK_DIR = '"${CLAUDE_CONFIG_DIR:-$HOME/.claude}/ide"';
 /** Session sources that start the relay and write the lock (not clear or compact: the
  * session before them never removed it). */
 export const START_MATCHER = "startup|resume|fork";
-/** Session end reasons that remove the lock: real exits only, never clear or resume. */
-export const END_MATCHER = "logout|prompt_input_exit|bypass_permissions_disabled|other";
+/** Session end reasons that remove the lock: real exits only, never clear or resume. Claude
+ * Code 2.1.292 knows clear, resume, logout, prompt_input_exit and other
+ * (bypass_permissions_disabled was removed in 2.1.234). */
+export const END_MATCHER = "logout|prompt_input_exit|other";
 /** How long the SessionStart hook waits for socat to listen, in tenths of a second. */
 export const WAIT_STEPS = 100;
 
@@ -80,7 +82,8 @@ export const WAIT_STEPS = 100;
  * listens (after WAIT_STEPS tenths of a second without, the hook gives up silently: no
  * link, no lock), and never over an existing <P>.lock (another devcontainer sharing the
  * config folder may own that port: this session then runs without a link). It prints
- * nothing: a SessionStart hook's stdout would become context for the model.
+ * nothing, on stdout or stderr: a SessionStart hook's stdout would become context for the
+ * model.
  */
 export function sessionStartCommand(
   port: number,
@@ -96,7 +99,7 @@ export function sessionStartCommand(
     `socat TCP4-LISTEN:${port},bind=127.0.0.1,reuseaddr,fork ` + shellQuote(`UNIX-CONNECT:${socatPath(sockPath)}`);
   const up = `grep -q ${shellQuote(procListen(port))} /proc/net/tcp 2>/dev/null`;
   return [
-    "exec >/dev/null",
+    "exec >/dev/null 2>&1",
     `if ! ${up}; then (setsid ${relay} </dev/null >/dev/null 2>&1 &); fi`,
     "i=0",
     `until ${up}; do [ "$i" -ge ${waitSteps} ] && exit 0; sleep 0.1; i=$((i+1)); done`,
@@ -112,14 +115,18 @@ export function sessionStartCommand(
 
 /**
  * The SessionEnd hook's command (run only for the reasons in END_MATCHER): removes the lock
- * only if it is ours, byte for byte (one the SessionStart hook left alone is not).
+ * only if it is ours, byte for byte (one the SessionStart hook left alone is not). Only a
+ * regular file is read (a FIFO planted there would block the hook; a symlink is not ours),
+ * its size must be exactly ours (so a trailing newline or a NUL, which `$(...)` would drop,
+ * makes it someone else's), and no more than that many bytes are read.
  */
 export function sessionEndCommand(port: number, token: string, folders: readonly string[]): string {
   const lock = lockJson(port, token, folders);
+  const n = Buffer.byteLength(lock);
   return [
-    "exec >/dev/null",
+    "exec >/dev/null 2>&1",
     `f=${LOCK_DIR}/${port}.lock`,
-    `[ "$(cat "$f" 2>/dev/null)" = ${shellQuote(lock)} ] && rm -f "$f"`,
+    `[ -f "$f" ] && [ ! -L "$f" ] && [ $(wc -c <"$f") -eq ${n} ] && [ "$(head -c ${n} "$f")" = ${shellQuote(lock)} ] && rm -f "$f"`,
     "exit 0",
   ].join("; ");
 }

@@ -5,8 +5,9 @@
 // at most `maxMessage` bytes, checked from the frame header before any payload is buffered
 // (so one incomplete frame never holds more than that); output is under backpressure (reading
 // pauses while more than `highWater` bytes wait to be sent) and capped (`maxQueued`: past it
-// the connection is dropped); and a ping every `pingMs` drops a client that has sent no frame
-// since the previous one.
+// the connection is dropped); and a ping every `pingMs` drops a client that has sent no bytes
+// since the previous one (while its reading is paused for backpressure, one that has taken
+// none of what we queued).
 
 import { createHash, timingSafeEqual } from "node:crypto";
 import type { Socket } from "node:net";
@@ -298,7 +299,8 @@ export interface WsOptions {
   highWater?: number;
   /** Drop the client when more than this many bytes wait to be sent to it. */
   maxQueued?: number;
-  /** Ping this often; a client that sent no frame (a pong counts) since the last ping is dropped. */
+  /** Ping this often; a client that sent no bytes (a pong counts) since the last ping is dropped
+   * (while we are not reading it for backpressure: one that took none of what we queued). */
   pingMs?: number;
 }
 
@@ -314,6 +316,7 @@ export class WsConnection {
   private closed = false;
   private notified = false;
   private heard = true;
+  private lastUnsent = 0;
   private pinger: NodeJS.Timeout | undefined;
 
   constructor(socket: Socket, o: WsOptions = {}) {
@@ -353,12 +356,26 @@ export class WsConnection {
 
   private ping(): void {
     if (this.closed) return;
+    // while we are not reading it (backpressure) its pongs wait unread: a client that has
+    // taken some of what we queued since the last ping is alive; one that took none is not
+    if (this.socket.isPaused() && this.unsent() < this.lastUnsent) this.heard = true;
     if (!this.heard) {
-      this.destroy(); // nothing since the last ping, not even its pong
+      this.destroy(); // nothing since the last ping: no bytes in, none of ours taken
       return;
     }
     this.heard = false;
     this.write(encodeFrame(OP_PING));
+    this.lastUnsent = this.unsent();
+  }
+
+  /**
+   * Bytes not yet handed to the kernel: writableLength counts a large write whole until it
+   * completes, so libuv's write queue (which falls as a slow client reads) is added in.
+   */
+  private unsent(): number {
+    const h = (this.socket as unknown as { _handle?: { writeQueueSize?: unknown } | null })._handle;
+    const inLibuv = typeof h?.writeQueueSize === "number" ? h.writeQueueSize : 0;
+    return this.socket.writableLength + inLibuv;
   }
 
   get alive(): boolean {
@@ -367,6 +384,7 @@ export class WsConnection {
 
   private receive(chunk: Buffer): void {
     if (this.closed) return;
+    this.heard = true; // any bytes count, a frame not yet complete included
     if (this.handlers === null) {
       this.pending.push(chunk);
       return;
@@ -378,7 +396,6 @@ export class WsConnection {
       this.fail(err instanceof ProtocolError ? err.code : 1011);
       return;
     }
-    if (events.length) this.heard = true;
     for (const ev of events) {
       if (this.closed) return;
       switch (ev.type) {

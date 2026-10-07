@@ -16,10 +16,30 @@
 // - One linked session: while a connection is open, another is refused (a standalone Claude
 //   that finds the lock cannot take the linked session's place); a reconnect after it closes
 //   is accepted. The listener refuses it before the upgrade; attach() refuses it again.
+//   Observed with 2.1.292: `/ide` choosing the IDE it is connected to opens no connection
+//   (it reports "Connected" with the old one kept); None closes it, and choosing ours again
+//   reconnects; a second Claude refused with 409 shows "Failed to connect" and does not retry.
+// - Output sizes: the largest answer is FILE_SAVED with the accepted text, so the text is
+//   capped (PROPOSAL_MAX, derived from the output cap) so that answer always fits under
+//   MAX_QUEUED, even JSON-escaped at its worst and with HIGH_WATER queued already.
 
 import { isObj, own } from "./json.ts";
 import { Workspace } from "./paths.ts";
 import { esc, type Logger } from "./log.ts";
+import { HIGH_WATER, MAX_QUEUED } from "./websocket.ts";
+
+/** JSON.stringify writes a byte of UTF-8 text as at most 6 (a control character: \u00XX). */
+export const JSON_ESCAPE_MAX = 6;
+/** A string JSON-RPC id is at most this long (Claude's are numbers). */
+export const ID_MAX = 256;
+/** Room for an answer's envelope around the text: jsonrpc, the id (escaped), result, frame head. */
+export const ENVELOPE_MAX = 4096;
+/**
+ * The most bytes (UTF-8) of text an openDiff proposal, or the text the user accepts, may have:
+ * what fits in the output cap (MAX_QUEUED) when escaped at its worst, behind HIGH_WATER bytes
+ * already queued (reading the client stops past that), with the envelope around it.
+ */
+export const PROPOSAL_MAX = Math.floor((MAX_QUEUED - HIGH_WATER - ENVELOPE_MAX) / JSON_ESCAPE_MAX);
 
 export const PROTOCOLS = ["2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05", "2024-10-07"];
 export const DIFFS_MAX = 16;
@@ -131,7 +151,9 @@ export function toolText(texts: string[], isError = false): Msg {
 }
 
 function validId(id: unknown): boolean {
-  return id === null || typeof id === "string" || (typeof id === "number" && Number.isFinite(id));
+  return (
+    id === null || (typeof id === "string" && id.length <= ID_MAX) || (typeof id === "number" && Number.isFinite(id))
+  );
 }
 
 // ---------------------------------------------------------------- the bridge
@@ -413,6 +435,7 @@ export class Bridge {
     };
     // first, so a refusal reads nothing
     if (this.diffs.size >= DIFFS_MAX) return refuse("too many changes are waiting in VS Code");
+    if (Buffer.byteLength(contents) > PROPOSAL_MAX) return refuse(`VS Code shows changes of at most ${PROPOSAL_MAX} bytes`);
     const ws = this.o.workspace;
     const a = ws.resolve(old);
     if (!a.ok) return refuse(`VS Code shows changes to workspace files only (${a.why})`);
@@ -447,7 +470,12 @@ export class Bridge {
       } else if (d.proposed.includes("\r\n") && !final.includes("\r")) {
         final = final.replace(/\n/g, "\r\n"); // back to the proposal's line ends
       }
-      reply = toolText(["FILE_SAVED", final]);
+      // the user's own edits can make it larger than any proposal: past the cap it cannot be
+      // sent (the link would be dropped), so Claude is told, and nothing is accepted
+      reply =
+        Buffer.byteLength(final) > PROPOSAL_MAX
+          ? toolText([`The accepted file is larger than ${PROPOSAL_MAX} bytes and was not sent.`], true)
+          : toolText(["FILE_SAVED", final]);
     } else {
       reply = toolText(["DIFF_REJECTED", d.title]);
     }

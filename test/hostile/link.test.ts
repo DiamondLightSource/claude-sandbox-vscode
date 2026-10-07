@@ -178,6 +178,9 @@ describe("rule 8: the socket and the handshake", () => {
     await survives();
   });
 
+  // Real Claude Code 2.1.292 (docs/design.md "Scope"): `/ide` choosing the connected IDE opens
+  // no connection; None then ours reconnects (the "accepted once it closes" path); a second
+  // Claude gets this 409, reports "Failed to connect" and does not retry.
   it("one linked session: a second is refused while the first is open, accepted once it closes", async () => {
     const a = await claude();
     const b = await Client.open(link.socketPath, link.token);
@@ -258,6 +261,37 @@ describe("rule 8: the socket and the handshake", () => {
     assert.ok(live.frames.filter((f) => f.op === 9).length >= 3);
     assert.deepEqual((await live.call({ jsonrpc: "2.0", id: 9, method: "ping" }))?.result, {});
     live.end();
+  });
+
+  it("a slow reader is not dropped for pongs we did not read while its reading was paused", async () => {
+    await link.close();
+    const PING = 300;
+    link = await start(undefined, { ws: { pingMs: PING } });
+    const c = await claude();
+    c.autoPong = true;
+    c.sock.pause();
+    c.send(openDiff(3, path.join(t.ws, "target.md"), "x".repeat(4 * 1024 * 1024)));
+    const shown = Date.now() + 5000;
+    while (presenter.shown.length === 0 && Date.now() < shown) await sleep(10);
+    link.bridge.decide(presenter.shown[0]!.id, { kind: "accept" });
+    assert.ok(link.queued > HIGH_WATER, "the host stopped reading it (backpressure)");
+    // one chunk (64 KiB) every 25 ms: several ping periods to take the answer
+    const t0 = Date.now();
+    const drip = setInterval(() => {
+      c.sock.once("data", () => c.sock.pause());
+      c.sock.resume();
+    }, 25);
+    try {
+      await c.until(() => c.closed || c.msgs().some((m) => m.id === 3), 20_000);
+    } finally {
+      clearInterval(drip);
+    }
+    c.sock.resume();
+    assert.ok(Date.now() - t0 > PING * 3, "it took several ping periods");
+    assert.ok(!c.closed, "dropped while it was reading");
+    assert.equal(texts(c.msgs().find((m) => m.id === 3))[0], "FILE_SAVED");
+    assert.deepEqual((await c.call({ jsonrpc: "2.0", id: 9, method: "ping" }))?.result, {});
+    c.end();
   });
 
 });

@@ -4,13 +4,13 @@
 // character were not quoted.
 
 import assert from "node:assert/strict";
-import { execFileSync, spawnSync } from "node:child_process";
+import { execFileSync, spawn, spawnSync } from "node:child_process";
 import * as fs from "node:fs";
 import * as net from "node:net";
 import * as path from "node:path";
 import { afterEach, beforeEach, describe, it } from "node:test";
 import { IdeLink } from "../../src/link.ts";
-import { lockJson, sessionStartCommand } from "../../src/settings.ts";
+import { lockJson, sessionEndCommand, sessionStartCommand } from "../../src/settings.ts";
 import { Client } from "../helpers/client.ts";
 import { FakeDiagnostics, FakePresenter, MemLogger, tmpWorkspace, type Tmp } from "../helpers/fakes.ts";
 
@@ -185,7 +185,103 @@ describe("rule 7: the hooks run only when they should", () => {
     const start = hookCommand("SessionStart").matcher.split("|");
     const end = hookCommand("SessionEnd").matcher.split("|");
     assert.deepEqual(start, ["startup", "resume", "fork"]);
-    assert.deepEqual(end, ["logout", "prompt_input_exit", "bypass_permissions_disabled", "other"]);
+    assert.deepEqual(end, ["logout", "prompt_input_exit", "other"]);
     assert.ok(!end.includes("clear") && !end.includes("resume"));
+  });
+});
+
+describe("rule 7: SessionEnd removes only a lock that is ours, byte for byte", () => {
+  const PORT = 23457;
+  const TOKEN = "e".repeat(64);
+  const ours = (): string => lockJson(PORT, TOKEN, [t.ws]);
+  function end(): { status: number | null; stdout: string; stderr: string; ms: number } {
+    const t0 = Date.now();
+    const r = run(sessionEndCommand(PORT, TOKEN, [t.ws]), { PATH: process.env.PATH ?? "/usr/bin:/bin", HOME: path.join(t.dir, "home") });
+    return { ...r, ms: Date.now() - t0 };
+  }
+  function lockPath(): string {
+    const dir = path.join(t.dir, "home", ".claude", "ide");
+    fs.mkdirSync(dir, { recursive: true });
+    return path.join(dir, `${PORT}.lock`);
+  }
+  function silent(r: { status: number | null; stdout: string; stderr: string }): void {
+    assert.equal(r.status, 0);
+    assert.equal(r.stdout, "");
+    assert.equal(r.stderr, "", "the hook prints nothing on stderr either");
+  }
+
+  it("removes ours", () => {
+    const f = lockPath();
+    fs.writeFileSync(f, ours());
+    silent(end());
+    assert.ok(!fs.existsSync(f));
+  });
+
+  it("keeps ours with a trailing newline, a NUL, a byte changed, a prefix or a suffix", () => {
+    const f = lockPath();
+    const o = ours();
+    for (const v of [o + "\n", o + "\n\n", o.slice(0, 10) + "\0" + o.slice(10), "X" + o.slice(1), o.slice(0, -1), o + "x"]) {
+      fs.writeFileSync(f, v);
+      silent(end());
+      assert.equal(fs.readFileSync(f, "utf8"), v, JSON.stringify(v.slice(-3)));
+    }
+  });
+
+  it("does not block on a FIFO planted at the lock, and leaves it", () => {
+    const f = lockPath();
+    execFileSync("mkfifo", [f]);
+    const r = end();
+    silent(r);
+    assert.ok(r.ms < 5000, `took ${r.ms} ms`);
+    assert.ok(fs.lstatSync(f).isFIFO());
+  });
+
+  it("leaves a symlink to a copy of ours, and its target", () => {
+    const f = lockPath();
+    const target = path.join(t.dir, "copy.lock");
+    fs.writeFileSync(target, ours());
+    fs.symlinkSync(target, f);
+    silent(end());
+    assert.ok(fs.lstatSync(f).isSymbolicLink());
+    assert.equal(fs.readFileSync(target, "utf8"), ours());
+  });
+
+  it("leaves a huge file without reading it whole, and is silent when there is no lock or no folder", () => {
+    const f = lockPath();
+    fs.writeFileSync(f, ours() + "x".repeat(64 * 1024 * 1024));
+    silent(end());
+    assert.ok(fs.existsSync(f));
+    fs.unlinkSync(f);
+    silent(end());
+    fs.rmSync(path.join(t.dir, "home"), { recursive: true });
+    fs.writeFileSync(path.join(t.dir, "home"), "not a folder");
+    silent(end());
+  });
+});
+
+describe("rule 7: SessionStart prints nothing on stderr when the lock folder cannot be made", () => {
+  it("exits 0 silently", async () => {
+    // something listens already (so no socat is started), then mkdir fails
+    const server = net.createServer();
+    await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
+    const port = (server.address() as net.AddressInfo).port;
+    const home = path.join(t.dir, "home");
+    fs.mkdirSync(path.join(home, ".claude"), { recursive: true });
+    fs.writeFileSync(path.join(home, ".claude", "ide"), "a file where the folder should be");
+    const cmd = sessionStartCommand(port, "f".repeat(64), path.join(t.ws, "s.sock"), [t.ws], 3);
+    const r = await new Promise<{ status: number | null; stdout: string; stderr: string }>((resolve) => {
+      // asynchronously: the listener above must keep accepting while the hook runs
+      const child = spawn("sh", ["-c", cmd], { cwd: t.dir, env: { PATH: shim(t.dir, true), HOME: home } });
+      let stdout = "";
+      let stderr = "";
+      child.stdout.on("data", (d: Buffer) => (stdout += d.toString()));
+      child.stderr.on("data", (d: Buffer) => (stderr += d.toString()));
+      child.on("close", (status) => resolve({ status, stdout, stderr }));
+    });
+    server.close();
+    assert.equal(r.status, 0);
+    assert.equal(r.stdout, "");
+    assert.equal(r.stderr, "");
+    assert.equal(started().length, 0, "no socat: something listened already");
   });
 });

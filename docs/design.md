@@ -27,6 +27,16 @@ linked session's place (the second upgrade gets `409`, before any MCP traffic). 
 reconnect after the connection closes is accepted. The session's own `/clear`,
 `/resume` and fork keep the link: the hooks are matched so the lock outlives them.
 
+Refusing does not break `/ide` in the linked session. Observed with Claude Code
+2.1.292 against this bridge (the generated `--settings`, the in-jail hook and
+socat, a real lock): `/ide` choosing the IDE it is already connected to opens
+no new connection; it reports "Connected" within ~80 ms and keeps the old one.
+Choosing None closes the connection, and choosing ours again reconnects (the
+link accepts it: nothing is open). A second, standalone Claude choosing ours
+with `/ide` while the linked session is connected gets the `409`, shows
+"Failed to connect to Claude Sandbox for VS Code" ~100 ms later and does not
+retry; the linked session stays connected.
+
 ## How the link works
 
 1. The extension listens on a Unix socket at the workspace root,
@@ -52,11 +62,14 @@ reconnect after the connection closes is accepted. The session's own `/clear`,
    lock is `{"pid":1,"workspaceFolders":[...],"ideName":...,
    "transport":"ws","authToken":...}`; `"pid": 1` keeps Claude's stale-lock
    sweep from deleting it. The `SessionEnd` hook (matcher
-   `logout|prompt_input_exit|bypass_permissions_disabled|other`: real exits,
-   not `clear` or `resume`, after which a new session starts in the same
-   process) removes the lock only if its content is byte for byte ours. Both
-   hooks print nothing to stdout (a SessionStart hook's stdout becomes model
-   context). The extension is already listening on its socket before the
+   `logout|prompt_input_exit|other`: real exits, not `clear` or `resume`, after
+   which a new session starts in the same process; 2.1.292 knows no other
+   reasons, `bypass_permissions_disabled` was removed in 2.1.234) removes the
+   lock only if its content is byte for byte ours: only a regular file, not a
+   symlink, is read (a FIFO planted there would block the hook), its size must
+   be exactly ours, and no more than that many bytes are read (`head -c`). Both
+   hooks send stdout and stderr to `/dev/null` (a SessionStart hook's stdout
+   becomes model context). The extension is already listening on its socket before the
    terminal starts. The host never writes into the jail's `~/.claude` (it is
    agent-writable).
 4. Claude polls the lock folder and connects to `127.0.0.1:P` in the jail
@@ -129,9 +142,19 @@ message as hostile. These rules are the security design; each has a test in
    than that. At most 4 connections in their handshake at once, each with a
    handshake timeout; one upgraded connection (one linked session). Output
    is under backpressure: while more than 1 MiB waits to be sent, the
-   connection is not read, and past 32 MiB queued it is dropped. A WebSocket
-   ping every 30 s; a client that has sent no frame (a pong counts) since the
-   previous ping is dropped. There is no idle-read timeout: Claude Code sends
+   connection is not read, and past 32 MiB queued it is dropped. The largest
+   answer, `FILE_SAVED` with the accepted text, always fits: an openDiff
+   proposal, and the text the user accepts, is at most `PROPOSAL_MAX` bytes
+   (about 5.2 MiB), derived from the cap as (32 MiB − 1 MiB − 4 KiB) / 6, the
+   worst JSON escaping (a control character, `\u00XX`) behind 1 MiB already
+   queued with room for the envelope; a string request id is at most 256
+   characters. A larger proposal is refused before anything is read; accepted
+   text the user made larger is answered with an error, not sent. A WebSocket
+   ping every 30 s; a client that has sent no bytes (a pong counts) since the
+   previous ping is dropped. While we are not reading it (backpressure) its
+   pongs wait unread, so then it counts as alive if it has taken any of what we
+   queued since that ping (libuv's write queue fell), and is dropped if it took
+   none. There is no idle-read timeout: Claude Code sends
    nothing after its opening frames. permessage-deflate refused. Parsed JSON
    is never merged into objects (`__proto__`); nothing from the jail is
    logged unescaped. getDiagnostics answers `{uri, diagnostics}` per file,
@@ -143,6 +166,20 @@ A jailed process with the token that answers pings can hold the single
 connection slot indefinitely. It can only deny its own IDE link: anything in
 the jail could equally kill the linked Claude, and nothing on the host is
 exposed by it.
+
+The token is in the jail from the start, so a jailed process can also take the
+slot in the moment before Claude connects (about 0.3 s after the lock
+appears). Claude then gets `409` and runs without a link, while the status bar
+shows "connected" to the impostor, which can show `openDiff` proposals as if
+they were Claude's. That gains it nothing over writing the workspace itself
+(which the jail can do anyway) beyond the user's Accept click, and it can only
+deny or take over its own link: no host access.
+
+A window reload loses the link. Deactivation closes the socket, and the
+reloaded window draws a new port and token, so the running Claude's lock and
+`CLAUDE_CODE_SSE_PORT` point at nothing until Claude is restarted with the new
+settings. The stage-2 launcher, which owns the terminal, is where that gets
+handled.
 
 Host VS Code on a workspace the jail can write is exposed whether or not this
 extension is installed: `.vscode/settings.json` (interpreter paths, tasks) and
@@ -163,8 +200,8 @@ client on the real socket, with the real token, attacking).
 | 4 getDiagnostics | `test/unit/mcp.test.ts` "rule 4" (no `fsPath`), "workspace folders changed"; `test/hostile/link.test.ts` "openDiff and getDiagnostics outside the workspace" |
 | 5 selection_changed | `test/unit/mcp.test.ts` "rule 5" |
 | 6 Terminal input | `test/unit/paste.test.ts` (the paste primitive only: the launcher and the `❯` gate are stage 2) |
-| 7 Lock files and sockets | `test/hostile/hook.test.ts` (the hook run for real with socat, in a workspace whose name tries to break out of the command; idempotent, one socat; another's lock left alone and not removed at SessionEnd; no lock when socat never listens; the matchers); `test/unit/settings.test.ts` "hook commands"; `test/hostile/audit.test.ts` "rule 7" (every fs path recorded during a session; none under the config folder); `test/hostile/link.test.ts` "rule 7: the socket name" |
-| 8 Parser and connection limits | `test/unit/websocket.test.ts`; `test/hostile/link.test.ts` "rule 8" (0600, deflate refused, tokens, 4 handshakes, slow handshake, 1009, 1002, one linked session, a client that stops reading (backpressure), the 32 MiB cap, pings); `test/unit/mcp.test.ts` "connections" and "rule 8", `test/unit/settings.test.ts` (`__proto__`); `test/unit/log.test.ts` |
+| 7 Lock files and sockets | `test/hostile/hook.test.ts` (the hook run for real with socat, in a workspace whose name tries to break out of the command; idempotent, one socat; another's lock left alone and not removed at SessionEnd; no lock when socat never listens; the matchers; silent on stderr when the lock folder cannot be made), "SessionEnd removes only a lock that is ours, byte for byte" (trailing newline, NUL, prefix, suffix kept; a FIFO at the lock path neither blocks nor is removed; a symlink and its target left; a huge file); `test/unit/settings.test.ts` "hook commands"; `test/hostile/audit.test.ts` "rule 7" (every fs path recorded during a session; none under the config folder); `test/hostile/link.test.ts` "rule 7: the socket name" |
+| 8 Parser and connection limits | `test/unit/websocket.test.ts`; `test/hostile/link.test.ts` "rule 8" (0600, deflate refused, tokens, 4 handshakes, slow handshake, 1009, 1002, one linked session (the `/ide` behaviour above recorded by hand with Claude Code 2.1.292), a client that stops reading (backpressure), the 32 MiB cap, pings, a slow reader not dropped while paused); `test/unit/mcp.test.ts` "connections", "rule 8" and "the largest answer (FILE_SAVED) always fits under the output cap" (`PROPOSAL_MAX` derived from `MAX_QUEUED`, a worst-case proposal and id, a larger proposal or accepted text), `test/unit/settings.test.ts` (`__proto__`); `test/unit/log.test.ts` |
 
 ## Implementation notes
 
