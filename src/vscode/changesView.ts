@@ -17,6 +17,7 @@ import {
   CHANGES_MAX,
   ChangeSet,
   entryKind as entry,
+  freshStatus as fresh,
   groupByRoot,
   isReviewTitle,
   reviewPlan,
@@ -60,6 +61,8 @@ interface GitRepository {
     readonly mergeChanges?: readonly GitChange[];
     readonly onDidChange: vscode.Event<void>;
   };
+  /** Re-reads git's status (the Git extension runs git; we do not). */
+  status(): Promise<void>;
 }
 interface GitApi {
   getRepository(uri: vscode.Uri): GitRepository | null;
@@ -349,6 +352,8 @@ export class ChangesView implements vscode.TreeDataProvider<Node>, vscode.Dispos
       await vscode.commands.executeCommand("vscode.diff", git.toGitUri(uri, "HEAD"), empty(uri), `${name} (deleted)`, opts);
       return;
     }
+    await fresh([repo]);
+    this.refreshSoon(); // the view follows the status just read
     const left = this.original(git, repo, c, uri);
     if (left.scheme === EMPTY_SCHEME) await vscode.window.showTextDocument(uri, opts);
     else await vscode.commands.executeCommand("vscode.diff", left, uri, `${name} (HEAD ↔ now)`, opts);
@@ -361,9 +366,14 @@ export class ChangesView implements vscode.TreeDataProvider<Node>, vscode.Dispos
    */
   async reviewAll(): Promise<void> {
     const git = await gitApi();
+    const repoOf = (c: Change): GitRepository | null => git?.getRepository(vscode.Uri.file(c.path)) ?? null;
+    // the Git extension's status lags the watcher: a file just made would not be untracked yet,
+    // so would be left out of what is shown or diffed against a HEAD that lacks it. Every
+    // session file's repository is re-read (not only the shown ones'), then shown() recomputed.
+    await fresh(this.set.list().map(repoOf));
+    this.refresh();
     const list = this.shown();
     for (const c of list) if (c.kind !== "deleted") await this.check(c); // a symlink now is marked
-    const repoOf = (c: Change): GitRepository | null => git?.getRepository(vscode.Uri.file(c.path)) ?? null;
     const plan = reviewPlan(list, (c) => {
       const repo = repoOf(c);
       return git !== null && repo !== null && (c.kind === "deleted" || this.original(git, repo, c, vscode.Uri.file(c.path)).scheme !== EMPTY_SCHEME);

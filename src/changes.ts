@@ -233,3 +233,13 @@ export function reviewPlan(changes: readonly Change[], inHead: (c: Change) => bo
 export function isReviewTitle(label: string): boolean {
   return label === REVIEW_TITLE || label.startsWith(`${REVIEW_TITLE} (`);
 }
+
+/**
+ * Re-reads each repository's git status once before a diff is built: the Git extension's status
+ * lags the file watcher, so a file just made would not be untracked yet and would be diffed
+ * against a HEAD that lacks it. A failure keeps the status it had.
+ */
+export async function freshStatus(repos: readonly ({ status(): Promise<void> } | null)[]): Promise<void> {
+  const unique = [...new Set(repos)].filter((r) => r !== null);
+  await Promise.all(unique.map((r) => r.status().catch(() => undefined)));
+}
