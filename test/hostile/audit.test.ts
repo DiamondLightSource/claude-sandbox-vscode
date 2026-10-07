@@ -24,7 +24,7 @@ function sources(dir: string): string[] {
 describe("rule 3: no code path writes a file", () => {
   it("src/ uses no write or delete API (libuv alone unlinks our socket when it closes)", () => {
     const write =
-      /\bfs\.(write|writeSync|writeFile|writeFileSync|appendFile\w*|createWriteStream|rename\w*|copyFile\w*|cp\w*|truncate\w*|chmod\w*|chown\w*|lchown\w*|mkdir\w*|mkdtemp\w*|rm|rmSync|rmdir\w*|symlink\w*|link|linkSync|unlink|unlinkSync|utimes\w*)\b|O_WRONLY|O_RDWR|O_CREAT|O_TRUNC|O_APPEND|workspace\.fs\.|applyEdit|WorkspaceEdit|child_process/;
+      /\bfs\.(write|writeSync|writeFile|writeFileSync|appendFile\w*|createWriteStream|rename\w*|copyFile\w*|cp\w*|truncate\w*|chmod\w*|chown\w*|lchown\w*|mkdir\w*|mkdtemp\w*|rm|rmSync|rmdir\w*|symlink\w*|link|linkSync|unlink|unlinkSync|utimes\w*)\b|O_WRONLY|O_RDWR|O_CREAT|O_TRUNC|O_APPEND|workspace\.fs\.(?!stat\()|applyEdit|WorkspaceEdit/;
     const hits: string[] = [];
     for (const f of sources(path.join(root, "src"))) {
       fs.readFileSync(f, "utf8")
@@ -57,6 +57,44 @@ describe("rule 3: no code path writes a file", () => {
         assert.ok(/^(node:|\.|vscode$)/.test(m[1]!), `${f} imports ${m[1]}`);
       }
     }
+  });
+});
+
+describe("rules 6, 9, 10: the processes the extension starts", () => {
+  const read = (f: string): string => fs.readFileSync(path.join(root, f), "utf8");
+  it("child_process only in the pty relay and the version check, with constant programs", () => {
+    const users = sources(path.join(root, "src"))
+      .filter((f) => /child_process/.test(fs.readFileSync(f, "utf8").replace(/\/\/.*$/gm, "")))
+      .map((f) => path.relative(root, f))
+      .sort();
+    assert.deepEqual(users, ["src/install.ts", "src/pty.ts", "src/vscode/installOffer.ts"].filter((f) => f !== "src/install.ts"));
+    // the relay: the root-owned interpreter (a test seam aside), never a shell
+    assert.match(read("src/pty.ts"), /spawn\(o\.python \?\? PYTHON, helperArgs\(/);
+    assert.match(read("src/pty.ts"), /shell: false/);
+    assert.match(read("src/ptyHelper.ts"), /export const PYTHON = "\/usr\/libexec\/claude-sandbox\/venv\/bin\/python";/);
+    assert.match(read("src/ptyHelper.ts"), /export const CLAUDE = "\/usr\/local\/bin\/claude";/);
+    // the version check: claude-sandbox by absolute path
+    assert.match(read("src/vscode/installOffer.ts"), /execFile\(CLAUDE_SANDBOX, \["version"\]/);
+    assert.match(read("src/install.ts"), /export const CLAUDE_SANDBOX = "\/usr\/local\/bin\/claude-sandbox";/);
+  });
+
+  it("terminals: the session's pty relay and the install's constant command; nothing typed into a shell", () => {
+    const hits = sources(path.join(root, "src")).flatMap((f) =>
+      fs
+        .readFileSync(f, "utf8")
+        .split("\n")
+        .filter((l) => /createTerminal\(|(?<!ws)\.sendText\(|shellPath|shellArgs/.test(l.replace(/\/\/.*$/, "")))
+        .map((l) => `${path.basename(f)}: ${l.trim()}`),
+    );
+    assert.deepEqual(hits, [
+      "installOffer.ts: const term = vscode.window.createTerminal({",
+      'installOffer.ts: shellPath: "/bin/sh",',
+      'installOffer.ts: shellArgs: ["-c", INSTALL_SCRIPT, "sh", ...argv],',
+      "terminal.ts: this.terminal = vscode.window.createTerminal({",
+    ]);
+    // the session's terminal is a Pseudoterminal running CLAUDE through the relay
+    assert.match(read("src/vscode/terminal.ts"), /program: CLAUDE,/);
+    assert.match(read("src/vscode/terminal.ts"), /\n\s+pty,\n/);
   });
 });
 

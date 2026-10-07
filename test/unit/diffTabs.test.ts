@@ -99,7 +99,7 @@ describe("Accept and Reject from either side of the diff", () => {
   it("the commands are offered when either side has focus", () => {
     const pkg = JSON.parse(fs.readFileSync(path.join(import.meta.dirname, "..", "..", "package.json"), "utf8"));
     const menus = pkg.contributes.menus as Record<string, { command: string; when: string }[]>;
-    const entries = [...menus["editor/title"]!, ...menus.commandPalette!];
+    const entries = [...menus["editor/title"]!, ...menus.commandPalette!].filter((m) => /Diff$/.test(m.command));
     assert.equal(entries.length, 4);
     for (const m of entries) {
       assert.match(m.when, new RegExp(`resourceScheme == ${PROPOSAL_SCHEME}\\b`), m.command);

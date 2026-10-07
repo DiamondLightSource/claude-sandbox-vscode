@@ -19,8 +19,8 @@ extension runs in the devcontainer's remote extension host. Rootless Podman and
 the devcontainer are claude-sandbox prerequisites. claude-sandbox's standalone
 mode (the host launcher starting its own container) is not a target.
 
-One linked Claude session per VS Code window. Any other Claude is started the
-usual way (`claude` in a terminal) and runs sandboxed with no IDE link. While a
+One linked Claude session per VS Code window, started with **Claude Sandbox:
+Start**. Any other Claude is started the usual way (`claude` in a terminal) and runs sandboxed with no IDE link. While a
 connection is open, the link refuses a new one rather than replacing it, so a
 standalone Claude that finds the lock (for example with `/ide`) cannot take the
 linked session's place (the second upgrade gets `409`, before any MCP traffic). A
@@ -43,7 +43,8 @@ retry; the linked session stays connected.
    `.claude-sandbox-vscode-<P>.sock` (mode 0600). The jail sees the workspace,
    so it sees the socket.
 2. The extension starts the sandbox's `claude` shadow (`/usr/local/bin/claude`,
-   which runs Claude in the jail) as the terminal's own process with a
+   which runs Claude in the jail) as the terminal's own process (see
+   [The launcher](#the-launcher)) with a
    `--settings` JSON carrying `env.CLAUDE_CODE_SSE_PORT=P`, a `SessionStart`
    hook and a `SessionEnd` hook. Claude Code honours only the last
    `--settings`, so a user's own JSON settings are merged with ours, never
@@ -118,9 +119,16 @@ message as hostile. These rules are the security design; each has a test in
 5. **selection_changed** is sent only for files inside a workspace folder;
    otherwise a cleared selection (empty range, no `filePath`).
 6. **Terminal input.** The `claude` shadow is the terminal's process, never a
-   command sent into a shell, so text never reaches a host shell. Asks are sent
-   only while Claude's `❯` prompt is showing, as one bracketed paste with
-   control characters (ESC included) stripped.
+   command sent into a shell, so text never reaches a host shell. Asks are typed
+   only while Claude Code's input box is showing (`❯` followed by a no-break
+   space; anything else after the last `❯` drawn is a menu, and refused), never
+   while a proposed change waits for an answer, and the state is checked again
+   before the Enter. The question is one bracketed paste with control
+   characters (ESC included) stripped. A session still starting is waited for
+   at most 20 s, then nothing is typed. A typed @-mention (no link) goes only
+   into the input box; `at_mentioned` and `selection_changed` only for files
+   inside a workspace folder. The user's keys wait while an ask is between its
+   paste and its Enter.
 7. **Lock files and sockets.** The host never opens anything under the jail's
    config folder: the lock file is written by the in-jail `SessionStart`
    hook (temp name in the same folder, then a no-clobber `ln`, mode 0600).
@@ -160,6 +168,42 @@ message as hostile. These rules are the security design; each has a test in
    logged unescaped. getDiagnostics answers `{uri, diagnostics}` per file,
    never the host-side `fsPath`.
 
+9. **The pty relay.** The session's terminal is a `Pseudoterminal` relaying to
+   a child with a real pty, made by a Python program kept as a string constant
+   in the extension (`src/ptyHelper.ts`) and run as
+   `/usr/libexec/claude-sandbox/venv/bin/python -I -c <program> cols rows
+   /usr/local/bin/claude <args>`: claude-sandbox's root-owned interpreter (the
+   one its own shim runs), isolated, with no helper file on disk that anything
+   could change. The interpreter, the program and `/usr/local/bin/claude` are
+   constants; only Claude's arguments (the merged `--settings`, the user's
+   `claudeSandbox.extraArgs`) vary, and they are argv words, never shell text.
+   The child gets the pty as its controlling terminal in a session of its own
+   and none of the relay's descriptors. Claude's environment is the extension
+   host's minus `VSCODE_*`, `ELECTRON_*` and an inherited
+   `CLAUDE_CODE_SSE_PORT`. Resizes (`cols rows` lines on fd 3) are validated.
+   Only two places start processes: the relay, and `claude-sandbox version`
+   by absolute path for the outdated notice.
+10. **Install offer.** Nothing runs without the user's click. The command is
+    fixed in the extension (`uvx claude-sandbox install`, prefixed with
+    `/usr/bin/sudo` when not uid 0; uvx looked for in `/usr/local/bin`,
+    `/usr/bin`, then the extension host's `PATH`), run in a visible terminal as
+    `/bin/sh -c <constant script> sh <argv...>` (the command as positional
+    parameters, never shell text). An outdated install gets a notice, never an
+    upgrade; the PyPI check runs at most once a day and fails silently.
+11. **Settings.** Every setting (`claudeSandbox.extraArgs`,
+    `claudeSandbox.presets`, `claudeSandbox.autoOpenDiffs`) is
+    `scope: application`: user settings only. Workspace and folder settings
+    are agent-writable, and so in effect is `machine` scope in a devcontainer
+    (`customizations.vscode.settings` in the workspace's `devcontainer.json`
+    become remote machine settings on rebuild), so neither is used.
+    `autoOpenDiffs` is harmless either way; it is application-scoped for one
+    simple rule. The only other setting read is `files.watcherExclude`.
+12. **The changes view reads and writes nothing.** It records paths from VS
+    Code's file watcher and stats a new path (metadata only) to skip folders.
+    VS Code's diff editor reads the files; the built-in Git extension runs git.
+    There is no revert action: that would be the host writing into the
+    jail-writable workspace (Source Control's Discard is the way back).
+
 ## Out of scope (residual risk)
 
 A jailed process with the token that answers pings can hold the single
@@ -175,11 +219,20 @@ they were Claude's. That gains it nothing over writing the workspace itself
 (which the jail can do anyway) beyond the user's Accept click, and it can only
 deny or take over its own link: no host access.
 
-A window reload loses the link. Deactivation closes the socket, and the
-reloaded window draws a new port and token, so the running Claude's lock and
-`CLAUDE_CODE_SSE_PORT` point at nothing until Claude is restarted with the new
-settings. The stage-2 launcher, which owns the terminal, is where that gets
-handled.
+A window reload ends the session. Deactivation closes the socket and hangs up
+the session's pty (the relay closes it: SIGHUP, then SIGKILL after 3 s), and
+the terminal is transient, so it is not revived. The reloaded window draws a
+new port and token at the next Start. A Claude started by hand with **Copy
+launch command** keeps running after a reload, unlinked.
+
+The "busy" check (Claude Code drew "esc to interrupt" in the last 1.5 s) is
+best effort. An ask that slips through while Claude works is queued by Claude
+Code, which answers nothing; the menu check is what keeps an Enter from
+answering a question.
+
+The changes view records every watcher event in the workspace while the
+session runs, whoever caused it, except the user's own saves (within 2 s).
+A `git checkout` or a formatter run by another extension shows up too.
 
 Host VS Code on a workspace the jail can write is exposed whether or not this
 extension is installed: `.vscode/settings.json` (interpreter paths, tasks) and
@@ -199,7 +252,11 @@ client on the real socket, with the real token, attacking).
 | 3 No workspace writes | `test/unit/mcp.test.ts` "rule 2/3" (FILE_SAVED, closed → DIFF_REJECTED); `test/unit/diffTabs.test.ts` (the tab state machine: close → DIFF_REJECTED, self-close or lost connection → no answer, accept → FILE_SAVED once, mtime only on write; Accept/Reject from either side); `test/hostile/link.test.ts` "an accepted diff is answered FILE_SAVED and the file is not written"; `test/hostile/audit.test.ts` "rule 3" (no write or delete API in `src/`) |
 | 4 getDiagnostics | `test/unit/mcp.test.ts` "rule 4" (no `fsPath`), "workspace folders changed"; `test/hostile/link.test.ts` "openDiff and getDiagnostics outside the workspace" |
 | 5 selection_changed | `test/unit/mcp.test.ts` "rule 5" |
-| 6 Terminal input | `test/unit/paste.test.ts` (the paste primitive only: the launcher and the `❯` gate are stage 2) |
+| 6 Terminal input | `test/unit/paste.test.ts` (the paste primitive); `test/unit/prompt.test.ts` (input box vs menu as Claude Code 2.1.292 draws them, the folder-trust menu with no number, pending, busy); `test/unit/session.test.ts` (selection → ping → one paste → Enter; refused in a menu, with a diff waiting, while busy; a menu that appears during the ping or before the Enter; waiting for a starting session, and giving up; typed fallback; keys held; Mention via `at_mentioned` or typed only into the box); `test/unit/mcp.test.ts` "the ping barrier", "at_mentioned"; `test/hostile/audit.test.ts` "terminals" (no `sendText`, the session's terminal is a Pseudoterminal running CLAUDE) |
+| 9 The pty relay | `test/unit/pty.test.ts` (argv constant but for size and arguments; the pty is the controlling terminal at the given size with no fd of ours; arguments are words; keys and UTF-8; SIGWINCH on resize, bad resize lines ignored; Ctrl-C and exit status; output before exit kept; kill hangs up; a missing program is 127); `test/hostile/audit.test.ts` "child_process only in the pty relay and the version check" |
+| 10 Install offer | `test/unit/install.test.ts` (the shim recognised, read without blocking on a FIFO; the fixed command and sudo; the terminal script runs its arguments as words; version parsing and comparison; PyPI JSON read as own keys); `test/hostile/audit.test.ts` "terminals" |
+| 11 Settings | `test/unit/manifest.test.ts` (every setting `scope: application`; the code reads no other setting of ours; every contributed command registered) |
+| 12 Changes view | `test/unit/changes.test.ts` (only workspace files, not `.git`, sockets or `files.watcherExclude`; the user's saves skipped; kinds; reviewed until changed again); `test/hostile/audit.test.ts` "rule 3" (no write API; `workspace.fs` only for `stat`) |
 | 7 Lock files and sockets | `test/hostile/hook.test.ts` (the hook run for real with socat, in a workspace whose name tries to break out of the command; idempotent, one socat; another's lock left alone and not removed at SessionEnd; no lock when socat never listens; the matchers; silent on stderr when the lock folder cannot be made), "SessionEnd removes only a lock that is ours, byte for byte" (trailing newline, NUL, prefix, suffix kept; a FIFO at the lock path neither blocks nor is removed; a symlink and its target left; a huge file); `test/unit/settings.test.ts` "hook commands"; `test/hostile/audit.test.ts` "rule 7" (every fs path recorded during a session; none under the config folder); `test/hostile/link.test.ts` "rule 7: the socket name" |
 | 8 Parser and connection limits | `test/unit/websocket.test.ts`; `test/hostile/link.test.ts` "rule 8" (0600, deflate refused, tokens, 4 handshakes, slow handshake, 1009, 1002, one linked session (the `/ide` behaviour above recorded by hand with Claude Code 2.1.292), a client that stops reading (backpressure), the 32 MiB cap, pings, a slow reader not dropped while paused); `test/unit/mcp.test.ts` "connections", "rule 8" and "the largest answer (FILE_SAVED) always fits under the output cap" (`PROPOSAL_MAX` derived from `MAX_QUEUED`, a worst-case proposal and id, a larger proposal or accepted text), `test/unit/settings.test.ts` (`__proto__`); `test/unit/log.test.ts` |
 
@@ -214,36 +271,87 @@ client on the real socket, with the real token, attacking).
   when the listener closes.
 - The audit core is `src/websocket.ts`, `src/listener.ts`, `src/mcp.ts`,
   `src/paths.ts`, `src/dirfd.ts`, `src/settings.ts`, `src/json.ts`,
-  `src/diffTabs.ts`, `src/link.ts`; none imports `vscode`. The VS Code glue is
-  `src/vscode/` and `src/extension.ts`. `src/paste.ts` (rule 6) and the
-  settings merge (`withSettings`) are tested now and used by the stage-2
-  launcher.
+  `src/diffTabs.ts`, `src/link.ts`, and for stage 2 `src/ptyHelper.ts`,
+  `src/pty.ts`, `src/prompt.ts`, `src/session.ts`, `src/paste.ts`,
+  `src/install.ts`; none imports `vscode`. `src/ask.ts` (presets, @-mentions)
+  and `src/changes.ts` (the changes list) are vscode-free models. The VS Code
+  glue is `src/vscode/` and `src/extension.ts`.
+- The socket path is limited to 107 bytes, so a workspace at a very long path
+  gets no link (Start says so).
 - `getDiagnostics` for one file with no diagnostics answers one entry with an
   empty list (VS Code's own shape). Whether Anthropic's extension answers `[]`
   instead could not be established; Claude accepts either.
 
-## Planned: stage 2
+## The launcher
 
-Not built yet. Agreed behaviour:
+**Claude Sandbox: Start** (palette, the status-bar item, `Ctrl+Alt+C`) opens
+the one linked session as a terminal in the editor area, beside the active
+editor. Starting while a session runs focuses its terminal. The terminal's
+process is the pty relay (rule 9) running `/usr/local/bin/claude` with the
+merged `--settings` (`withSettings`) and the user's `claudeSandbox.extraArgs`.
+Its working folder is the first workspace folder: the link's socket is there,
+and Claude Code takes the folder as its project, the same one every time
+whichever file happens to be active.
 
-- **Install offer.** On activation, if `claude-sandbox` is missing, a
-  notification offers **Install**, which opens a visible terminal running
-  `uvx claude-sandbox install`. Nothing installs without the click. An outdated
-  install gets a notice only, never an update. The command is fixed in the
-  extension, never read from workspace settings.
-- **Launcher.** **Claude Sandbox: Start** (status bar, palette, keybinding)
-  opens the linked session as a terminal in the editor area, with
-  the `claude` shadow as the terminal's own process. If the session is running it
-  focuses that terminal instead.
-- **Presets.** Editor context menu and keybindings: Explain, Reword, Tighten
-  and similar. Each sends the selection to the linked session only while
-  Claude's prompt is showing. Custom presets are a user setting
-  (`scope: application`), so the workspace cannot change them.
-- **Claude Changes view.** While the linked session runs, a side-bar view
-  lists the workspace files changed this session (VS Code's file watcher,
-  `.git` excluded). Each opens VS Code's diff against HEAD through the built-in
-  Git extension's API; **Mark as reviewed** ticks a file off until it changes
-  again. Auto-opening diffs is a setting, off by default. There is no revert
-  button: reverting would mean the host writing into the jail-writable
-  workspace, so Source Control's Discard is the way back. Grouping by prompt
-  is a later addition.
+The status-bar item shows the link: `off`, `waiting` (the session runs, Claude
+has not connected yet) or `connected`, and the count of changed files not yet
+reviewed. When Claude exits, the link closes; a 0 exit closes the tab, any
+other leaves it open with the code until a key is pressed.
+
+### Why a Python pty relay
+
+VS Code's API shows an extension nothing of what a normal terminal prints, and
+the presets must see Claude Code's output to know its input box is up. So the
+terminal is a `Pseudoterminal`, and its process needs a real pty (Claude Code
+is a full-screen TUI). Node has none without a native module (node-pty: a
+runtime dependency, built per platform and Electron version). util-linux
+`script` gives a pty but no way to pass VS Code's resizes to it (its window
+size comes from its own terminal, which here is a pipe). A ~100-line Python
+program using `os.openpty`, `TIOCSCTTY` and `TIOCSWINSZ` does all of it: keys
+on stdin, output on stdout, resizes on fd 3, the exit status as its own. It
+runs under claude-sandbox's root-owned interpreter, which is installed
+wherever the shadow is, and is passed as `-c` text so there is no file to
+protect.
+
+## Install offer
+
+On startup (`onStartupFinished`), if `/usr/local/bin/claude` is not
+claude-sandbox's shim (its text names `…/venv/bin/python -I -m claude_sandbox
+_shadow`) or `/usr/local/bin/claude-sandbox` is missing, a notification says
+"claude-sandbox isn't installed in this container" and offers **Install**,
+which opens a visible terminal running `uvx claude-sandbox install` (with sudo
+when not root). Without uvx it links to the claude-sandbox docs instead. Start
+checks the same and offers the same. Once a day at most, `claude-sandbox
+version` is compared with PyPI's latest; a newer one gets a notice naming
+`uvx claude-sandbox@latest install`, never an upgrade.
+
+## Presets
+
+The editor's context menu has a **Claude Sandbox** submenu: Explain, Reword,
+Tighten, **My presets…** (from `claudeSandbox.presets`, a list of
+`{title, prompt}` in user settings), **Ask about selection…** (an input box)
+and **Mention in Claude**. Keybindings: Explain `Ctrl+Alt+E`, Reword
+`Ctrl+Alt+R`, Tighten `Ctrl+Alt+I`, Ask `Ctrl+Alt+A`, Mention `Ctrl+Alt+M`.
+Each needs the linked session running. An ask follows rule 6: the selection
+over the link, an MCP ping as a barrier, the prompt as one paste, Enter. With
+no selection the whole file is named with a typed `@path`. If Claude is in a
+menu, has a proposed change waiting, or is working, a warning says so and
+nothing is typed; a session still starting is waited for up to 20 s. Mention
+sends `at_mentioned` (Claude Code inserts `@path#La-b` into its input, no
+Enter); a path with whitespace, or no link, is typed instead, and only into the
+input box.
+
+## Claude Changes view
+
+A side-bar view container (its own icon) holds **Changed this session**: the
+files in the workspace folders that changed while the linked session ran, from
+`vscode.workspace.createFileSystemWatcher`, excluding `.git`, our sockets,
+`files.watcherExclude`, and changes from the user's own saves (within 2 s of
+`onWillSave`/`onDidSave`). The list is reset at each Start and kept after the
+session ends. A click opens VS Code's diff against HEAD through the built-in
+Git extension's API (`getAPI(1)`, `toGitUri(uri, 'HEAD')`, `vscode.diff`); a
+file HEAD lacks (untracked or added) opens as itself; a deleted one is HEAD
+against empty. **Mark as reviewed** (inline) ticks a file until it changes
+again; the view's badge and the status bar count the rest.
+`claudeSandbox.autoOpenDiffs` (off by default) opens each change's diff as a
+preview. Grouping by prompt is a later addition.

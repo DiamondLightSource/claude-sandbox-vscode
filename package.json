@@ -1,7 +1,7 @@
 {
   "name": "claude-sandbox-vscode",
   "displayName": "Claude Sandbox for VS Code",
-  "description": "Make VS Code the IDE of a Claude Code session running inside claude-sandbox.",
+  "description": "Run a sandboxed Claude Code in VS Code with claude-sandbox: its terminal in the editor, selections, diffs, presets and a list of what it changed.",
   "version": "0.0.1",
   "publisher": "diamondlightsource",
   "license": "MIT",
@@ -21,7 +21,9 @@
   "extensionKind": [
     "workspace"
   ],
-  "activationEvents": [],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
   "capabilities": {
     "untrustedWorkspaces": {
       "supported": true,
@@ -32,18 +34,61 @@
   "contributes": {
     "commands": [
       {
-        "command": "claudeSandbox.startLink",
-        "title": "Start IDE link",
+        "command": "claudeSandbox.start",
+        "title": "Start",
+        "category": "Claude Sandbox",
+        "icon": "$(sparkle)"
+      },
+      {
+        "command": "claudeSandbox.preset.explain",
+        "title": "Explain",
         "category": "Claude Sandbox"
       },
       {
-        "command": "claudeSandbox.stopLink",
-        "title": "Stop IDE link",
+        "command": "claudeSandbox.preset.reword",
+        "title": "Reword",
         "category": "Claude Sandbox"
+      },
+      {
+        "command": "claudeSandbox.preset.tighten",
+        "title": "Tighten",
+        "category": "Claude Sandbox"
+      },
+      {
+        "command": "claudeSandbox.askSelection",
+        "title": "Ask about selection…",
+        "category": "Claude Sandbox"
+      },
+      {
+        "command": "claudeSandbox.customPreset",
+        "title": "My presets…",
+        "category": "Claude Sandbox"
+      },
+      {
+        "command": "claudeSandbox.mention",
+        "title": "Mention in Claude",
+        "category": "Claude Sandbox"
+      },
+      {
+        "command": "claudeSandbox.openChange",
+        "title": "Open diff",
+        "category": "Claude Sandbox"
+      },
+      {
+        "command": "claudeSandbox.markReviewed",
+        "title": "Mark as reviewed",
+        "category": "Claude Sandbox",
+        "icon": "$(check)"
+      },
+      {
+        "command": "claudeSandbox.markAllReviewed",
+        "title": "Mark all as reviewed",
+        "category": "Claude Sandbox",
+        "icon": "$(check-all)"
       },
       {
         "command": "claudeSandbox.copySettings",
-        "title": "Copy launch command",
+        "title": "Copy launch command (advanced)",
         "category": "Claude Sandbox"
       },
       {
@@ -57,6 +102,85 @@
         "title": "Reject proposed change",
         "category": "Claude Sandbox",
         "icon": "$(close)"
+      }
+    ],
+    "configuration": {
+      "title": "Claude Sandbox",
+      "properties": {
+        "claudeSandbox.extraArgs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "scope": "application",
+          "markdownDescription": "Extra arguments for Claude Code when **Claude Sandbox: Start** runs it, e.g. `[\"--model\", \"opus\"]`. User settings only: a workspace cannot set this. A `--settings` here must be JSON (the link's settings are merged into it), not a file."
+        },
+        "claudeSandbox.presets": {
+          "type": "array",
+          "default": [],
+          "scope": "application",
+          "items": {
+            "type": "object",
+            "required": [
+              "title",
+              "prompt"
+            ],
+            "properties": {
+              "title": {
+                "type": "string"
+              },
+              "prompt": {
+                "type": "string"
+              }
+            },
+            "additionalProperties": false
+          },
+          "markdownDescription": "Your own presets for **Claude Sandbox: My presets…**: `{\"title\": …, \"prompt\": …}`. The prompt is sent with the selection attached. User settings only: a workspace cannot set this."
+        },
+        "claudeSandbox.autoOpenDiffs": {
+          "type": "boolean",
+          "default": false,
+          "scope": "application",
+          "markdownDescription": "Open the diff against HEAD as a preview when Claude changes a file during the session. User settings only."
+        }
+      }
+    },
+    "keybindings": [
+      {
+        "command": "claudeSandbox.start",
+        "key": "ctrl+alt+c",
+        "mac": "cmd+alt+c"
+      },
+      {
+        "command": "claudeSandbox.preset.explain",
+        "key": "ctrl+alt+e",
+        "mac": "cmd+alt+e",
+        "when": "editorTextFocus && resourceScheme == file"
+      },
+      {
+        "command": "claudeSandbox.preset.reword",
+        "key": "ctrl+alt+r",
+        "mac": "cmd+alt+r",
+        "when": "editorTextFocus && resourceScheme == file"
+      },
+      {
+        "command": "claudeSandbox.preset.tighten",
+        "key": "ctrl+alt+i",
+        "mac": "cmd+alt+i",
+        "when": "editorTextFocus && resourceScheme == file"
+      },
+      {
+        "command": "claudeSandbox.askSelection",
+        "key": "ctrl+alt+a",
+        "mac": "cmd+alt+a",
+        "when": "editorTextFocus && resourceScheme == file"
+      },
+      {
+        "command": "claudeSandbox.mention",
+        "key": "ctrl+alt+m",
+        "mac": "cmd+alt+m",
+        "when": "editorTextFocus && resourceScheme == file"
       }
     ],
     "menus": {
@@ -80,9 +204,100 @@
         {
           "command": "claudeSandbox.rejectDiff",
           "when": "resourceScheme == claude-sandbox-proposal || resourceScheme == claude-sandbox-original"
+        },
+        {
+          "command": "claudeSandbox.openChange",
+          "when": "false"
+        },
+        {
+          "command": "claudeSandbox.markReviewed",
+          "when": "false"
+        }
+      ],
+      "editor/context": [
+        {
+          "submenu": "claudeSandbox.editor",
+          "group": "claudeSandbox@1",
+          "when": "resourceScheme == file"
+        }
+      ],
+      "claudeSandbox.editor": [
+        {
+          "command": "claudeSandbox.preset.explain",
+          "group": "1_presets@1"
+        },
+        {
+          "command": "claudeSandbox.preset.reword",
+          "group": "1_presets@2"
+        },
+        {
+          "command": "claudeSandbox.preset.tighten",
+          "group": "1_presets@3"
+        },
+        {
+          "command": "claudeSandbox.customPreset",
+          "group": "1_presets@4"
+        },
+        {
+          "command": "claudeSandbox.askSelection",
+          "group": "2_ask@1"
+        },
+        {
+          "command": "claudeSandbox.mention",
+          "group": "2_ask@2"
+        }
+      ],
+      "view/title": [
+        {
+          "command": "claudeSandbox.markAllReviewed",
+          "when": "view == claudeSandbox.changes",
+          "group": "navigation@1"
+        },
+        {
+          "command": "claudeSandbox.start",
+          "when": "view == claudeSandbox.changes && !claudeSandbox.running",
+          "group": "navigation@2"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "claudeSandbox.markReviewed",
+          "when": "view == claudeSandbox.changes && viewItem == change.unreviewed",
+          "group": "inline"
         }
       ]
-    }
+    },
+    "submenus": [
+      {
+        "id": "claudeSandbox.editor",
+        "label": "Claude Sandbox"
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "claudeSandbox",
+          "title": "Claude Sandbox",
+          "icon": "media/claude-sandbox.svg"
+        }
+      ]
+    },
+    "views": {
+      "claudeSandbox": [
+        {
+          "id": "claudeSandbox.changes",
+          "name": "Changed this session",
+          "icon": "media/claude-sandbox.svg"
+        }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "claudeSandbox.changes",
+        "contents": "Files Claude changes while the linked session runs are listed here, each with its diff against HEAD.\n[Start Claude Sandbox](command:claudeSandbox.start)",
+        "when": "!claudeSandbox.running"
+      }
+    ]
   },
   "scripts": {
     "build": "esbuild src/extension.ts --bundle --platform=node --target=node20 --format=cjs --external:vscode --outfile=dist/extension.cjs --sourcemap",
