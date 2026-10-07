@@ -80,6 +80,19 @@ npm run build       # esbuild → dist/extension.cjs
 npm run package     # .vsix via @vscode/vsce
 ```
 
+## Releasing
+
+Push a tag `vX.Y.Z` on `main`. `.github/workflows/release.yml` sets the
+version from the tag, runs the tests, attaches the `.vsix` to a GitHub release
+and publishes it to the VS Code Marketplace. A tag with a suffix
+(`v0.2.0-rc1`) makes a GitHub pre-release only.
+
+Publishing signs in to Microsoft Entra ID with GitHub's OIDC token (no stored
+secret). The `marketplace` environment holds two variables, `AZURE_CLIENT_ID`
+and `AZURE_TENANT_ID`, for an app registration that has a federated
+credential for this repository's `marketplace` environment and is a
+Contributor member of the `diamondlightsource` Marketplace publisher.
+
 ## License
 
 MIT, Copyright (c) 2026 Diamond Light Source Ltd.
