@@ -3,7 +3,7 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import { describe, it } from "node:test";
-import { CHANGES_MAX, ChangeSet, entryKind, groupByRoot, isReviewTitle, reviewPlan, SAVE_WINDOW_MS, splitByGit } from "../../src/changes.ts";
+import { CHANGES_MAX, ChangeSet, entryKind, freshStatus, groupByRoot, isReviewTitle, reviewPlan, SAVE_WINDOW_MS, splitByGit } from "../../src/changes.ts";
 
 const set = () => new ChangeSet({ roots: ["/w", "/v/"] });
 
@@ -174,5 +174,17 @@ describe("a full list", () => {
     assert.equal(gone, CHANGES_MAX - 2);
     assert.deepEqual(s.list().map((c) => c.path), ["/w/node_modules/p0.js", "/w/node_modules/p1.js"]);
     assert.ok(s.event("changed", "/w/real.py", 20), "room again for real changes");
+  });
+});
+
+describe("git status re-read before a diff (a file just made is new, not HEAD's)", () => {
+  it("each repository once, files outside any skipped, a failure not fatal", async () => {
+    let a = 0;
+    let b = 0;
+    const ra = { status: async () => void a++ };
+    const rb = { status: async () => (b++, Promise.reject(new Error("git gone"))) };
+    await freshStatus([ra, null, ra, rb, ra]);
+    assert.deepEqual([a, b], [1, 1]);
+    await freshStatus([]);
   });
 });

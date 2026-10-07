@@ -6,7 +6,7 @@
 
 import * as vscode from "vscode";
 import { PromptWatcher } from "../prompt.ts";
-import { OutputBatcher, PtyProcess } from "../pty.ts";
+import { childEnv, OutputBatcher, PtyProcess } from "../pty.ts";
 import { CLAUDE } from "../ptyHelper.ts";
 import { Session, type LinkPort } from "../session.ts";
 
@@ -17,20 +17,6 @@ export interface ClaudeTerminalOptions {
   /** The session ended (exit status); called once. */
   onExit(code: number): void;
   log(message: string): void;
-}
-
-/** The environment Claude gets: the extension host's, without VS Code's own channels. */
-export function childEnv(base: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
-  const env: NodeJS.ProcessEnv = {};
-  for (const [k, v] of Object.entries(base)) {
-    // VSCODE_IPC_HOOK_CLI and friends reach the window; an inherited port would be someone
-    // else's link (ours is in --settings)
-    if (k.startsWith("VSCODE_") || k.startsWith("ELECTRON_") || k === "CLAUDE_CODE_SSE_PORT") continue;
-    env[k] = v;
-  }
-  env.TERM = "xterm-256color";
-  env.COLORTERM = "truecolor";
-  return env;
 }
 
 export class ClaudeTerminal implements vscode.Disposable {

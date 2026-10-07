@@ -3,7 +3,7 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import { describe, it } from "node:test";
-import { FLUSH_MS, OutputBatcher, PtyProcess } from "../../src/pty.ts";
+import { childEnv, FLUSH_MS, OutputBatcher, PtyProcess } from "../../src/pty.ts";
 import { PromptWatcher } from "../../src/prompt.ts";
 import { clampDim, CLAUDE, DIM_MAX, helperArgs, PTY_HELPER, PYTHON, resizeLine } from "../../src/ptyHelper.ts";
 
@@ -41,6 +41,24 @@ function run(program: string, args: string[], cols = 80, rows = 24): Run {
   };
   return { p, out: () => out, exit, until };
 }
+
+describe("Claude's environment", () => {
+  it("drops VS Code's channels, an inherited link port and another Claude's child markers", () => {
+    const env = childEnv({
+      PATH: "/usr/bin",
+      HOME: "/root",
+      VSCODE_IPC_HOOK_CLI: "/tmp/x.sock",
+      ELECTRON_RUN_AS_NODE: "1",
+      CLAUDE_CODE_SSE_PORT: "1234",
+      CLAUDECODE: "1",
+      CLAUDE_CODE_CHILD_SESSION: "1",
+      CLAUDE_CODE_ENTRYPOINT: "cli",
+      CLAUDE_CONFIG_DIR: "/kept",
+      TERM: "dumb",
+    });
+    assert.deepEqual(env, { PATH: "/usr/bin", HOME: "/root", CLAUDE_CONFIG_DIR: "/kept", TERM: "xterm-256color", COLORTERM: "truecolor" });
+  });
+});
 
 describe("rule 9: the pty relay", () => {
   it("argv is constant but for the size and Claude's arguments; the interpreter is isolated (-I)", () => {

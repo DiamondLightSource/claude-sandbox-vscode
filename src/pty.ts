@@ -27,6 +27,26 @@ export interface PtyEvents {
   onError?(text: string): void;
 }
 
+/**
+ * Variables Claude Code sets in its own children: inherited (VS Code started from a Claude's
+ * shell), they make this Claude act as another's child ("Transcript saving is off").
+ */
+const CLAUDE_CHILD = new Set(["CLAUDECODE", "CLAUDE_CODE_CHILD_SESSION", "CLAUDE_CODE_ENTRYPOINT"]);
+
+/** The environment Claude gets: the extension host's, without VS Code's own channels. */
+export function childEnv(base: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+  const env: NodeJS.ProcessEnv = {};
+  for (const [k, v] of Object.entries(base)) {
+    // VSCODE_IPC_HOOK_CLI and friends reach the window; an inherited port would be someone
+    // else's link (ours is in --settings)
+    if (k.startsWith("VSCODE_") || k.startsWith("ELECTRON_") || k === "CLAUDE_CODE_SSE_PORT" || CLAUDE_CHILD.has(k)) continue;
+    env[k] = v;
+  }
+  env.TERM = "xterm-256color";
+  env.COLORTERM = "truecolor";
+  return env;
+}
+
 export class PtyProcess {
   private readonly child: ChildProcess;
   private readonly ctl: Writable;

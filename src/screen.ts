@@ -14,6 +14,8 @@
 
 export const MAX_COLS = 1000;
 export const MAX_ROWS = 500;
+/** The most UTF-16 units one cell holds: a character and its marks (a flood of marks is dropped). */
+export const MAX_CELL = 32;
 const MAX_PARAMS = 32;
 const MAX_CSI = 128;
 const MAX_STRING = 4096;
@@ -367,7 +369,7 @@ export class Screen {
       const row = g[this.row]!;
       let c = this.wrapNext ? this.col : this.col - 1;
       if (c > 0 && row[c] === "") c--;
-      if (c >= 0) row[c] += ch;
+      if (c >= 0 && row[c]!.length + ch.length <= MAX_CELL) row[c] += ch;
       return;
     }
     const w = isWide(cp) ? 2 : 1;

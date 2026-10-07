@@ -15,6 +15,10 @@ function setup() {
       sent.push(fsPath);
       claude = fsPath.startsWith("/w/") ? { file: fsPath, start, end, text } : "cleared";
     },
+    clearSelection(): void {
+      sent.push("clear");
+      claude = "cleared";
+    },
   };
   const t = new SelectionTracker(() => sink, 5);
   const settle = (): Promise<void> => new Promise((r) => setTimeout(r, 20));
@@ -63,5 +67,25 @@ describe("rule 5: the selection Claude keeps", () => {
     assert.equal(s.sent.length, 1);
     const c = s.claude() as { text: string };
     assert.equal(c.text.length, TEXT_MAX);
+  });
+  it("closing the last tab of the selection's file clears it; closing another file does not", async () => {
+    const s = setup();
+    s.t.event(ed("/w/a.py", p(1, 0), p(2, 0), "x\n"));
+    await s.settle();
+    s.t.event(undefined); // the terminal
+    s.t.closed("/w/b.py");
+    assert.notEqual(s.claude(), "cleared");
+    s.t.closed("/w/a.py");
+    assert.equal(s.claude(), "cleared");
+    s.t.closed("/w/a.py"); // once only
+    assert.deepEqual(s.sent, ["/w/a.py", "clear"]);
+  });
+  it("closing the file while its selection waits for the debounce cancels it", async () => {
+    const s = setup();
+    s.t.event(ed("/w/a.py", p(0, 0), p(0, 3), "abc"));
+    s.t.closed("/w/a.py");
+    await s.settle();
+    assert.deepEqual(s.sent, ["clear"]);
+    assert.equal(s.claude(), "cleared");
   });
 });

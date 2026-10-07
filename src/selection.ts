@@ -8,7 +8,9 @@
 // sends it only for a workspace file and otherwise clears Claude's (trust boundary rule 5), so
 // selecting in a file outside the workspace clears it. Anything else (the terminal, a webview,
 // no editor, an editor that is not a file: output, untitled, a diff's proposal side) keeps the
-// last one, and does not cancel one still waiting for its debounce.
+// last one, and does not cancel one still waiting for its debounce. Closing the last tab of
+// the file it came from clears it: Claude would otherwise keep a selection the user can no
+// longer see.
 
 import type { Position } from "./mcp.ts";
 
@@ -27,6 +29,7 @@ export interface EditorSelection {
 /** What the bridge needs. */
 export interface SelectionSink {
   select(fsPath: string, start: Position, end: Position, text: string): void;
+  clearSelection(): void;
 }
 
 /** Whether an editor event replaces Claude's selection. */
@@ -38,6 +41,8 @@ export class SelectionTracker {
   private timer: ReturnType<typeof setTimeout> | undefined;
   private readonly sink: () => SelectionSink | undefined;
   private readonly debounceMs: number;
+  /** The file Claude's selection is from (sent, or waiting for its debounce). */
+  private last: string | undefined;
 
   constructor(sink: () => SelectionSink | undefined, debounceMs = DEBOUNCE_MS) {
     this.sink = sink;
@@ -48,11 +53,21 @@ export class SelectionTracker {
   event(e: EditorSelection | undefined): void {
     if (!replacesSelection(e)) return;
     if (this.timer) clearTimeout(this.timer);
+    this.last = e.fsPath;
     this.timer = setTimeout(() => {
       this.timer = undefined;
       const text = e.text.length > TEXT_MAX ? e.text.slice(0, TEXT_MAX) : e.text;
       this.sink()?.select(e.fsPath, e.start, e.end, text);
     }, this.debounceMs);
+  }
+
+  /** No tab shows this file any more: if Claude's selection is from it, clear it. */
+  closed(fsPath: string): void {
+    if (this.last !== fsPath) return;
+    if (this.timer) clearTimeout(this.timer);
+    this.timer = undefined;
+    this.last = undefined;
+    this.sink()?.clearSelection();
   }
 
   dispose(): void {

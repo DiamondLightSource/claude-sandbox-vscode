@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { MAX_COLS, MAX_ROWS, Screen } from "../../src/screen.ts";
+import { MAX_CELL, MAX_COLS, MAX_ROWS, Screen } from "../../src/screen.ts";
 
 const scr = (cols: number, rows: number, ...chunks: string[]): Screen => {
   const s = new Screen(cols, rows);
@@ -33,6 +33,11 @@ describe("the virtual screen (src/screen.ts)", () => {
   it("the scroll region: LF at its bottom scrolls only the region; rows outside stay", () => {
     const s = scr(4, 5, "top\r\n1\r\n2\r\n3\r\nbot", "\x1b[2;4r\x1b[4;1H\nnew");
     assert.deepEqual(text(s), ["top", "2", "3", "new", "bot"]);
+  });
+  it("combining marks join the cell before, up to MAX_CELL units: a flood is dropped", () => {
+    assert.deepEqual(text(scr(5, 1, "e\u0301x")), ["e\u0301x"]);
+    const s = scr(5, 1, "a" + "\u0301".repeat(200_000) + "b");
+    assert.equal(s.lines()[0]!.trimEnd(), "a" + "\u0301".repeat(MAX_CELL - 1) + "b");
   });
   it("wide characters take two cells; overwriting half of one blanks the other", () => {
     const s = scr(6, 1, "漢字x");
