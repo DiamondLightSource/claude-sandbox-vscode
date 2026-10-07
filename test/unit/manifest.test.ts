@@ -30,7 +30,7 @@ describe("rule 11: settings the workspace cannot set", () => {
 });
 
 describe("the manifest", () => {
-  it("keybindings: one Ctrl+Alt+C chord prefix, nothing on VS Code's own Ctrl+Alt+<letter> keys", () => {
+  it("keybindings: one Ctrl+Alt+C chord prefix, nothing on VS Code's own Ctrl+Alt+<letter> keys; F8 only in a review", () => {
     const kb = pkg.contributes.keybindings as { command: string; key: string; mac?: string; when?: string }[];
     // F8 and Shift+F8 (VS Code's next and previous problem) step through changes, but only in
     // Review All or with the Changes view focused

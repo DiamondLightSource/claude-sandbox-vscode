@@ -46,10 +46,11 @@ server).
    Click one for VS Code's diff against HEAD; tick it with **Mark as
    reviewed** (it unticks if it changes again). **Review All Changes** (the
    view's title bar, or the command) opens them all in VS Code's multi-file
-   diff editor. **Next Change** and **Previous Change** (the view's arrows,
-   or `F8` and `Shift+F8` in that editor or with the view focused) step
-   through it change by change, on into the next file, opening it first if
-   it is not the active editor (VS Code 1.106 or later). There `F8` steps
+   diff editor (in place of one already open). **Next Change** and
+   **Previous Change** (the view's arrows, or `F8` and `Shift+F8` in that
+   editor or with the view focused) step through it change by change, on
+   into the next file, opening it first if it is not the active editor.
+   Stepping needs VS Code 1.106 or later; there, in Review All, `F8` steps
    through changes instead of problems. Files git shows no change for now (put back as HEAD has
    them, or ignored by git, like `.pyc`) are folded into a collapsed **No
    change in git** group, left out of Review All and the count; they are
