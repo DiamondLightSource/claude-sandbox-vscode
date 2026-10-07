@@ -32,7 +32,8 @@ reconnect after the connection closes is accepted. The session's own `/clear`,
 1. The extension listens on a Unix socket at the workspace root,
    `.claude-sandbox-vscode-<P>.sock` (mode 0600). The jail sees the workspace,
    so it sees the socket.
-2. The extension starts `claude-sandbox` as the terminal's own process with a
+2. The extension starts the sandbox's `claude` shadow (`/usr/local/bin/claude`,
+   which runs Claude in the jail) as the terminal's own process with a
    `--settings` JSON carrying `env.CLAUDE_CODE_SSE_PORT=P`, a `SessionStart`
    hook and a `SessionEnd` hook. Claude Code honours only the last
    `--settings`, so a user's own JSON settings are merged with ours, never
@@ -103,7 +104,7 @@ message as hostile. These rules are the security design; each has a test in
    folder.
 5. **selection_changed** is sent only for files inside a workspace folder;
    otherwise a cleared selection (empty range, no `filePath`).
-6. **Terminal input.** `claude-sandbox` is the terminal's process, never a
+6. **Terminal input.** The `claude` shadow is the terminal's process, never a
    command sent into a shell, so text never reaches a host shell. Asks are sent
    only while Claude's `❯` prompt is showing, as one bracketed paste with
    control characters (ESC included) stripped.
@@ -195,7 +196,7 @@ Not built yet. Agreed behaviour:
   extension, never read from workspace settings.
 - **Launcher.** **Claude Sandbox: Start** (status bar, palette, keybinding)
   opens the linked session as a terminal in the editor area, with
-  `claude-sandbox` as the terminal's own process. If the session is running it
+  the `claude` shadow as the terminal's own process. If the session is running it
   focuses that terminal instead.
 - **Presets.** Editor context menu and keybindings: Explain, Reword, Tighten
   and similar. Each sends the selection to the linked session only while

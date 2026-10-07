@@ -8,8 +8,8 @@ Code's IDE protocol (MCP over a WebSocket), the role Anthropic's own extension
 plays for an unsandboxed Claude. claude-sandbox itself is not changed.
 
 **Status: stage 1.** The bridge works; the terminal launcher is not built yet.
-Run **Claude Sandbox: Copy --settings for claude-sandbox** and start
-`claude-sandbox --settings '<pasted JSON>'` in the workspace folder yourself.
+Run **Claude Sandbox: Copy launch command** and paste the copied
+`claude --settings '…'` into a devcontainer terminal in the workspace folder.
 
 ## How it works
 

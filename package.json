@@ -18,6 +18,9 @@
     "Other"
   ],
   "main": "./dist/extension.cjs",
+  "extensionKind": [
+    "workspace"
+  ],
   "activationEvents": [],
   "capabilities": {
     "untrustedWorkspaces": {
@@ -40,7 +43,7 @@
       },
       {
         "command": "claudeSandbox.copySettings",
-        "title": "Copy --settings for claude-sandbox",
+        "title": "Copy launch command",
         "category": "Claude Sandbox"
       },
       {

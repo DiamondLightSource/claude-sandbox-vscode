@@ -27,3 +27,7 @@ jobs:
       - run: npm run build
       - name: Package (dry run)
         run: npx vsce package --no-dependencies --out claude-sandbox-vscode.vsix
+      - uses: actions/upload-artifact@v4
+        with:
+          name: claude-sandbox-vscode-vsix
+          path: claude-sandbox-vscode.vsix

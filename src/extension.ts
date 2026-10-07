@@ -1,14 +1,14 @@
 // Wires the bridge (no vscode imports) to VS Code. Stage 1: the link is started by hand
-// ("Claude Sandbox: Start IDE link") and "Copy --settings" puts the JSON for
-// `claude-sandbox --settings '<json>'` on the clipboard.
+// ("Claude Sandbox: Start IDE link") and "Copy launch command" puts
+// `claude --settings '<json>'` (the sandbox's claude shadow) on the clipboard.
 //
-// TODO(stage 2): the terminal launcher (claude-sandbox as the terminal's own process with the
+// TODO(stage 2): the terminal launcher (the claude shadow as the terminal's own process with the
 // merged --settings, settings.withSettings) and ask/mention presets (paste.ts).
 
 import * as vscode from "vscode";
 import { IdeLink } from "./link.ts";
 import type { Logger } from "./log.ts";
-import { mergeSettings } from "./settings.ts";
+import { mergeSettings, shellQuote } from "./settings.ts";
 import { vscodeDiagnostics } from "./vscode/diagnostics.ts";
 import { DiffEditors } from "./vscode/diffView.ts";
 import { trackSelection } from "./vscode/selection.ts";
@@ -64,9 +64,11 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand("claudeSandbox.copySettings", async () => {
       await start();
       if (link === undefined) return;
-      await vscode.env.clipboard.writeText(JSON.stringify(mergeSettings(null, link.settings)));
+      await vscode.env.clipboard.writeText(
+        `claude --settings ${shellQuote(JSON.stringify(mergeSettings(null, link.settings)))}`,
+      );
       void vscode.window.showInformationMessage(
-        "Claude Sandbox: --settings JSON copied. It holds the link's token: pass it only to claude-sandbox.",
+        "Claude Sandbox: launch command copied. Paste it into a devcontainer terminal. It holds the link's token.",
       );
     }),
   );
