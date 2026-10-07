@@ -176,6 +176,13 @@ export interface ReviewRow {
 }
 
 /**
+ * Review All's title. VS Code's multi-file diff editor adds the count to it for the tab's label
+ * (MultiDiffEditorInput: "Claude changes (3 files)"), and shows the bare title until the
+ * resources resolve.
+ */
+export const REVIEW_TITLE = "Claude changes";
+
+/**
  * "Review All" (VS Code's multi-file diff editor, vscode.changes): a row per listed file,
  * symlinks left out (never opened), a deleted file only when HEAD has it (else there is
  * nothing to show). `inHead` says whether HEAD has the file (false outside a repository).
@@ -193,5 +200,10 @@ export function reviewPlan(changes: readonly Change[], inHead: (c: Change) => bo
       if (head) rows.push({ path: c.path, head: true, now: false });
     } else rows.push({ path: c.path, head, now: true });
   }
-  return { rows, symlinks, title: `Claude changes (${rows.length} file${rows.length === 1 ? "" : "s"})` };
+  return { rows, symlinks, title: REVIEW_TITLE };
+}
+
+/** Whether a tab's label is Review All's: its title, then VS Code's " (N files)" (localised). */
+export function isReviewTitle(label: string): boolean {
+  return label === REVIEW_TITLE || label.startsWith(`${REVIEW_TITLE} (`);
 }

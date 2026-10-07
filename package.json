@@ -93,6 +93,18 @@
         "icon": "$(diff-multiple)"
       },
       {
+        "command": "claudeSandbox.previousChange",
+        "title": "Previous Change",
+        "category": "Claude Sandbox",
+        "icon": "$(arrow-up)"
+      },
+      {
+        "command": "claudeSandbox.nextChange",
+        "title": "Next Change",
+        "category": "Claude Sandbox",
+        "icon": "$(arrow-down)"
+      },
+      {
         "command": "claudeSandbox.copySettings",
         "title": "Copy launch command (advanced)",
         "category": "Claude Sandbox"
@@ -196,6 +208,16 @@
       {
         "command": "claudeSandbox.reviewAll",
         "key": "ctrl+alt+c v"
+      },
+      {
+        "command": "claudeSandbox.nextChange",
+        "key": "f8",
+        "when": "claudeSandbox.reviewing && activeEditor == 'multiDiffEditor' || focusedView == 'claudeSandbox.changes'"
+      },
+      {
+        "command": "claudeSandbox.previousChange",
+        "key": "shift+f8",
+        "when": "claudeSandbox.reviewing && activeEditor == 'multiDiffEditor' || focusedView == 'claudeSandbox.changes'"
       }
     ],
     "menus": {
@@ -269,14 +291,24 @@
           "group": "navigation@0"
         },
         {
-          "command": "claudeSandbox.markAllReviewed",
+          "command": "claudeSandbox.previousChange",
           "when": "view == claudeSandbox.changes",
           "group": "navigation@1"
         },
         {
+          "command": "claudeSandbox.nextChange",
+          "when": "view == claudeSandbox.changes",
+          "group": "navigation@2"
+        },
+        {
+          "command": "claudeSandbox.markAllReviewed",
+          "when": "view == claudeSandbox.changes",
+          "group": "navigation@3"
+        },
+        {
           "command": "claudeSandbox.start",
           "when": "view == claudeSandbox.changes && !claudeSandbox.running",
-          "group": "navigation@2"
+          "group": "navigation@4"
         }
       ],
       "view/item/context": [

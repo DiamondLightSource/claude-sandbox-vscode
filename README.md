@@ -46,11 +46,17 @@ server).
    Click one for VS Code's diff against HEAD; tick it with **Mark as
    reviewed** (it unticks if it changes again). **Review All Changes** (the
    view's title bar, or the command) opens them all in VS Code's multi-file
-   diff editor. Like Source Control, it shows only files git shows a change
-   for: one put back as HEAD has it, or ignored by git (`.pyc`), or already
-   committed, drops out (outside a repository every changed file is shown).
-   When the files span several repositories they are grouped by repository.
-   Symlinks are listed as "symlink" and never opened. The count
+   diff editor (in place of one already open). **Next Change** and
+   **Previous Change** (the view's arrows, or `F8` and `Shift+F8` in that
+   editor or with the view focused) step through it change by change, on
+   into the next file, opening it first if it is not the active editor.
+   Stepping needs VS Code 1.106 or later; there, in Review All, `F8` steps
+   through changes instead of problems. Like Source Control, the view shows
+   only files git shows a change for: one put back as HEAD has it, or ignored
+   by git (`.pyc`), or already committed, drops out (outside a repository
+   every changed file is shown). When the files span several repositories
+   they are grouped by repository. Symlinks are listed as "symlink" and never
+   opened. The count
    is on the view and in the status bar. There is no revert button: use
    Source Control's Discard.
 5. **Reviewing edits.** With `claudeSandbox.reviewEdits` (on by default)
