@@ -3,7 +3,7 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import { describe, it } from "node:test";
-import { ChangeSet, entryKind, groupByRoot, isReviewTitle, reviewPlan, SAVE_WINDOW_MS, splitByGit } from "../../src/changes.ts";
+import { CHANGES_MAX, ChangeSet, entryKind, groupByRoot, isReviewTitle, reviewPlan, SAVE_WINDOW_MS, splitByGit } from "../../src/changes.ts";
 
 const set = () => new ChangeSet({ roots: ["/w", "/v/"] });
 
@@ -157,5 +157,22 @@ describe("grouped by repository, as Source Control groups them", () => {
       ],
     );
     assert.deepEqual(groupByRoot([], rootOf), []);
+  });
+});
+
+describe("a full list", () => {
+  it("counts what it drops; pruning forgets only old entries the view does not keep", () => {
+    const s = set();
+    for (let i = 0; i < CHANGES_MAX; i++) s.event("created", `/w/node_modules/p${i}.js`, 0);
+    s.event("changed", "/w/real.py", 0);
+    assert.equal(s.size, CHANGES_MAX);
+    assert.equal(s.dropped, 1, "a new path past the limit is counted, not silently lost");
+    s.event("changed", "/w/node_modules/p1.js", 10); // already listed: still updated
+    assert.equal(s.get("/w/node_modules/p1.js")!.at, 10);
+    // the view keeps p0 (git shows it changed); p1 changed too recently to judge
+    const gone = s.prune((c) => c.path === "/w/node_modules/p0.js", 5);
+    assert.equal(gone, CHANGES_MAX - 2);
+    assert.deepEqual(s.list().map((c) => c.path), ["/w/node_modules/p0.js", "/w/node_modules/p1.js"]);
+    assert.ok(s.event("changed", "/w/real.py", 20), "room again for real changes");
   });
 });

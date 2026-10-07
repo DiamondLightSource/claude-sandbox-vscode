@@ -23,7 +23,12 @@ export interface Change {
 
 /** A save by the user counts as theirs for this long after it. */
 export const SAVE_WINDOW_MS = 2000;
-export const CHANGES_MAX = 5000;
+/**
+ * The most files the list records: an install rewrites thousands (`npm ci`: ~8,500 under
+ * node_modules), so this is well above that; a full list first forgets what the view does not
+ * show (see ChangeSet.prune).
+ */
+export const CHANGES_MAX = 50_000;
 
 const SOCKET_RE = /^\.claude-sandbox-vscode-\d+\.sock$/;
 
@@ -92,6 +97,7 @@ export class ChangeSet {
         return null;
       } else if (before.kind === "deleted" && kind === "created") k = "changed";
     } else if (this.items.size >= CHANGES_MAX) {
+      this.dropped++;
       return null;
     }
     const c: Change = { path, kind: k, reviewed: false, at: now, symlink: k !== "deleted" && symlink };
@@ -101,6 +107,26 @@ export class ChangeSet {
 
   get(path: string): Change | undefined {
     return this.items.get(path);
+  }
+
+  /** New paths not recorded because the list was full (CHANGES_MAX). */
+  dropped = 0;
+
+  /**
+   * Makes room: forgets the entries `keep` rejects that last changed before `before` (ms).
+   * The view keeps what it shows (what git shows changed) and forgets the rest, e.g. an
+   * `npm ci`'s thousands of ignored `node_modules` files, so they cannot fill the list and
+   * crowd out real changes; a forgotten file comes back if it changes again. How many went.
+   */
+  prune(keep: (c: Change) => boolean, before: number): number {
+    let n = 0;
+    for (const [p, ch] of this.items) {
+      if (ch.at < before && !keep(ch)) {
+        this.items.delete(p);
+        n++;
+      }
+    }
+    return n;
   }
 
   markReviewed(path: string, reviewed = true): boolean {

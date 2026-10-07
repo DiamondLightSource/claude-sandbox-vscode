@@ -14,6 +14,7 @@
 import * as path from "node:path";
 import * as vscode from "vscode";
 import {
+  CHANGES_MAX,
   ChangeSet,
   entryKind as entry,
   groupByRoot,
@@ -35,6 +36,13 @@ const AUTO_OPEN_MS = 400;
 const STEP = { next: "multiDiffEditor.goToNextChange", previous: "multiDiffEditor.goToPreviousChange" } as const;
 /** Watcher events come in bursts (a checkout, an install): the view is redrawn at most this often. */
 const REFRESH_MS = 100;
+/**
+ * A full list makes room by forgetting files the view does not show (git shows no change)
+ * that are at least this old, so git has had time to report a new file; at most once per
+ * this long, since a burst of thousands of events would otherwise each scan the list.
+ */
+const PRUNE_AGE_MS = 5000;
+const PRUNE_EVERY_MS = 1000;
 
 // The parts of the Git extension's API (vscode.git, getAPI(1)) used here.
 interface GitChange {
@@ -244,9 +252,21 @@ export class ChangesView implements vscode.TreeDataProvider<Node>, vscode.Dispos
     this.record(kind, u, e === "symlink");
   }
 
+  private lastPrune = 0;
+
+  /** A full list: forget what the view does not show (see PRUNE_AGE_MS). */
+  private makeRoom(now: number): void {
+    if (now - this.lastPrune < PRUNE_EVERY_MS) return;
+    this.lastPrune = now;
+    const shown = new Set(this.shown().map((c) => c.path));
+    if (this.set.prune((c) => shown.has(c.path), now - PRUNE_AGE_MS) > 0) this.shownCache = undefined;
+  }
+
   private record(kind: Change["kind"], u: vscode.Uri, symlink = false): void {
     if (u.scheme !== "file") return;
-    const c = this.set.event(kind, u.fsPath, Date.now(), symlink);
+    const now = Date.now();
+    if (this.set.size >= CHANGES_MAX && this.set.get(u.fsPath) === undefined) this.makeRoom(now);
+    const c = this.set.event(kind, u.fsPath, now, symlink);
     this.refreshSoon();
     if (c === null || c.kind === "deleted" || c.symlink) return;
     if (!vscode.workspace.getConfiguration("claudeSandbox").get<boolean>("autoOpenDiffs", false)) return;
@@ -276,7 +296,12 @@ export class ChangesView implements vscode.TreeDataProvider<Node>, vscode.Dispos
     this.emitter.fire(undefined);
     const n = this.unreviewed;
     this.view.badge = n > 0 ? { value: n, tooltip: `${n} changed file${n === 1 ? "" : "s"} not reviewed` } : undefined;
-    this.view.message = this.shown().length === 0 && this.watching.length > 0 ? "No files have changed yet this session." : "";
+    this.view.message =
+      this.set.dropped > 0
+        ? `The list is full (${CHANGES_MAX} files): ${this.set.dropped} later change${this.set.dropped === 1 ? " was" : "s were"} not recorded. Use Source Control.`
+        : this.shown().length === 0 && this.watching.length > 0
+          ? "No files have changed yet this session."
+          : "";
     this.onCount(n);
   }
 

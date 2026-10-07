@@ -463,7 +463,10 @@ opens as itself; a deleted one is HEAD against empty; a symlink is listed
 the Git extension reports a change for it (working tree, index, untracked, a
 merge, or a rename's old path): one put back as HEAD has it, ignored, or
 committed drops out, and comes back if it changes again. Files outside any
-repository are always shown. When the shown files span more than one
+repository are always shown. The list records at most 50,000 files (an `npm ci` rewrites
+thousands under `node_modules`); when full it first forgets files the view does
+not show that changed at least 5 s ago (a forgotten file returns if it changes
+again), and if still full says how many later changes it did not record. When the shown files span more than one
 repository (or, outside any, workspace folder) they are grouped under one
 node per root, as Source Control groups by repository; with one root the
 files are listed directly. Each repository's status is followed
