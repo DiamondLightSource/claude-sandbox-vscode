@@ -3,7 +3,7 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import { describe, it } from "node:test";
-import { ChangeSet, entryKind, reviewPlan, SAVE_WINDOW_MS, splitByGit } from "../../src/changes.ts";
+import { ChangeSet, entryKind, isReviewTitle, reviewPlan, SAVE_WINDOW_MS, splitByGit } from "../../src/changes.ts";
 
 const set = () => new ChangeSet({ roots: ["/w", "/v/"] });
 
@@ -113,8 +113,14 @@ describe("Review All (vscode.changes rows)", () => {
       { path: "/w/new.py", head: false, now: true },
     ]);
     assert.equal(plan.symlinks, 1);
-    assert.equal(plan.title, "Claude changes (4 files)");
-    assert.equal(reviewPlan([], () => true).title, "Claude changes (0 files)");
+    assert.equal(plan.title, "Claude changes", "VS Code adds the count");
+  });
+  it("Review All's tab is told apart by its label: the title, then VS Code's count", () => {
+    // VS Code's MultiDiffEditorInput names the tab "<title> (N files)" / "<title> (1 file)",
+    // localised, and shows the bare title until the resources resolve
+    const title = reviewPlan([], () => true).title;
+    for (const t of [title, `${title} (4 files)`, `${title} (1 file)`, `${title} (4 Dateien)`]) assert.ok(isReviewTitle(t), t);
+    for (const t of ["Changes", "Claude changes.md", "My Claude changes (4 files)", "mod.py (HEAD ↔ now)"]) assert.ok(!isReviewTitle(t), t);
   });
 });
 
