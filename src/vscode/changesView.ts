@@ -86,6 +86,8 @@ interface GitApi {
 }
 // Status values for a file HEAD does not have
 const INDEX_ADDED = 1;
+const INDEX_RENAMED = 3;
+const INDEX_COPIED = 4;
 const UNTRACKED = 7;
 const INTENT_TO_ADD = 9;
 
@@ -527,7 +529,8 @@ export class ChangesView implements vscode.TreeDataProvider<Node>, vscode.Dispos
         // a staged rename is reset whole: one side alone would leave the other staged
         const sides = (x: GitChange): string[] => [x.uri.fsPath, ...(x.originalUri ? [x.originalUri.fsPath] : [])];
         const staged = [...new Set(repo.state.indexChanges.map(sides).filter((ps) => ps.some((p) => want.has(p))).flat())];
-        const added = new Set(repo.state.indexChanges.filter((x) => x.status === INDEX_ADDED).map((x) => x.uri.fsPath));
+        // staged paths HEAD lacks (added, or a rename's or copy's new path): untracked once reset
+        const added = new Set(repo.state.indexChanges.filter((x) => [INDEX_ADDED, INDEX_RENAMED, INDEX_COPIED].includes(x.status)).map((x) => x.uri.fsPath));
         if (staged.length > 0) {
           await repo.revert(staged);
           await repo.status();
