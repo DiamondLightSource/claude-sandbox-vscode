@@ -139,11 +139,6 @@ export class Listener {
     sock.on("data", onData);
   }
 
-  /** Connections still in their handshake. */
-  get handshakes(): number {
-    return this.handshaking;
-  }
-
   async close(): Promise<void> {
     for (const s of this.sockets) s.destroy();
     await new Promise<void>((resolve) => this.server.close(() => resolve()));

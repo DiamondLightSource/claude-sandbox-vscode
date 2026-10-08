@@ -18,7 +18,6 @@ export const MAX_ROWS = 500;
 export const MAX_CELL = 32;
 const MAX_PARAMS = 32;
 const MAX_CSI = 128;
-const MAX_STRING = 4096;
 
 export interface Cursor {
   row: number;
@@ -85,7 +84,8 @@ export function isWide(cp: number): boolean {
     (cp >= 0xfe30 && cp <= 0xfe6f) ||
     (cp >= 0xff00 && cp <= 0xff60) ||
     (cp >= 0xffe0 && cp <= 0xffe6) ||
-    (cp >= 0x1f004 && cp <= 0x1f0cf && (cp === 0x1f004 || cp === 0x1f0cf)) ||
+    cp === 0x1f004 ||
+    cp === 0x1f0cf ||
     cp === 0x1f18e ||
     (cp >= 0x1f191 && cp <= 0x1f19a) ||
     (cp >= 0x1f200 && cp <= 0x1f251) ||
@@ -273,10 +273,10 @@ export class Screen {
         this.state = S.Str;
         return;
       case "7":
-        this.saved = { row: this.row, col: this.col };
+        this.saveCursor();
         return;
       case "8":
-        this.restore();
+        this.restoreCursor();
         return;
       case "D":
         this.index();
@@ -307,7 +307,11 @@ export class Screen {
     this.saved = this.savedMain = null;
   }
 
-  private restore(): void {
+  private saveCursor(): void {
+    this.saved = { row: this.row, col: this.col };
+  }
+
+  private restoreCursor(): void {
     const s = this.saved ?? { row: 0, col: 0 };
     this.row = Math.min(s.row, this.rows - 1);
     this.col = Math.min(s.col, this.cols - 1);
@@ -429,11 +433,15 @@ export class Screen {
     const inRegion = this.row >= this.top && this.row <= this.bottom;
     switch (final) {
       case "A":
+      case "F":
         this.row = Math.max(inRegion ? this.top : 0, this.row - n);
+        if (final === "F") this.col = 0;
         return;
       case "B":
       case "e":
+      case "E":
         this.row = Math.min(inRegion ? this.bottom : this.rows - 1, this.row + n);
+        if (final === "E") this.col = 0;
         return;
       case "C":
       case "a":
@@ -441,14 +449,6 @@ export class Screen {
         return;
       case "D":
         this.col = Math.max(0, this.col - n);
-        return;
-      case "E":
-        this.row = Math.min(inRegion ? this.bottom : this.rows - 1, this.row + n);
-        this.col = 0;
-        return;
-      case "F":
-        this.row = Math.max(inRegion ? this.top : 0, this.row - n);
-        this.col = 0;
         return;
       case "G":
       case "`":
@@ -526,10 +526,10 @@ export class Screen {
         return;
       }
       case "s":
-        this.saved = { row: this.row, col: this.col };
+        this.saveCursor();
         return;
       case "u":
-        this.restore();
+        this.restoreCursor();
         return;
     }
   }
