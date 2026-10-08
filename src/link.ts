@@ -1,4 +1,4 @@
-// One IDE link: a token, a Unix socket in the first workspace folder, the MCP bridge on the
+// One IDE link: a token, a Unix socket in its (first) folder, the MCP bridge on the
 // one upgraded connection, and the --settings that make the sandboxed Claude Code relay to
 // the socket and write its own lock file. No vscode import: tests drive it with fakes.
 

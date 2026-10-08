@@ -24,6 +24,8 @@ import { trackSelection } from "./vscode/selection.ts";
 import { ClaudeTerminal } from "./vscode/terminal.ts";
 
 let link: IdeLink | undefined;
+// the folder the link was started for: its socket is there, and Claude runs in it
+let linkRoot: string | undefined;
 let claude: ClaudeTerminal | undefined;
 
 export function activate(context: vscode.ExtensionContext): void {
@@ -65,11 +67,28 @@ export function activate(context: vscode.ExtensionContext): void {
     void vscode.window.showErrorMessage(`Claude Sandbox: ${err instanceof Error ? err.message : String(err)}`);
   };
 
-  const ensureLink = async (): Promise<IdeLink | undefined> => {
-    if (link !== undefined) return link;
+  // the folder Claude runs in, which claude-sandbox makes its one writable project: asked for
+  // when the window has more than one, the last one chosen offered first
+  const LAST_ROOT = "claudeSandbox.lastRoot";
+  const pickRoot = async (roots: readonly string[]): Promise<string | undefined> => {
+    if (roots.length === 1) return roots[0];
+    const last = context.workspaceState.get<string>(LAST_ROOT);
+    const ordered = last !== undefined && roots.includes(last) ? [last, ...roots.filter((r) => r !== last)] : [...roots];
+    const pick = await vscode.window.showQuickPick(
+      ordered.map((r) => ({ label: vscode.workspace.getWorkspaceFolder(vscode.Uri.file(r))?.name ?? r, description: r, root: r })),
+      { title: "Claude Sandbox: start in which folder?", placeHolder: "Claude can write only this folder" },
+    );
+    if (pick !== undefined) await context.workspaceState.update(LAST_ROOT, pick.root);
+    return pick?.root;
+  };
+
+  const ensureLink = async (root: string): Promise<IdeLink | undefined> => {
+    if (link !== undefined && linkRoot === root) return link;
+    if (link !== undefined) await closeLink();
     try {
+      linkRoot = root;
       link = await IdeLink.start({
-        folders: folders(),
+        folders: [root],
         presenter: diffs,
         diagnostics: vscodeDiagnostics,
         logger,
@@ -86,12 +105,13 @@ export function activate(context: vscode.ExtensionContext): void {
   const closeLink = async (): Promise<void> => {
     const l = link;
     link = undefined;
+    linkRoot = undefined;
     linkState = "off";
     showState();
     await l?.close();
   };
 
-  const start = async (): Promise<void> => {
+  const start = async (folder?: vscode.Uri): Promise<void> => {
     if (claude?.running) {
       claude.terminal.show();
       return;
@@ -109,7 +129,11 @@ export function activate(context: vscode.ExtensionContext): void {
       );
       return;
     }
-    const l = await ensureLink();
+    // from the Explorer's context menu on a workspace folder, that one; otherwise ask
+    const given = folder instanceof vscode.Uri && roots.includes(folder.fsPath) ? folder.fsPath : undefined;
+    const cwd = given ?? (await pickRoot(roots));
+    if (cwd === undefined) return;
+    const l = await ensureLink(cwd);
     if (l === undefined) return;
     let args: string[];
     try {
@@ -121,9 +145,8 @@ export function activate(context: vscode.ExtensionContext): void {
       return;
     }
     claude?.dispose();
-    // cwd: the first workspace folder, where the link's socket is and what Claude Code takes
-    // as its project (the same folder every time, whichever file happens to be active)
-    const cwd = roots[0]!;
+    // cwd: the chosen folder, where the link's socket is and what Claude Code takes as its
+    // project (the same folder every time, whichever file happens to be active)
     const term = new ClaudeTerminal({
       args,
       cwd,
@@ -137,7 +160,7 @@ export function activate(context: vscode.ExtensionContext): void {
       },
     });
     claude = term;
-    changes.start(roots);
+    changes.start([cwd]);
     void vscode.commands.executeCommand("setContext", "claudeSandbox.running", true);
     term.terminal.show();
     showState();
@@ -149,16 +172,24 @@ export function activate(context: vscode.ExtensionContext): void {
     diffs,
     changes,
     trackSelection(() => link?.bridge),
-    // paths are checked against the current folders (the lock's workspaceFolders stay stale:
-    // Claude connects whatever they say, the port being explicit)
-    vscode.workspace.onDidChangeWorkspaceFolders(() => link?.setFolders(folders())),
+    // paths are checked against the link's folder while it is still open in the window (the
+    // lock's workspaceFolders stay stale: Claude connects whatever they say, the port being explicit)
+    vscode.workspace.onDidChangeWorkspaceFolders(() => link?.setFolders(folders().filter((f) => f === linkRoot))),
     vscode.commands.registerCommand("claudeSandbox.start", start),
     vscode.commands.registerCommand("claudeSandbox.copySettings", async () => {
-      const l = await ensureLink();
+      const roots = folders();
+      if (roots.length === 0) {
+        void vscode.window.showWarningMessage("Claude Sandbox: open a folder first.");
+        return;
+      }
+      // a linked session keeps its link (and folder); otherwise ask which folder it is for
+      const root = link?.linked ? linkRoot : await pickRoot(roots);
+      if (root === undefined) return;
+      const l = await ensureLink(root);
       if (l === undefined) return;
       await vscode.env.clipboard.writeText(`claude --settings ${shellQuote(JSON.stringify(mergeSettings(null, sessionSettings(l))))}`);
       void vscode.window.showInformationMessage(
-        "Claude Sandbox: launch command copied. Paste it into a devcontainer terminal. It holds the link's token.",
+        `Claude Sandbox: launch command copied. Paste it into a devcontainer terminal in ${root}. It holds the link's token.`,
       );
     }),
     ...registerPresets({
@@ -180,5 +211,6 @@ export async function deactivate(): Promise<void> {
   claude = undefined;
   const l = link;
   link = undefined;
+  linkRoot = undefined;
   await l?.close();
 }
