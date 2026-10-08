@@ -194,6 +194,17 @@ export function groupByRoot(changes: readonly Change[], rootOf: (c: Change) => s
   return [...groups].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)).map(([root, cs]) => ({ root, changes: cs }));
 }
 
+/**
+ * The files a context-menu command acts on: VS Code passes the row right-clicked and the rows
+ * selected. The selection when it holds that row (a right-click elsewhere acts on that row
+ * alone), files only (a repository row in the selection is not all of its files).
+ */
+export function picked<T, F extends T>(clicked: T | undefined, selected: readonly T[] | undefined, isFile: (n: T) => n is F): F[] {
+  if (clicked === undefined) return [];
+  const rows = selected !== undefined && selected.includes(clicked) ? selected : [clicked];
+  return rows.filter(isFile);
+}
+
 /** One file of "Review All": its HEAD side (or none: new, or no repository), its current side (none: deleted). */
 export interface ReviewRow {
   path: string;

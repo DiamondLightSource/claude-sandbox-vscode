@@ -31,6 +31,25 @@ describe("rule 3: no code path writes a file", () => {
     assert.deepEqual(hits, []);
   });
 
+  it("the changes view's Stage and Revert are the Git extension's; Revert asks first", () => {
+    const hits = tsFiles(path.join(root, "src")).flatMap((f) =>
+      fs
+        .readFileSync(f, "utf8")
+        .split("\n")
+        .filter((l) => /\.(add|revert|clean)\((?!\))/.test(l) && /\brepo\b/.test(l))
+        .map((l) => `${path.basename(f)}: ${l.trim()}`),
+    );
+    assert.deepEqual(hits, [
+      "changesView.ts: for (const r of repos) await r.repo.add(r.paths);",
+      "changesView.ts: await repo.revert(staged);",
+      "changesView.ts: await repo.clean(paths);",
+    ]);
+    const view = fs.readFileSync(path.join(root, "src", "vscode", "changesView.ts"), "utf8");
+    const revert = view.slice(view.indexOf("private async revert("));
+    assert.ok(revert.indexOf("modal: true") < revert.indexOf("if (pick !== yes) return;"));
+    assert.ok(revert.indexOf("if (pick !== yes) return;") < revert.indexOf("repo.revert("));
+  });
+
   it("the only save() is of our in-memory proposal documents", () => {
     const hits = tsFiles(path.join(root, "src")).flatMap((f) =>
       fs

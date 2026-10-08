@@ -116,7 +116,8 @@ message as hostile. These rules are the security design; each has a test in
    accept). Each proposal is answered at most once; one closed by the bridge
    (Claude closed it, or its connection went) is answered by nothing in the
    UI. Accept and Reject work from either side of the diff (keyed on the diff
-   id in either URI).
+   id in either URI). The changes view's Stage and Revert to HEAD are the
+   built-in Git extension's, not ours (rule 12).
 4. **getDiagnostics** returns only diagnostics for files inside a workspace
    folder.
 5. **selection_changed** is sent only for files inside a workspace folder;
@@ -264,8 +265,13 @@ message as hostile. These rules are the security design; each has a test in
     change for, so git state the session controls (a commit, `.gitignore`,
     `.git/info/exclude`, skip-worktree) can take a file out of the view just
     as it takes it out of Source Control; the view is a convenience over git
-    state, not an audit. There is no revert action: that would be the host writing into the
-    jail-writable workspace (Source Control's Discard is the way back).
+    state, not an audit. Its Stage and Revert to HEAD write nothing
+    themselves: they call the Git extension's repository `add`, `revert`
+    (Unstage) and `clean` (Discard), the code behind Source Control's own
+    buttons, so a revert is exactly what pressing Unstage then Discard there
+    would do, with the same exposure to a path the jail swaps in meanwhile.
+    Revert asks first (a modal prompt) as Discard does; a file outside any
+    repository is left alone.
 
 ## Out of scope (residual risk)
 
@@ -334,7 +340,7 @@ client on the real socket, with the real token, attacking).
 | 9 The pty relay | `test/unit/pty.test.ts` (Claude's environment without VS Code's channels, an inherited link port or another Claude's child markers; argv constant but for size and arguments; the pty is the controlling terminal at the given size with no fd of ours; arguments are words; keys and UTF-8; SIGWINCH on resize, bad resize lines ignored; Ctrl-C and exit status; output before exit kept; kill hangs up; a slow reader of the output holds up neither keys nor resizes (fails on the old blocking relay); a flood of redraws with input bursts, resizes, a stalling host and a throwing output handler at once; a missing program is 127, a missing interpreter is explained; writes coalesced per 16 ms, a throwing sink reported); `test/hostile/audit.test.ts` "child_process only in the pty relay and the version check" |
 | 10 Install offer | `test/unit/install.test.ts` (the shim, CLI and interpreter recognised, read without blocking on a FIFO; the fixed command with `--no-cache` and the `>=5.0.0b3` requirement, and sudo; older than the minimum is too old; uvx only from the fixed paths, not a symlink out of them, not writable by others, not owned by another user; the terminal script runs its arguments as words; version parsing and comparison; PyPI JSON read as own keys); `test/hostile/audit.test.ts` "terminals" |
 | 11 Settings | `test/unit/manifest.test.ts` (every setting `scope: application`; the code reads no other setting of ours and no other extension's, `files.watcherExclude` included; keybindings on the `Ctrl+Alt+C` chord only); `test/unit/settings.test.ts` "reviewEdits" (the ask list merged and deduplicated, theirs kept, `__proto__` a plain key) |
-| 12 Changes view | `test/unit/changes.test.ts` (only workspace files, not a `.git` segment or sockets, no settings patterns; any path decided in linear time; lstat: a symlink listed as one, a folder and a missing path told apart; the user's saves skipped; kinds; reviewed until changed again; Review All's rows: HEAD vs now, new against nothing, deleted HEAD vs nothing, symlinks left out; `splitByGit`: only what git shows changed, outside a repository all; git status re-read once per repository first, so a just-made file is shown and new); `test/hostile/audit.test.ts` "rule 3" (no write API; `workspace.fs` only for `stat`) |
+| 12 Changes view | `test/unit/changes.test.ts` (only workspace files, not a `.git` segment or sockets, no settings patterns; any path decided in linear time; lstat: a symlink listed as one, a folder and a missing path told apart; the user's saves skipped; kinds; reviewed until changed again; Review All's rows: HEAD vs now, new against nothing, deleted HEAD vs nothing, symlinks left out; `splitByGit`: only what git shows changed, outside a repository all; git status re-read once per repository first, so a just-made file is shown and new); `test/hostile/audit.test.ts` "rule 3" (no write API; `workspace.fs` only for `stat`; Stage and Revert only through the Git extension's `add`, `revert` and `clean`, after a modal prompt); `picked` (the context menu's files) |
 
 ## Implementation notes
 
@@ -483,6 +489,16 @@ files are listed directly. Each repository's status is followed
 (`state.onDidChange`, keyed by `rootUri`) from the first time it is looked
 at, until the next Start. **Mark as reviewed** (inline) ticks a file until it
 changes again; the view's badge and the status bar count the rest.
+The right-click menu (on the selection, several rows at once) has **Open
+File** (not for a deleted file or a symlink), **Mark as reviewed** / **Mark
+as not reviewed**, **Stage** (the Git extension's `add`; a staged file is
+marked reviewed), **Revert to HEAD**, **Reveal in Explorer View** and **Copy
+Path** / **Copy Relative Path**. Revert to HEAD, and **Revert All Changes to
+HEAD** in the title bar's `…` menu (every file the view shows, not
+`git.cleanAll`, which would discard the whole repository's changes), ask
+first, then unstage what is staged (`revert`) and discard the rest (`clean`):
+a tracked file is checked out, one HEAD lacks is deleted (to the trash where
+VS Code can). Stage and Revert are offered only for files in a repository.
 **Review All Changes** (the view's title bar, the palette, `Ctrl+Alt+C V`)
 opens every listed file in VS Code's multi-file diff editor:
 `vscode.changes` with title "Claude changes" (VS Code adds " (N files)" for

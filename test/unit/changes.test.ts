@@ -3,7 +3,7 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import { describe, it } from "node:test";
-import { CHANGES_MAX, ChangeSet, entryKind, freshStatus, groupByRoot, isReviewTitle, reviewPlan, SAVE_WINDOW_MS, splitByGit } from "../../src/changes.ts";
+import { CHANGES_MAX, ChangeSet, entryKind, freshStatus, groupByRoot, isReviewTitle, picked, reviewPlan, SAVE_WINDOW_MS, splitByGit } from "../../src/changes.ts";
 
 const set = () => new ChangeSet({ roots: ["/w", "/v/"] });
 
@@ -87,6 +87,9 @@ describe("Changed this session: the list", () => {
     assert.equal(s.markReviewed("/w/a.py"), false, "already");
     assert.equal(s.markReviewed("/w/zzz"), false);
     assert.equal(s.unreviewed, 1);
+    assert.equal(s.markReviewed("/w/a.py", false), true, "Mark as not reviewed");
+    assert.equal(s.unreviewed, 2);
+    s.markReviewed("/w/a.py");
     s.event("changed", "/w/a.py", 5);
     assert.equal(s.get("/w/a.py")?.reviewed, false);
     assert.equal(s.unreviewed, 2);
@@ -186,5 +189,20 @@ describe("git status re-read before a diff (a file just made is new, not HEAD's)
     await freshStatus([ra, null, ra, rb, ra]);
     assert.deepEqual([a, b], [1, 1]);
     await freshStatus([]);
+  });
+});
+
+describe("the context menu's files", () => {
+  it("the selection when it holds the row right-clicked, else that row; repository rows left out", () => {
+    const f = (p: string) => ({ path: p, kind: "changed" as const, reviewed: false, at: 0, symlink: false });
+    const g = { root: "/w", changes: [] };
+    type N = ReturnType<typeof f> | typeof g;
+    const isFile = (n: N): n is ReturnType<typeof f> => "path" in n;
+    const [a, b, c] = [f("/w/a"), f("/w/b"), f("/w/c")];
+    assert.deepEqual(picked(a, [a, b, g], isFile), [a, b]);
+    assert.deepEqual(picked(c, [a, b], isFile), [c], "right-click outside the selection");
+    assert.deepEqual(picked(a, undefined, isFile), [a]);
+    assert.deepEqual(picked(g, [g], isFile), []);
+    assert.deepEqual(picked(undefined, [a], isFile), [], "from the palette: nothing");
   });
 });
