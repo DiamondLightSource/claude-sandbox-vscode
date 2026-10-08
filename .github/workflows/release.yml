@@ -1,10 +1,10 @@
 name: Release
 
-# Push a tag X.Y.Z (no v prefix) to build, test and publish. The version is the
-# tag. The workflow creates the GitHub release itself, so do not make one by
-# hand first. A tag with a suffix (0.2.0-rc1) makes a GitHub pre-release only
-# and is not published to the Marketplace, which has no semver pre-release
-# versions.
+# Push a tag X.Y.Z (no v prefix), or create a release with one in the GitHub UI,
+# to build, test and publish. The version is the tag. The vsix is attached to
+# the release, which is created when the tag was pushed alone. A tag with a
+# suffix (0.2.0-rc1) makes a GitHub pre-release only and is not published to
+# the Marketplace, which has no semver pre-release versions.
 # Marketplace publishing runs only when the repository variable
 # MARKETPLACE_PUBLISH is "true"; until then a release is GitHub only.
 
@@ -67,16 +67,22 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           name: vsix
-      - name: Create the GitHub release with the vsix
+      # A release made in the UI already exists (making it pushed the tag): attach
+      # the vsix to it. A tag pushed alone has none yet: create it.
+      - name: Attach the vsix to the GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.ref_name }}
           PRERELEASE: ${{ needs.build.outputs.prerelease }}
         run: |
-          flags=""
-          if [ "$PRERELEASE" = true ]; then flags="--prerelease"; fi
-          gh release create "$TAG" claude-sandbox-vscode.vsix \
-            -R "$GITHUB_REPOSITORY" --title "$TAG" --generate-notes --verify-tag $flags
+          if gh release view "$TAG" -R "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            gh release upload "$TAG" claude-sandbox-vscode.vsix -R "$GITHUB_REPOSITORY" --clobber
+          else
+            flags=""
+            if [ "$PRERELEASE" = true ]; then flags="--prerelease"; fi
+            gh release create "$TAG" claude-sandbox-vscode.vsix \
+              -R "$GITHUB_REPOSITORY" --title "$TAG" --generate-notes --verify-tag $flags
+          fi
 
   marketplace:
     needs: [build, github-release]
