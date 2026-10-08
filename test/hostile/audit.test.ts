@@ -10,7 +10,8 @@ import * as path from "node:path";
 import { describe, it } from "node:test";
 import { IdeLink } from "../../src/link.ts";
 import { Client, openDiff, toolCall } from "../helpers/client.ts";
-import { snapshot, startTestLink, tmpWorkspace, tsFiles } from "../helpers/fakes.ts";
+import { snapshot, tmpWorkspace, tsFiles } from "../helpers/fakes.ts";
+import { startTestLink } from "../helpers/link.ts";
 
 const root = path.resolve(import.meta.dirname, "..", "..");
 

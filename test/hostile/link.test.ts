@@ -11,7 +11,8 @@ import { IdeLink, socketName, type LinkOptions } from "../../src/link.ts";
 import { Workspace } from "../../src/paths.ts";
 import { HIGH_WATER, MAX_MESSAGE, MAX_QUEUED } from "../../src/websocket.ts";
 import { Client, clientFrame, isError, openDiff, texts, toolCall } from "../helpers/client.ts";
-import { FakePresenter, MemLogger, SECRET, snapshot, startTestLink, tmpWorkspace, type Tmp } from "../helpers/fakes.ts";
+import { FakePresenter, MemLogger, SECRET, snapshot, tmpWorkspace, type Tmp } from "../helpers/fakes.ts";
+import { startTestLink } from "../helpers/link.ts";
 
 let t: Tmp;
 let link: IdeLink;
@@ -24,7 +25,13 @@ const DOC = "line one\nhello world\n";
 async function start(pickPort?: () => number, extra: Partial<LinkOptions> = {}): Promise<IdeLink> {
   presenter = new FakePresenter();
   logger = new MemLogger();
-  return startTestLink(t.ws, { presenter, logger, handshakeMs: HANDSHAKE_MS, ...(pickPort ? { pickPort } : {}), ...extra });
+  return startTestLink(t.ws, {
+    presenter,
+    logger,
+    handshakeMs: HANDSHAKE_MS,
+    ...(pickPort ? { pickPort } : {}),
+    ...extra,
+  });
 }
 
 /** Wait until the link has noticed every client has gone (one session at a time). */
