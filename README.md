@@ -120,9 +120,9 @@ npm run package     # .vsix
 
 ## Releasing
 
-Push a tag `X.Y.Z` (no `v` prefix) on `main`: `.github/workflows/release.yml`
-tests and creates the GitHub release with the `.vsix` attached, so don't create
-the release by hand. A suffixed tag such as `0.2.0-rc1`
+Create a GitHub release with a new tag `X.Y.Z` (no `v` prefix) on `main`, or
+just push the tag: `.github/workflows/release.yml` tests and attaches the
+`.vsix` to the release, creating it if there is none. A suffixed tag such as `0.2.0-rc1`
 makes a GitHub pre-release only. With the repository variable
 `MARKETPLACE_PUBLISH` set to `true`, other tags are also published to the
 Marketplace, signing in via GitHub OIDC with the `marketplace` environment's
