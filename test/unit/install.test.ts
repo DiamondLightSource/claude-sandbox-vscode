@@ -61,7 +61,7 @@ describe("rule 10: the install offer", () => {
     }
   });
   it("the command is fixed: uvx --no-cache --from 'claude-sandbox>=MIN' claude-sandbox install, through sudo unless root", () => {
-    const cmd = ["/usr/bin/uvx", "--no-cache", "--from", "claude-sandbox>=5.0.0b1", "claude-sandbox", "install"];
+    const cmd = ["/usr/bin/uvx", "--no-cache", "--from", "claude-sandbox>=5.0.0b3", "claude-sandbox", "install"];
     assert.deepEqual(installArgv(0, "/usr/bin/uvx"), cmd);
     assert.deepEqual(installArgv(1000, "/usr/bin/uvx"), [SUDO, ...cmd]);
     assert.equal(REQUIREMENT, `claude-sandbox>=${MIN_VERSION}`);
@@ -70,7 +70,8 @@ describe("rule 10: the install offer", () => {
   it("a claude-sandbox older than MIN_VERSION is too old", () => {
     assert.equal(tooOld("4.7.1"), true);
     assert.equal(tooOld("4.8.0-beta.2"), true);
-    assert.equal(tooOld("5.0.0-beta.1"), false);
+    assert.equal(tooOld("5.0.0-beta.2"), true);
+    assert.equal(tooOld("5.0.0-beta.3"), false);
     assert.equal(tooOld("5.0.0"), false);
     assert.equal(tooOld("weird"), false, "unknown: not called too old");
   });
