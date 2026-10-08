@@ -434,8 +434,10 @@ export class ChangesView implements vscode.TreeDataProvider<Node>, vscode.Dispos
   private async openFiles(cs: readonly Change[]): Promise<void> {
     for (const c of cs) {
       if (c.kind === "deleted") continue;
-      if ((await this.check(c)) !== "file") {
-        void vscode.window.showInformationMessage(`${path.basename(c.path)} is a symlink: it is not opened here. Look at it in Source Control.`);
+      const e = await this.check(c);
+      if (e !== "file") {
+        const why = e === "symlink" ? "is a symlink: it is not opened here. Look at it in Source Control." : e === "dir" ? "is now a folder." : "is gone.";
+        void vscode.window.showInformationMessage(`${path.basename(c.path)} ${why}`);
         continue;
       }
       await vscode.window.showTextDocument(vscode.Uri.file(c.path), { preview: cs.length === 1 });
@@ -477,18 +479,23 @@ export class ChangesView implements vscode.TreeDataProvider<Node>, vscode.Dispos
   private async stage(cs: readonly Change[]): Promise<void> {
     const { repos, outside } = await this.byRepo(cs);
     this.notInGit(outside);
-    try {
-      for (const r of repos) await r.repo.add(r.paths);
-    } catch (e) {
-      void vscode.window.showErrorMessage(`Claude Sandbox: staging failed: ${e instanceof Error ? e.message : String(e)}`);
+    for (const r of repos) {
+      try {
+        await r.repo.add(r.paths);
+      } catch (e) {
+        void vscode.window.showErrorMessage(`Claude Sandbox: staging failed: ${e instanceof Error ? e.message : String(e)}`);
+        continue;
+      }
+      this.mark(cs.filter((c) => r.paths.includes(c.path)), true);
     }
-    this.mark(cs.filter((c) => repos.some((r) => r.paths.includes(c.path))), true);
   }
 
   /**
-   * Back to HEAD, by the Git extension (the extension writes nothing): staged changes are
+   * Back to HEAD, by the Git extension (our extension writes nothing): staged changes are
    * unstaged (Source Control's Unstage), then the working tree discarded (its Discard: a tracked
    * file checked out, one HEAD lacks deleted). After one prompt of ours, as Discard asks first.
+   * What git still shows afterwards, or a file HEAD lacks still there (Discard skips an untracked
+   * file under git.untrackedChanges "hidden", and a merge conflict), is reported, not hidden.
    */
   private async revert(cs: readonly Change[]): Promise<void> {
     if (cs.length === 0) {
@@ -511,18 +518,35 @@ export class ChangesView implements vscode.TreeDataProvider<Node>, vscode.Dispos
       yes,
     );
     if (pick !== yes) return;
-    try {
-      for (const { repo, paths } of repos) {
+    // the session may have staged more while the prompt was up
+    await fresh(repos.map((r) => r.repo));
+    const left: string[] = [];
+    for (const { repo, paths } of repos) {
+      try {
         const want = new Set(paths);
-        const staged = repo.state.indexChanges.flatMap((x) => [x.uri.fsPath, ...(x.originalUri ? [x.originalUri.fsPath] : [])]).filter((p) => want.has(p));
+        // a staged rename is reset whole: one side alone would leave the other staged
+        const sides = (x: GitChange): string[] => [x.uri.fsPath, ...(x.originalUri ? [x.originalUri.fsPath] : [])];
+        const staged = [...new Set(repo.state.indexChanges.map(sides).filter((ps) => ps.some((p) => want.has(p))).flat())];
+        const added = new Set(repo.state.indexChanges.filter((x) => x.status === INDEX_ADDED).map((x) => x.uri.fsPath));
         if (staged.length > 0) {
           await repo.revert(staged);
           await repo.status();
         }
-        await repo.clean(paths);
+        const all = [...new Set([...paths, ...staged])];
+        await repo.clean(all);
+        await repo.status();
+        const s = repo.state;
+        const still = new Set([...s.workingTreeChanges, ...s.indexChanges, ...(s.untrackedChanges ?? []), ...(s.mergeChanges ?? [])].flatMap(sides));
+        for (const p of all) if (still.has(p) || (added.has(p) && (await entry(p)) !== "gone")) left.push(p);
+      } catch (e) {
+        void vscode.window.showErrorMessage(`Claude Sandbox: revert failed: ${e instanceof Error ? e.message : String(e)}`);
       }
-    } catch (e) {
-      void vscode.window.showErrorMessage(`Claude Sandbox: revert failed: ${e instanceof Error ? e.message : String(e)}`);
+    }
+    if (left.length > 0) {
+      const names = left.slice(0, 3).map((p) => path.basename(p)).join(", ") + (left.length > 3 ? ", …" : "");
+      void vscode.window.showWarningMessage(
+        `Claude Sandbox: ${left.length} file${left.length === 1 ? " was" : "s were"} not reverted (${names}): look at ${left.length === 1 ? "it" : "them"} with git status.`,
+      );
     }
     this.refresh();
   }

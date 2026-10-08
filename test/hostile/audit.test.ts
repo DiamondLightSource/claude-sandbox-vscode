@@ -32,22 +32,16 @@ describe("rule 3: no code path writes a file", () => {
   });
 
   it("the changes view's Stage and Revert are the Git extension's; Revert asks first", () => {
-    const hits = tsFiles(path.join(root, "src")).flatMap((f) =>
-      fs
-        .readFileSync(f, "utf8")
-        .split("\n")
-        .filter((l) => /\.(add|revert|clean)\((?!\))/.test(l) && /\brepo\b/.test(l))
-        .map((l) => `${path.basename(f)}: ${l.trim()}`),
+    // a tripwire, not a proof: a Git API write anywhere else, or one moved before the prompt
+    const calls = tsFiles(path.join(root, "src")).flatMap((f) =>
+      [...fs.readFileSync(f, "utf8").replace(/\/\/.*$/gm, "").matchAll(/(?<!\bthis)\.(revert|clean)\(|\brepo\.add\(/g)].map((m) => `${path.basename(f)}: ${m[0]}`),
     );
-    assert.deepEqual(hits, [
-      "changesView.ts: for (const r of repos) await r.repo.add(r.paths);",
-      "changesView.ts: await repo.revert(staged);",
-      "changesView.ts: await repo.clean(paths);",
-    ]);
+    assert.deepEqual(calls.sort(), ["changesView.ts: .clean(", "changesView.ts: .revert(", "changesView.ts: repo.add("]);
     const view = fs.readFileSync(path.join(root, "src", "vscode", "changesView.ts"), "utf8");
     const revert = view.slice(view.indexOf("private async revert("));
-    assert.ok(revert.indexOf("modal: true") < revert.indexOf("if (pick !== yes) return;"));
-    assert.ok(revert.indexOf("if (pick !== yes) return;") < revert.indexOf("repo.revert("));
+    const at = (s: string): number => revert.indexOf(s);
+    assert.ok(at("modal: true") >= 0 && at("modal: true") < at("pick !== yes"));
+    assert.ok(at("pick !== yes") < at(".revert(") && at("pick !== yes") < at(".clean("));
   });
 
   it("the only save() is of our in-memory proposal documents", () => {
