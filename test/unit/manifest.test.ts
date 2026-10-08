@@ -65,11 +65,15 @@ describe("the manifest", () => {
   });
   it("Start, the presets and Mention have keybindings; the editor submenu holds the presets", () => {
     const keys = (pkg.contributes.keybindings as { command: string }[]).map((k) => k.command);
-    for (const c of ["start", "preset.explain", "preset.reword", "preset.tighten", "askSelection", "mention"]) {
+    for (const c of ["start", "preset.explain", "preset.reword", "preset.tighten", "customPreset", "mention"]) {
       assert.ok(keys.includes(`claudeSandbox.${c}`), c);
     }
     const sub = (pkg.contributes.menus["claudeSandbox.editor"] as { command: string }[]).map((m) => m.command);
     assert.ok(sub.includes("claudeSandbox.preset.explain") && sub.includes("claudeSandbox.mention"));
+  });
+  it("Run preset, the Refactor menu's way to a preset of the user's, is not in the palette", () => {
+    const palette = pkg.contributes.menus.commandPalette as { command: string; when: string }[];
+    assert.ok(palette.some((m) => m.command === "claudeSandbox.runPreset" && m.when === "false"));
   });
   it("the view container's icon ships in the package", () => {
     const icon = pkg.contributes.viewsContainers.activitybar[0].icon as string;
