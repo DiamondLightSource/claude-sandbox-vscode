@@ -5,7 +5,8 @@ Makes VS Code the IDE of a Claude Code session running inside
 sees your selection, shows proposed edits as diffs to accept or reject, and
 reads the workspace's diagnostics. It speaks Claude Code's IDE protocol (MCP
 over a WebSocket), the role Anthropic's own extension plays for an
-unsandboxed Claude.
+unsandboxed Claude. The full design, protocol notes and security rules are in
+[docs/design.md](docs/design.md).
 
 ## Install
 
@@ -21,8 +22,8 @@ Or download the `.vsix` from the
 [releases page](https://github.com/DiamondLightSource/claude-sandbox-vscode/releases)
 and use **Extensions → ⋯ → Install from VSIX…**. Repeat to update.
 
-It needs claude-sandbox 5.0.0b1 or later. If that is missing, a notification
-offers **Install**, which runs
+It needs claude-sandbox 5.0.0b1 or later. If it is missing or older, a
+notification offers **Install**, which runs
 `uvx --no-cache --from 'claude-sandbox>=5.0.0b1' claude-sandbox install`
 (with sudo when not root) in a terminal you can watch. uvx is taken only from
 `/usr/local/bin`, `/usr/bin` or `~/.cargo/bin`, never from `PATH`. The
@@ -41,25 +42,27 @@ never upgrades it.
   `A` Ask about selection, `M` Mention (inserts `@file#L1-3` without
   sending), `V` Review All. A preset is typed only when Claude's input box is
   showing; while Claude is working or asking you something you get a warning
-  instead.
+  instead. Claude sees your selection, or the cursor's file and line, for
+  workspace files only.
 - **Changed this session**: the side bar lists files changed while the
   session ran (your own saves excluded, and only those git shows a change
   for). Click one for a diff against HEAD, tick **Mark as reviewed**, or
   **Review All Changes** to open them in the multi-file diff editor, then step
-  with **Next/Previous Change** (`F8`/`Shift+F8`, VS Code 1.106+). Revert with
-  Source Control's Discard.
+  with **Next/Previous Change** (`F8`/`Shift+F8` in that editor or the view,
+  VS Code 1.106+). Revert with Source Control's Discard.
 - **Reviewing edits**: with `claudeSandbox.reviewEdits` on, every `Edit`,
-  `Write` and `NotebookEdit` opens as a diff to accept or reject. Edits made
-  through the shell are not caught; the changes view still lists them.
+  `Write` and `NotebookEdit` (in auto mode too) opens as a diff to accept or
+  reject. Edits made through the shell are not caught; the changes view
+  still lists them.
 
 Settings (user scope only):
 
-| Setting | Purpose |
-| --- | --- |
-| `claudeSandbox.extraArgs` | Extra Claude Code arguments, e.g. `["--model", "opus"]` |
-| `claudeSandbox.presets` | Your presets: `[{"title": "Summarise", "prompt": "…"}]` |
-| `claudeSandbox.autoOpenDiffs` | Open each change's diff as it happens (off) |
-| `claudeSandbox.reviewEdits` | Ask before file-edit tools, showing each as a diff (off) |
+| Setting | Default | Purpose |
+| --- | --- | --- |
+| `claudeSandbox.extraArgs` | `[]` | Extra Claude Code arguments, e.g. `["--model", "opus"]` |
+| `claudeSandbox.presets` | `[]` | Your presets: `[{"title": "Summarise", "prompt": "…"}]` |
+| `claudeSandbox.autoOpenDiffs` | `false` | Open each change's diff as it happens |
+| `claudeSandbox.reviewEdits` | `false` | Ask before file-edit tools, showing each as a diff |
 
 **Claude Sandbox: Copy launch command (advanced)** copies a
 `claude --settings '…'` to link a Claude you start by hand instead.
@@ -116,10 +119,11 @@ npm run package     # .vsix
 ## Releasing
 
 Push a tag `vX.Y.Z` on `main`: `.github/workflows/release.yml` tests and
-attaches the `.vsix` to a GitHub release (a suffixed tag such as `v0.2.0-rc1`
-makes a pre-release). Setting the repository variable `MARKETPLACE_PUBLISH`
-to `true` also publishes to the Marketplace, signing in via GitHub OIDC with
-the `marketplace` environment's `AZURE_CLIENT_ID` and `AZURE_TENANT_ID`.
+attaches the `.vsix` to a GitHub release. A suffixed tag such as `v0.2.0-rc1`
+makes a GitHub pre-release only. With the repository variable
+`MARKETPLACE_PUBLISH` set to `true`, other tags are also published to the
+Marketplace, signing in via GitHub OIDC with the `marketplace` environment's
+`AZURE_CLIENT_ID` and `AZURE_TENANT_ID`.
 
 ## License
 
