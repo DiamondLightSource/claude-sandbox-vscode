@@ -53,7 +53,10 @@ never upgrades it.
   for). Click one for a diff against HEAD, tick **Mark as reviewed**, or
   **Review All Changes** to open them in the multi-file diff editor, then step
   with **Next/Previous Change** (`F8`/`Shift+F8` in that editor or the view,
-  VS Code 1.106+). Revert with Source Control's Discard.
+  VS Code 1.106+). Right-click a file (or a selection) to open it, stage
+  it, revert it to HEAD, reveal it or copy its path; **Revert All Changes
+  to HEAD** is in the view's `…` menu. Staging and reverting are done by VS
+  Code's Git extension, as Source Control's Stage and Discard are.
 - **Reviewing edits**: with `claudeSandbox.reviewEdits` on, every `Edit`,
   `Write` and `NotebookEdit` (in auto mode too) opens as a diff to accept or
   reject. Edits made through the shell are not caught; the changes view

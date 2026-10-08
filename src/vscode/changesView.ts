@@ -1,8 +1,10 @@
 // The "Changed this session" view: workspace files that changed while the linked session ran
 // (src/changes.ts), from VS Code's file watcher. A click opens VS Code's diff against HEAD through
 // the built-in Git extension's API (it reads the files, and runs git; the extension runs no git
-// of its own and reads no file contents). There is no revert: that would be the host writing
-// into the jail-writable workspace; Source Control's Discard is the way back.
+// of its own and reads no file contents). The context menu's Stage and Revert to HEAD (and the
+// title bar's Revert All) are the Git extension's too: its repositories' add, and reset then
+// clean, the code behind Source Control's Stage, Unstage and Discard; the extension itself
+// writes nothing.
 //
 // Each path is lstat-ed (metadata only, never followed): a folder is not listed, and a symlink
 // is listed as one but never opened, so a link the jail planted to a file outside the workspace
@@ -20,6 +22,7 @@ import {
   freshStatus as fresh,
   groupByRoot,
   isReviewTitle,
+  picked,
   reviewPlan,
   splitByGit,
   type Change,
@@ -30,6 +33,9 @@ import {
 /** A row of the view: a file, or (when the files span several repositories) a repository. */
 type Node = Change | ChangeGroup;
 const isGroup = (n: Node): n is ChangeGroup => "root" in n;
+const isFile = (n: Node): n is Change => !isGroup(n);
+/** The files a context-menu command acts on (see picked). */
+const files = (clicked?: Node, selected?: Node[]): Change[] => picked(clicked, selected, isFile);
 
 const EMPTY_SCHEME = "claude-sandbox-empty";
 const AUTO_OPEN_MS = 400;
@@ -63,6 +69,16 @@ interface GitRepository {
   };
   /** Re-reads git's status (the Git extension runs git; we do not). */
   status(): Promise<void>;
+  /** Source Control's Stage: git add. */
+  add(paths: string[]): Promise<void>;
+  /** Source Control's Unstage: git reset HEAD -- paths. */
+  revert(paths: string[]): Promise<void>;
+  /**
+   * Source Control's Discard, without its prompt: a tracked file is checked out from the index,
+   * an untracked one deleted (to the trash where VS Code can); a path git shows no working-tree
+   * change for is skipped.
+   */
+  clean(paths: string[]): Promise<void>;
 }
 interface GitApi {
   getRepository(uri: vscode.Uri): GitRepository | null;
@@ -70,6 +86,8 @@ interface GitApi {
 }
 // Status values for a file HEAD does not have
 const INDEX_ADDED = 1;
+const INDEX_RENAMED = 3;
+const INDEX_COPIED = 4;
 const UNTRACKED = 7;
 const INTENT_TO_ADD = 9;
 
@@ -103,6 +121,8 @@ export class ChangesView implements vscode.TreeDataProvider<Node>, vscode.Dispos
   /** What the view shows, and each file's group root, worked out once per redraw. */
   private shownCache: Change[] | undefined;
   private readonly rootOf = new Map<string, string>();
+  /** Shown files in a repository (Stage and Revert are offered for these). */
+  private readonly inRepo = new Set<string>();
   private readonly subs: vscode.Disposable[] = [];
   private watching: vscode.Disposable[] = [];
   private readonly autoTimers = new Map<string, NodeJS.Timeout>();
@@ -115,15 +135,23 @@ export class ChangesView implements vscode.TreeDataProvider<Node>, vscode.Dispos
   onCount: (unreviewed: number) => void = () => undefined;
 
   constructor() {
-    this.view = vscode.window.createTreeView("claudeSandbox.changes", { treeDataProvider: this, showCollapseAll: false });
+    this.view = vscode.window.createTreeView("claudeSandbox.changes", { treeDataProvider: this, showCollapseAll: false, canSelectMany: true });
     this.subs.push(
       this.view,
       this.emitter,
       vscode.workspace.registerTextDocumentContentProvider(EMPTY_SCHEME, { provideTextDocumentContent: () => "" }),
       vscode.commands.registerCommand("claudeSandbox.openChange", (c?: Change) => c && this.open(c, false)),
-      vscode.commands.registerCommand("claudeSandbox.markReviewed", (c?: Change) => {
-        if (c && this.set.markReviewed(c.path)) this.refresh();
+      vscode.commands.registerCommand("claudeSandbox.markReviewed", (c?: Node, sel?: Node[]) => this.mark(files(c, sel), true)),
+      vscode.commands.registerCommand("claudeSandbox.markUnreviewed", (c?: Node, sel?: Node[]) => this.mark(files(c, sel), false)),
+      vscode.commands.registerCommand("claudeSandbox.openChangedFile", (c?: Node, sel?: Node[]) => this.openFiles(files(c, sel))),
+      vscode.commands.registerCommand("claudeSandbox.stageChange", (c?: Node, sel?: Node[]) => this.stage(files(c, sel))),
+      vscode.commands.registerCommand("claudeSandbox.revertChange", (c?: Node, sel?: Node[]) => this.revert(files(c, sel))),
+      vscode.commands.registerCommand("claudeSandbox.revertAll", () => this.revert(this.shown())),
+      vscode.commands.registerCommand("claudeSandbox.revealChange", (c?: Node) => {
+        if (c && isFile(c)) void vscode.commands.executeCommand("revealInExplorer", vscode.Uri.file(c.path));
       }),
+      vscode.commands.registerCommand("claudeSandbox.copyChangePath", (c?: Node, sel?: Node[]) => this.copy(files(c, sel), false)),
+      vscode.commands.registerCommand("claudeSandbox.copyChangeRelativePath", (c?: Node, sel?: Node[]) => this.copy(files(c, sel), true)),
       vscode.commands.registerCommand("claudeSandbox.reviewAll", () => this.reviewAll()),
       vscode.commands.registerCommand("claudeSandbox.markAllReviewed", () => {
         let any = false;
@@ -216,6 +244,7 @@ export class ChangesView implements vscode.TreeDataProvider<Node>, vscode.Dispos
     if (this.shownCache !== undefined) return this.shownCache;
     const changed = new Map<string, Set<string>>();
     this.rootOf.clear();
+    this.inRepo.clear();
     this.shownCache = splitByGit(this.set.list(), (c) => {
       const repo = this.git?.getRepository(vscode.Uri.file(c.path)) ?? null;
       if (repo === null) {
@@ -224,6 +253,7 @@ export class ChangesView implements vscode.TreeDataProvider<Node>, vscode.Dispos
         return undefined;
       }
       this.rootOf.set(c.path, repo.rootUri.fsPath);
+      this.inRepo.add(c.path);
       const root = repo.rootUri.toString();
       if (!this.repos.has(root)) this.repos.set(root, repo.state.onDidChange(() => this.refreshSoon()));
       let paths = changed.get(root);
@@ -394,6 +424,136 @@ export class ChangesView implements vscode.TreeDataProvider<Node>, vscode.Dispos
     await vscode.commands.executeCommand("vscode.changes", plan.title, rows);
   }
 
+  // -- the context menu
+
+  private mark(cs: readonly Change[], reviewed: boolean): void {
+    let any = false;
+    for (const c of cs) any = this.set.markReviewed(c.path, reviewed) || any;
+    if (any) this.refresh();
+  }
+
+  /** The files themselves (not diffs); a symlink is not opened, as for diffs. */
+  private async openFiles(cs: readonly Change[]): Promise<void> {
+    for (const c of cs) {
+      if (c.kind === "deleted") continue;
+      const e = await this.check(c);
+      if (e !== "file") {
+        const why = e === "symlink" ? "is a symlink: it is not opened here. Look at it in Source Control." : e === "dir" ? "is now a folder." : "is gone.";
+        void vscode.window.showInformationMessage(`${path.basename(c.path)} ${why}`);
+        continue;
+      }
+      await vscode.window.showTextDocument(vscode.Uri.file(c.path), { preview: cs.length === 1 });
+    }
+  }
+
+  private async copy(cs: readonly Change[], relative: boolean): Promise<void> {
+    if (cs.length === 0) return;
+    const text = cs.map((c) => (relative ? vscode.workspace.asRelativePath(c.path, false) : c.path)).join("\n");
+    await vscode.env.clipboard.writeText(text);
+  }
+
+  /** The files by repository (status re-read), and how many are in none. */
+  private async byRepo(cs: readonly Change[]): Promise<{ repos: { repo: GitRepository; paths: string[] }[]; outside: number }> {
+    const git = await gitApi();
+    const repos = new Map<string, { repo: GitRepository; paths: string[] }>();
+    let outside = 0;
+    for (const c of cs) {
+      const repo = git?.getRepository(vscode.Uri.file(c.path)) ?? null;
+      if (repo === null) {
+        outside++;
+        continue;
+      }
+      const key = repo.rootUri.toString();
+      const r = repos.get(key) ?? { repo, paths: [] };
+      r.paths.push(c.path);
+      repos.set(key, r);
+    }
+    const list = [...repos.values()];
+    await fresh(list.map((r) => r.repo));
+    return { repos: list, outside };
+  }
+
+  private notInGit(n: number): void {
+    if (n > 0) void vscode.window.showInformationMessage(`Claude Sandbox: ${n} file${n === 1 ? " is" : "s are"} not in a Git repository: left as they are.`);
+  }
+
+  /** Source Control's Stage, by the Git extension; a staged file counts as reviewed. */
+  private async stage(cs: readonly Change[]): Promise<void> {
+    const { repos, outside } = await this.byRepo(cs);
+    this.notInGit(outside);
+    for (const r of repos) {
+      try {
+        await r.repo.add(r.paths);
+      } catch (e) {
+        void vscode.window.showErrorMessage(`Claude Sandbox: staging failed: ${e instanceof Error ? e.message : String(e)}`);
+        continue;
+      }
+      this.mark(cs.filter((c) => r.paths.includes(c.path)), true);
+    }
+  }
+
+  /**
+   * Back to HEAD, by the Git extension (our extension writes nothing): staged changes are
+   * unstaged (Source Control's Unstage), then the working tree discarded (its Discard: a tracked
+   * file checked out, one HEAD lacks deleted). After one prompt of ours, as Discard asks first.
+   * What git still shows afterwards, or a file HEAD lacks still there (Discard skips an untracked
+   * file under git.untrackedChanges "hidden", and a merge conflict), is reported, not hidden.
+   */
+  private async revert(cs: readonly Change[]): Promise<void> {
+    if (cs.length === 0) {
+      void vscode.window.showInformationMessage("Claude Sandbox: no changed files to revert.");
+      return;
+    }
+    const { repos, outside } = await this.byRepo(cs);
+    this.notInGit(outside);
+    const n = repos.reduce((k, r) => k + r.paths.length, 0);
+    if (n === 0) return;
+    const what = n === 1 ? `'${path.basename(repos[0]!.paths[0]!)}'` : `${n} files`;
+    const yes = n === 1 ? "Revert File" : `Revert ${n} Files`;
+    const pick = await vscode.window.showWarningMessage(
+      `Revert ${what} to HEAD?`,
+      {
+        modal: true,
+        detail:
+          "Every uncommitted change is lost, staged ones and any made before this session included. A file HEAD does not have is deleted (to the trash where VS Code can).",
+      },
+      yes,
+    );
+    if (pick !== yes) return;
+    // the session may have staged more while the prompt was up
+    await fresh(repos.map((r) => r.repo));
+    const left: string[] = [];
+    for (const { repo, paths } of repos) {
+      try {
+        const want = new Set(paths);
+        // a staged rename is reset whole: one side alone would leave the other staged
+        const sides = (x: GitChange): string[] => [x.uri.fsPath, ...(x.originalUri ? [x.originalUri.fsPath] : [])];
+        const staged = [...new Set(repo.state.indexChanges.map(sides).filter((ps) => ps.some((p) => want.has(p))).flat())];
+        // staged paths HEAD lacks (added, or a rename's or copy's new path): untracked once reset
+        const added = new Set(repo.state.indexChanges.filter((x) => [INDEX_ADDED, INDEX_RENAMED, INDEX_COPIED].includes(x.status)).map((x) => x.uri.fsPath));
+        if (staged.length > 0) {
+          await repo.revert(staged);
+          await repo.status();
+        }
+        const all = [...new Set([...paths, ...staged])];
+        await repo.clean(all);
+        await repo.status();
+        const s = repo.state;
+        const still = new Set([...s.workingTreeChanges, ...s.indexChanges, ...(s.untrackedChanges ?? []), ...(s.mergeChanges ?? [])].flatMap(sides));
+        for (const p of all) if (still.has(p) || (added.has(p) && (await entry(p)) !== "gone")) left.push(p);
+      } catch (e) {
+        void vscode.window.showErrorMessage(`Claude Sandbox: revert failed: ${e instanceof Error ? e.message : String(e)}`);
+      }
+    }
+    if (left.length > 0) {
+      const names = left.slice(0, 3).map((p) => path.basename(p)).join(", ") + (left.length > 3 ? ", …" : "");
+      void vscode.window.showWarningMessage(
+        `Claude Sandbox: ${left.length} file${left.length === 1 ? " was" : "s were"} not reverted (${names}): look at ${left.length === 1 ? "it" : "them"} with git status.`,
+      );
+    }
+    this.refresh();
+  }
+
   // -- TreeDataProvider
 
   /** The files grouped by repository (else workspace folder), as Source Control groups them. */
@@ -434,7 +594,10 @@ export class ChangesView implements vscode.TreeDataProvider<Node>, vscode.Dispos
     item.description = [rel === "" ? "" : rel, tags ? `(${tags})` : ""].filter(Boolean).join(" ");
     item.tooltip = `${c.path}\n${c.kind}${c.reviewed ? ", reviewed" : ""}`;
     if (c.reviewed) item.iconPath = new vscode.ThemeIcon("pass", new vscode.ThemeColor("testing.iconPassed"));
-    item.contextValue = c.reviewed ? "change.reviewed" : "change.unreviewed";
+    // "change;reviewed|unreviewed" then ";deleted", ";symlink", ";git": the menus' when clauses
+    item.contextValue = ["change", c.reviewed ? "reviewed" : "unreviewed", c.kind === "deleted" ? "deleted" : "", c.symlink ? "symlink" : "", this.inRepo.has(c.path) ? "git" : ""]
+      .filter(Boolean)
+      .join(";");
     item.command = { command: "claudeSandbox.openChange", title: "Open diff", arguments: [c] };
     return item;
   }

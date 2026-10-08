@@ -87,6 +87,50 @@
         "icon": "$(check-all)"
       },
       {
+        "command": "claudeSandbox.markUnreviewed",
+        "title": "Mark as not reviewed",
+        "category": "Claude Sandbox"
+      },
+      {
+        "command": "claudeSandbox.openChangedFile",
+        "title": "Open File",
+        "category": "Claude Sandbox",
+        "icon": "$(go-to-file)"
+      },
+      {
+        "command": "claudeSandbox.stageChange",
+        "title": "Stage",
+        "category": "Claude Sandbox",
+        "icon": "$(add)"
+      },
+      {
+        "command": "claudeSandbox.revertChange",
+        "title": "Revert to HEAD",
+        "category": "Claude Sandbox",
+        "icon": "$(discard)"
+      },
+      {
+        "command": "claudeSandbox.revertAll",
+        "title": "Revert All Changes to HEAD",
+        "category": "Claude Sandbox",
+        "icon": "$(discard)"
+      },
+      {
+        "command": "claudeSandbox.revealChange",
+        "title": "Reveal in Explorer View",
+        "category": "Claude Sandbox"
+      },
+      {
+        "command": "claudeSandbox.copyChangePath",
+        "title": "Copy Path",
+        "category": "Claude Sandbox"
+      },
+      {
+        "command": "claudeSandbox.copyChangeRelativePath",
+        "title": "Copy Relative Path",
+        "category": "Claude Sandbox"
+      },
+      {
         "command": "claudeSandbox.reviewAll",
         "title": "Review All Changes",
         "category": "Claude Sandbox",
@@ -248,6 +292,34 @@
         {
           "command": "claudeSandbox.runPreset",
           "when": "false"
+        },
+        {
+          "command": "claudeSandbox.markUnreviewed",
+          "when": "false"
+        },
+        {
+          "command": "claudeSandbox.openChangedFile",
+          "when": "false"
+        },
+        {
+          "command": "claudeSandbox.stageChange",
+          "when": "false"
+        },
+        {
+          "command": "claudeSandbox.revertChange",
+          "when": "false"
+        },
+        {
+          "command": "claudeSandbox.revealChange",
+          "when": "false"
+        },
+        {
+          "command": "claudeSandbox.copyChangePath",
+          "when": "false"
+        },
+        {
+          "command": "claudeSandbox.copyChangeRelativePath",
+          "when": "false"
         }
       ],
       "explorer/context": [
@@ -311,13 +383,58 @@
           "command": "claudeSandbox.start",
           "when": "view == claudeSandbox.changes && !claudeSandbox.running",
           "group": "navigation@4"
+        },
+        {
+          "command": "claudeSandbox.revertAll",
+          "when": "view == claudeSandbox.changes",
+          "group": "1_revert@1"
         }
       ],
       "view/item/context": [
         {
           "command": "claudeSandbox.markReviewed",
-          "when": "view == claudeSandbox.changes && viewItem == change.unreviewed",
+          "when": "view == claudeSandbox.changes && viewItem =~ /^change;unreviewed/",
           "group": "inline"
+        },
+        {
+          "command": "claudeSandbox.openChangedFile",
+          "when": "view == claudeSandbox.changes && viewItem =~ /^change;/ && !(viewItem =~ /;(deleted|symlink)(;|$)/)",
+          "group": "1_open@1"
+        },
+        {
+          "command": "claudeSandbox.markReviewed",
+          "when": "view == claudeSandbox.changes && viewItem =~ /^change;unreviewed/",
+          "group": "2_review@1"
+        },
+        {
+          "command": "claudeSandbox.markUnreviewed",
+          "when": "view == claudeSandbox.changes && viewItem =~ /^change;reviewed/",
+          "group": "2_review@2"
+        },
+        {
+          "command": "claudeSandbox.stageChange",
+          "when": "view == claudeSandbox.changes && viewItem =~ /^change;/ && viewItem =~ /;git(;|$)/",
+          "group": "3_git@1"
+        },
+        {
+          "command": "claudeSandbox.revertChange",
+          "when": "view == claudeSandbox.changes && viewItem =~ /^change;/ && viewItem =~ /;git(;|$)/",
+          "group": "3_git@2"
+        },
+        {
+          "command": "claudeSandbox.revealChange",
+          "when": "view == claudeSandbox.changes && viewItem =~ /^change;/ && !(viewItem =~ /;deleted(;|$)/)",
+          "group": "4_reveal@1"
+        },
+        {
+          "command": "claudeSandbox.copyChangePath",
+          "when": "view == claudeSandbox.changes && viewItem =~ /^change;/",
+          "group": "5_copy@1"
+        },
+        {
+          "command": "claudeSandbox.copyChangeRelativePath",
+          "when": "view == claudeSandbox.changes && viewItem =~ /^change;/",
+          "group": "5_copy@2"
         }
       ]
     },
