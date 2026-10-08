@@ -82,6 +82,7 @@ export function registerPresets(host: PresetHost): vscode.Disposable[] {
     vscode.commands.registerCommand("claudeSandbox.runPreset", async (title: unknown) => {
       const p = userPresets().find((x) => x.title === title);
       if (p !== undefined) await ask(host, p.prompt);
+      else void vscode.window.showWarningMessage("Claude Sandbox: that preset is no longer in your settings.");
     }),
     vscode.commands.registerCommand("claudeSandbox.customPreset", async () => {
       if (needSession(host) === null) return;

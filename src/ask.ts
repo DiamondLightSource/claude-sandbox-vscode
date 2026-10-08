@@ -37,7 +37,10 @@ export function customPresets(value: unknown): Preset[] {
     const prompt = own(v, "prompt");
     if (typeof title !== "string" || typeof prompt !== "string") continue;
     if (!title.trim() || !prompt.trim()) continue;
-    out.push({ title: title.trim().slice(0, TITLE_MAX), prompt: prompt.slice(0, PROMPT_MAX) });
+    const t = title.trim().slice(0, TITLE_MAX);
+    // A code action names a preset by title, so a title repeated later is dropped.
+    if (out.some((x) => x.title === t)) continue;
+    out.push({ title: t, prompt: prompt.slice(0, PROMPT_MAX) });
   }
   return out;
 }
