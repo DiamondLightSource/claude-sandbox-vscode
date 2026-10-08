@@ -40,10 +40,11 @@ retry; the linked session stays connected.
 
 ## How the link works
 
-1. The extension listens on a Unix socket at the root of the **first**
-   workspace folder, `.claude-sandbox-vscode-<P>.sock` (mode 0600). The jail
-   sees the workspace, so it sees the socket. Claude starts in that same
-   folder (see [The launcher](#the-launcher)).
+1. The extension listens on a Unix socket at the root of the workspace folder
+   Claude runs in (chosen at Start in a multi-root window),
+   `.claude-sandbox-vscode-<P>.sock` (mode 0600). The jail sees that folder, so
+   it sees the socket. Claude starts in that same folder (see
+   [The launcher](#the-launcher)).
 2. The extension starts the sandbox's `claude` shadow (`/usr/local/bin/claude`,
    which runs Claude in the jail) as the terminal's own process (see
    [The launcher](#the-launcher)) with a
@@ -378,11 +379,14 @@ the one linked session as a terminal in the editor area, beside the active
 editor. Starting while a session runs focuses its terminal. The terminal's
 process is the pty relay (rule 9) running `/usr/local/bin/claude` with the
 merged `--settings` (`withSettings`) and the user's `claudeSandbox.extraArgs`.
-Claude always starts in the **first** workspace folder of a multi-root
-window: the link's socket is there (the jail sees it), and Claude Code takes
-the folder as its project, the same one every time whichever file happens to
-be active. Files in the other folders are still inside the link's workspace
-for openDiff, selections and diagnostics.
+In a multi-root window Start asks which workspace folder Claude runs in,
+offering the last one chosen first (from a workspace folder's Explorer context
+menu, that folder); with one folder it just uses it.
+claude-sandbox makes that folder the one writable project, the link's socket
+is there (the jail sees it), and Claude Code takes it as its project. The link's
+workspace is that folder alone: files in the other folders are outside it for
+openDiff, selections, @-mentions and diagnostics, and if the folder is removed
+from the window the link's workspace is empty.
 
 The status-bar item shows the link: `off`, `waiting` (the session runs, Claude
 has not connected yet) or `connected`, and the count of changed files not yet
@@ -456,7 +460,7 @@ input box.
 ## Claude Changes view
 
 A side-bar view container (its own icon) holds **Changed this session**: the
-files in the workspace folders that changed while the linked session ran, from
+files in Claude's workspace folder that changed while the linked session ran, from
 `vscode.workspace.createFileSystemWatcher`, excluding paths with a `.git`
 segment, our sockets, folders, and changes from the user's own saves (within
 2 s of `onWillSave`/`onDidSave`). VS Code's watcher applies

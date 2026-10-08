@@ -31,8 +31,6 @@ export interface LinkOptions {
   ws?: WsOptions;
 }
 
-export class LinkUnavailable extends Error {}
-
 export class IdeLink {
   readonly port: number;
   readonly token: string;
@@ -61,8 +59,8 @@ export class IdeLink {
   }
 
   static async start(o: LinkOptions): Promise<IdeLink> {
-    if (!dirfd.supported()) throw new LinkUnavailable("The IDE link needs Linux (/proc/self/fd and O_NOFOLLOW).");
-    if (o.folders.length === 0) throw new LinkUnavailable("The IDE link needs a workspace folder.");
+    if (!dirfd.supported()) throw new Error("The IDE link needs Linux (/proc/self/fd and O_NOFOLLOW).");
+    if (o.folders.length === 0) throw new Error("The IDE link needs a workspace folder.");
     const workspace = new Workspace(o.folders);
     const root = workspace.folders[0]!;
     const token = randomBytes(32).toString("hex");
@@ -115,12 +113,12 @@ export class IdeLink {
         });
       } catch (err) {
         if ((err as NodeJS.ErrnoException).code === "EADDRINUSE") continue;
-        throw new LinkUnavailable(`The IDE link cannot listen: ${esc(String(err))}`);
+        throw new Error(`The IDE link cannot listen: ${esc(String(err))}`);
       }
       o.logger.info(`[ide] listening on ${esc(sock)}`);
       return new IdeLink(port, token, sock, settings, bridge, listener, current);
     }
-    throw new LinkUnavailable("The IDE link found no free port.");
+    throw new Error("The IDE link found no free port.");
   }
 
   get workspace(): Workspace {

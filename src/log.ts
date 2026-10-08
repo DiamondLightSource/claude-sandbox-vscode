@@ -6,8 +6,6 @@ export interface Logger {
   info(message: string): void;
 }
 
-export const silentLogger: Logger = { info() {} };
-
 // C0 and C1 controls, DEL, line/paragraph separators, bidi controls and the BOM
 const UNSAFE = /[\u0000-\u001f\u007f-\u009f\u2028\u2029\u200e\u200f\u202a-\u202e\u2066-\u2069\ufeff]/g;
 

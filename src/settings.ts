@@ -170,20 +170,19 @@ export function linkSettings(port: number, token: string, sockPath: string, fold
 
 type Obj = { [key: string]: Json };
 
-/**
- * A shallow copy of a parsed JSON object, made with defineProperty on a null-prototype
- * object: a `__proto__` key stays a plain key and never becomes a prototype (rule 8).
- */
-function copyObj(src: Obj): Obj {
-  const out = Object.create(null) as Obj;
-  for (const k of Object.keys(src)) {
-    Object.defineProperty(out, k, { value: src[k], enumerable: true, writable: true, configurable: true });
-  }
-  return out;
-}
-
 function setKey(o: Obj, k: string, v: Json): void {
   Object.defineProperty(o, k, { value: v, enumerable: true, writable: true, configurable: true });
+}
+
+/**
+ * A shallow copy of a parsed JSON object (an empty one for anything else), made with
+ * defineProperty on a null-prototype object: a `__proto__` key stays a plain key and never
+ * becomes a prototype (rule 8).
+ */
+function copyObj(src: unknown): Obj {
+  const out = Object.create(null) as Obj;
+  if (isObj(src)) for (const [k, v] of Object.entries(src as Obj)) setKey(out, k, v);
+  return out;
 }
 
 /**
@@ -191,13 +190,11 @@ function setKey(o: Obj, k: string, v: Json): void {
  * permissions.ask gains our tools (reviewEdits).
  */
 export function mergeSettings(theirs: unknown, ours: LinkSettings): Obj {
-  const base = isObj(theirs) ? copyObj(theirs as Obj) : (Object.create(null) as Obj);
-  const envIn = own(base, "env");
-  const env = isObj(envIn) ? copyObj(envIn as Obj) : (Object.create(null) as Obj);
+  const base = copyObj(theirs);
+  const env = copyObj(own(base, "env"));
   setKey(env, "CLAUDE_CODE_SSE_PORT", ours.env.CLAUDE_CODE_SSE_PORT);
   setKey(base, "env", env);
-  const hooksIn = own(base, "hooks");
-  const hooks = isObj(hooksIn) ? copyObj(hooksIn as Obj) : (Object.create(null) as Obj);
+  const hooks = copyObj(own(base, "hooks"));
   for (const [event, list] of Object.entries(ours.hooks) as [string, Json[]][]) {
     const before = own(hooks, event);
     setKey(hooks, event, [...(Array.isArray(before) ? before : []), ...list]);
@@ -205,8 +202,7 @@ export function mergeSettings(theirs: unknown, ours: LinkSettings): Obj {
   setKey(base, "hooks", hooks);
   if (ours.permissions !== undefined) {
     // their permissions kept; the ask list gains ours (concatenated, without repeats)
-    const permsIn = own(base, "permissions");
-    const perms = isObj(permsIn) ? copyObj(permsIn as Obj) : (Object.create(null) as Obj);
+    const perms = copyObj(own(base, "permissions"));
     const askIn = own(perms, "ask");
     const ask: Json[] = Array.isArray(askIn) ? [...askIn] : [];
     for (const t of ours.permissions.ask) if (!ask.includes(t)) ask.push(t);

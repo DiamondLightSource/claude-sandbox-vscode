@@ -259,12 +259,17 @@ export class Bridge {
 
   /** A connection has gone: its diffs can no longer be answered. */
   private forget(conn: Conn): void {
-    for (const d of [...this.diffs.values()]) {
-      if (d.conn === conn) {
-        this.diffs.delete(d.id);
-        this.o.presenter.close(d.id);
-      }
+    this.dropDiffs((d) => d.conn === conn);
+  }
+
+  /** Remove the waiting diffs `pick` selects and close their tabs; returns them, unanswered. */
+  private dropDiffs(pick: (d: Waiting) => boolean): Waiting[] {
+    const hit = [...this.diffs.values()].filter(pick);
+    for (const d of hit) {
+      this.diffs.delete(d.id);
+      this.o.presenter.close(d.id);
     }
+    return hit;
   }
 
   /** End the link: waiting diffs are answered DIFF_REJECTED and closed. */
@@ -275,9 +280,7 @@ export class Bridge {
     const conn = this.conn;
     this.conn = null;
     if (conn !== null) this.endPings(conn);
-    for (const d of [...this.diffs.values()]) {
-      this.diffs.delete(d.id);
-      this.o.presenter.close(d.id);
+    for (const d of this.dropDiffs(() => true)) {
       if (d.conn === conn) this.sendTo(d.conn, rpcResult(d.rpc, toolText(["DIFF_REJECTED", d.title])));
     }
     conn?.peer.drop();
@@ -357,12 +360,7 @@ export class Bridge {
       }
     } else if (method === "notifications/cancelled") {
       const rid = own(params, "requestId");
-      for (const d of [...this.diffs.values()]) {
-        if (d.conn === conn && d.rpc === rid) {
-          this.diffs.delete(d.id);
-          this.o.presenter.close(d.id);
-        }
-      }
+      this.dropDiffs((d) => d.conn === conn && d.rpc === rid);
     } else {
       this.o.logger.info(`[ide] ignored notification ${esc(method, 80)}`);
     }
@@ -402,15 +400,9 @@ export class Bridge {
       case "close_tab":
       case "closeAllDiffTabs": {
         const title = own(args, "tab_name");
-        const hit = [...this.diffs.values()].filter(
-          (d) => d.conn === conn && (name === "closeAllDiffTabs" || d.title === title),
-        );
-        for (const d of hit) {
-          this.diffs.delete(d.id);
-          this.o.presenter.close(d.id);
-          // Claude closed it itself (it was answered in the terminal): this changes nothing
-          this.sendTo(conn, rpcResult(d.rpc, toolText(["TAB_CLOSED"])));
-        }
+        const hit = this.dropDiffs((d) => d.conn === conn && (name === "closeAllDiffTabs" || d.title === title));
+        // Claude closed it itself (it was answered in the terminal): this changes nothing
+        for (const d of hit) this.sendTo(conn, rpcResult(d.rpc, toolText(["TAB_CLOSED"])));
         return rpcResult(rid, toolText(["TAB_CLOSED"]));
       }
       default:

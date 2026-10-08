@@ -99,14 +99,6 @@ export class PtyProcess {
     this.child.on("close", (code, signal) => exit(code ?? (signal ? 128 + signalNumber(signal) : 1)));
   }
 
-  get pid(): number | undefined {
-    return this.child.pid;
-  }
-
-  get running(): boolean {
-    return !this.exited;
-  }
-
   /** Keys typed into the pty, as they are (Ctrl-C is \x03...). */
   write(data: string): void {
     if (!this.exited) this.child.stdin!.write(data);
