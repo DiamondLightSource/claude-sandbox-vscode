@@ -21,8 +21,8 @@ export const CLAUDE = "/usr/local/bin/claude";
 
 export const DIM_MAX = 10000;
 /** The relay's buffers: output it holds for a slow reader, keys it holds for a busy program. */
-export const OUT_MAX = 1 << 20;
-export const IN_MAX = 1 << 20;
+const OUT_MAX = 1 << 20;
+const IN_MAX = 1 << 20;
 
 export const PTY_HELPER = String.raw`
 import errno, fcntl, os, select, signal, struct, sys, termios, time

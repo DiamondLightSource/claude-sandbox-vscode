@@ -91,3 +91,11 @@ export function snapshot(dir: string): Record<string, string> {
   walk(dir);
   return out;
 }
+
+/** Every .ts file under `dir`. */
+export function tsFiles(dir: string): string[] {
+  return fs
+    .readdirSync(dir, { withFileTypes: true, recursive: true })
+    .filter((e) => e.isFile() && e.name.endsWith(".ts"))
+    .map((e) => path.join(e.parentPath, e.name));
+}

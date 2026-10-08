@@ -24,8 +24,8 @@ export const BUILTIN_PRESETS: readonly (Preset & { id: string })[] = [
 ];
 
 export const PRESETS_MAX = 50;
-export const TITLE_MAX = 80;
-export const PROMPT_MAX = 8000;
+const TITLE_MAX = 80;
+const PROMPT_MAX = 8000;
 
 /** The user's `claudeSandbox.presets` setting: valid entries only, trimmed and capped. */
 export function customPresets(value: unknown): Preset[] {
@@ -63,13 +63,18 @@ export function lineSpan(start: Position, end: Position): [number, number] | nul
   return [a, b];
 }
 
+/** `file` relative to `cwd` when inside it, otherwise as it is. */
+export function relTo(file: string, cwd: string): string {
+  const base = cwd.replace(/\/+$/, "");
+  return base && file.startsWith(base + "/") ? file.slice(base.length + 1) : file;
+}
+
 /**
  * The typed @-mention of a file (and lines): `@path#La-b`, relative to `cwd` when inside it,
  * quoted when it has whitespace.
  */
 export function typedRef(file: string, cwd: string, span: [number, number] | null): string {
-  const base = cwd.replace(/\/+$/, "");
-  const p = base && file.startsWith(base + "/") ? file.slice(base.length + 1) : file;
+  const p = relTo(file, cwd);
   let ref = "@" + (/\s/.test(p) ? `"${p}"` : p);
   if (span) ref += span[0] === span[1] ? `#L${span[0]}` : `#L${span[0]}-${span[1]}`;
   return ref;

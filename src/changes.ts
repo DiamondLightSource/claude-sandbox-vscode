@@ -32,10 +32,10 @@ export const CHANGES_MAX = 50_000;
 
 const SOCKET_RE = /^\.claude-sandbox-vscode-\d+\.sock$/;
 
-export type Entry = "file" | "dir" | "symlink" | "gone";
+export type EntryKind = "file" | "dir" | "symlink" | "gone";
 
 /** What is at `p` now, without following a symlink (lstat: metadata only, no content read). */
-export async function entryKind(p: string): Promise<Entry> {
+export async function entryKind(p: string): Promise<EntryKind> {
   try {
     const st = await fsp.lstat(p);
     return st.isSymbolicLink() ? "symlink" : st.isDirectory() ? "dir" : "file";
@@ -206,7 +206,7 @@ export interface ReviewRow {
  * (MultiDiffEditorInput: "Claude changes (3 files)"), and shows the bare title until the
  * resources resolve.
  */
-export const REVIEW_TITLE = "Claude changes";
+const REVIEW_TITLE = "Claude changes";
 
 /**
  * "Review All" (VS Code's multi-file diff editor, vscode.changes): a row per listed file,

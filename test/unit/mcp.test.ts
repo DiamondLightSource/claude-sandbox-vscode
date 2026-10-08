@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { afterEach, beforeEach, describe, it } from "node:test";
+import { setTimeout as sleep } from "node:timers/promises";
 import { Bridge, DIFFS_MAX, PING_PREFIX, ENVELOPE_MAX, ID_MAX, JSON_ESCAPE_MAX, PROPOSAL_MAX, RESEND_MS, TOOLS } from "../../src/mcp.ts";
 import { HIGH_WATER, MAX_QUEUED } from "../../src/websocket.ts";
 import { Workspace } from "../../src/paths.ts";
@@ -274,7 +275,7 @@ describe("rule 5: selection_changed", () => {
       selection: { start: { line: 1, character: 0 }, end: { line: 2, character: 4 }, isEmpty: false },
     };
     assert.deepEqual(peer.notes("selection_changed"), [want]);
-    await new Promise((r) => setTimeout(r, RESEND_MS + 100));
+    await sleep(RESEND_MS + 100);
     assert.deepEqual(peer.notes("selection_changed"), [want, want]);
   });
   it("outside the workspace: a cleared selection, no filePath, nothing of the text", () => {

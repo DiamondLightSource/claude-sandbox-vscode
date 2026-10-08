@@ -12,7 +12,8 @@ import { afterEach, beforeEach, describe, it } from "node:test";
 import { IdeLink } from "../../src/link.ts";
 import { lockJson, sessionEndCommand, sessionStartCommand } from "../../src/settings.ts";
 import { Client } from "../helpers/client.ts";
-import { FakeDiagnostics, FakePresenter, MemLogger, tmpWorkspace, type Tmp } from "../helpers/fakes.ts";
+import { tmpWorkspace, type Tmp } from "../helpers/fakes.ts";
+import { startTestLink } from "../helpers/link.ts";
 
 const hasSocat = spawnSync("sh", ["-c", "command -v socat"]).status === 0;
 const EVIL = "a'b $(touch PWNED1) `touch PWNED2` ;c,d:e\"f!x";
@@ -64,13 +65,7 @@ function hookCommand(event: "SessionStart" | "SessionEnd"): { matcher: string; c
 }
 
 async function startLink(folder: string, port: number): Promise<IdeLink> {
-  return IdeLink.start({
-    folders: [folder],
-    presenter: new FakePresenter(),
-    diagnostics: new FakeDiagnostics(),
-    logger: new MemLogger(),
-    pickPort: () => port,
-  });
+  return startTestLink(folder, { pickPort: () => port });
 }
 
 beforeEach(() => {

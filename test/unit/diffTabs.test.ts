@@ -70,14 +70,14 @@ describe("rule 3: the diff tabs' state machine", () => {
     const { tabs, said } = table();
     tabs.add("a", { n: 1 });
     tabs.add("b", { n: 2 });
-    assert.ok(tabs.closeQuietly("a"));
+    assert.ok(tabs.closeUnanswered("a"));
     tabs.tabClosed("a", 0);
-    assert.ok(tabs.closeQuietly("b"));
+    assert.ok(tabs.closeUnanswered("b"));
     assert.equal(tabs.answer("b", { kind: "accept", contents: "x" }), false, "a stale tab accepts nothing");
     tabs.noTabs("b"); // its tab was never open
     assert.deepEqual(said, []);
     assert.deepEqual(tabs.ids(), [], "nothing left behind");
-    assert.equal(tabs.closeQuietly("a"), false);
+    assert.equal(tabs.closeUnanswered("a"), false);
   });
 
   it("noTabs drops only an entry being closed; unknown ids are ignored", () => {

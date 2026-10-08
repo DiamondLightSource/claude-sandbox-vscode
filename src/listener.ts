@@ -10,9 +10,9 @@ import * as net from "node:net";
 import { esc, type Logger } from "./log.ts";
 import { checkUpgrade, MAX_HEADER, parseRequestHead, refusal, WsConnection, type WsOptions } from "./websocket.ts";
 
-export const HANDSHAKES_MAX = 4;
+const HANDSHAKES_MAX = 4;
 export const HANDSHAKE_MS = 10_000;
-export const SUN_PATH_MAX = 107;
+const SUN_PATH_MAX = 107;
 
 export interface ListenerOptions {
   socketPath: string;

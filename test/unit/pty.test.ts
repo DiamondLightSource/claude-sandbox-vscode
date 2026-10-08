@@ -3,6 +3,7 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import { describe, it } from "node:test";
+import { setTimeout as sleep } from "node:timers/promises";
 import { childEnv, FLUSH_MS, OutputBatcher, PtyProcess } from "../../src/pty.ts";
 import { PromptWatcher } from "../../src/prompt.ts";
 import { clampDim, CLAUDE, DIM_MAX, helperArgs, PTY_HELPER, PYTHON, resizeLine } from "../../src/ptyHelper.ts";
@@ -36,7 +37,7 @@ function run(program: string, args: string[], cols = 80, rows = 24): Run {
         p.kill();
         throw new Error(`timed out waiting for ${re}: ${JSON.stringify(out)} ${errors.join("")}`);
       }
-      await new Promise((r) => setTimeout(r, 20));
+      await sleep(20);
     }
   };
   return { p, out: () => out, exit, until };
@@ -154,12 +155,12 @@ describe("rule 9: the pty relay", () => {
     try {
       await r.until(/xxxx/);
       stdout.pause();
-      await new Promise((res) => setTimeout(res, 300)); // the relay's buffer and the pipe fill
+      await sleep(300); // the relay's buffer and the pipe fill
       r.p.write("a".repeat(100_000));
       r.p.resize(90, 20);
       const end = Date.now() + 3000;
       const seen = (): string => (fs.existsSync(log) ? fs.readFileSync(log, "utf8") : "");
-      while (!(/winch/.test(seen()) && /keys/.test(seen())) && Date.now() < end) await new Promise((res) => setTimeout(res, 50));
+      while (!(/winch/.test(seen()) && /keys/.test(seen())) && Date.now() < end) await sleep(50);
       assert.match(seen(), /keys \d+/, "keys reached the program while its output was not being read");
       assert.match(seen(), /winch/, "the resize reached the program too");
       stdout.resume();
@@ -247,7 +248,7 @@ while True:
     };
     try {
       // the program is drawing (so raw mode is set: setting it discards unread input)
-      for (let i = 0; i < 250 && chunks === 0; i++) await new Promise((r) => setTimeout(r, 20));
+      for (let i = 0; i < 250 && chunks === 0; i++) await sleep(20);
       const burst = "a".repeat(64 * 1024);
       let sent = 0;
       for (let i = 0; i < 40; i++) {
@@ -255,7 +256,7 @@ while True:
         sent += burst.length;
         p.resize(60 + i, 20 + (i % 10));
         if (i % 8 === 0) spin(150);
-        await new Promise((r) => setTimeout(r, 10));
+        await sleep(10);
       }
       p.resize(132, 43);
       p.write("q");
@@ -288,7 +289,7 @@ describe("terminal writes are coalesced", () => {
       want += c;
     }
     assert.equal(writes.length, 0, "nothing written synchronously");
-    await new Promise((r) => setTimeout(r, 60));
+    await sleep(60);
     assert.equal(writes.length, 1);
     assert.equal(writes[0], want);
     b.push("tail");
@@ -313,14 +314,14 @@ describe("terminal writes are coalesced", () => {
       1,
     );
     b.push("a");
-    await new Promise((r) => setTimeout(r, 10));
+    await sleep(10);
     b.push("b");
-    await new Promise((r) => setTimeout(r, 10));
+    await sleep(10);
     assert.equal(errs.length, 1);
     assert.deepEqual(got, ["b"]);
     b.push("c");
     b.dispose();
-    await new Promise((r) => setTimeout(r, 10));
+    await sleep(10);
     assert.deepEqual(got, ["b"], "nothing after dispose");
   });
 });

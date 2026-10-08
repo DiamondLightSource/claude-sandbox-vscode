@@ -14,8 +14,8 @@
 
 import type { Position } from "./mcp.ts";
 
-export const DEBOUNCE_MS = 150;
-export const TEXT_MAX = 64 * 1024;
+const DEBOUNCE_MS = 150;
+export const SELECTION_MAX = 64 * 1024;
 
 export interface EditorSelection {
   /** The document's URI scheme ("file" for a file on disk). */
@@ -33,7 +33,7 @@ export interface SelectionSink {
 }
 
 /** Whether an editor event replaces Claude's selection. */
-export function replacesSelection(e: EditorSelection | undefined): e is EditorSelection {
+function replacesSelection(e: EditorSelection | undefined): e is EditorSelection {
   return e !== undefined && e.scheme === "file";
 }
 
@@ -56,7 +56,7 @@ export class SelectionTracker {
     this.last = e.fsPath;
     this.timer = setTimeout(() => {
       this.timer = undefined;
-      const text = e.text.length > TEXT_MAX ? e.text.slice(0, TEXT_MAX) : e.text;
+      const text = e.text.length > SELECTION_MAX ? e.text.slice(0, SELECTION_MAX) : e.text;
       this.sink()?.select(e.fsPath, e.start, e.end, text);
     }, this.debounceMs);
   }

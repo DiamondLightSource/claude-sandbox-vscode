@@ -24,7 +24,7 @@ import {
   splitByGit,
   type Change,
   type ChangeGroup,
-  type Entry,
+  type EntryKind,
 } from "../changes.ts";
 
 /** A row of the view: a file, or (when the files span several repositories) a repository. */
@@ -323,7 +323,7 @@ export class ChangesView implements vscode.TreeDataProvider<Node>, vscode.Dispos
   }
 
   /** Re-checks a change before showing it: a symlink now is marked, and not opened. */
-  private async check(c: Change): Promise<Entry> {
+  private async check(c: Change): Promise<EntryKind> {
     const e = await entry(c.path);
     if (e === "symlink" && !c.symlink && c.kind !== "deleted") {
       c.symlink = true;
