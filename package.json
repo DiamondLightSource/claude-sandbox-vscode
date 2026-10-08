@@ -55,13 +55,13 @@
         "category": "Claude Sandbox"
       },
       {
-        "command": "claudeSandbox.askSelection",
-        "title": "Ask about selection…",
+        "command": "claudeSandbox.customPreset",
+        "title": "My presets…",
         "category": "Claude Sandbox"
       },
       {
-        "command": "claudeSandbox.customPreset",
-        "title": "My presets…",
+        "command": "claudeSandbox.runPreset",
+        "title": "Run preset",
         "category": "Claude Sandbox"
       },
       {
@@ -154,7 +154,7 @@
             },
             "additionalProperties": false
           },
-          "markdownDescription": "Your own presets for **Claude Sandbox: My presets…**: `{\"title\": …, \"prompt\": …}`. The prompt is sent with the selection attached. User settings only: a workspace cannot set this."
+          "markdownDescription": "Your own presets for **Claude Sandbox: My presets…**, and first in the **Refactor…** menu on a selection: `{\"title\": …, \"prompt\": …}`. The prompt is sent with the selection attached. User settings only: a workspace cannot set this."
         },
         "claudeSandbox.autoOpenDiffs": {
           "type": "boolean",
@@ -193,11 +193,6 @@
       {
         "command": "claudeSandbox.customPreset",
         "key": "ctrl+alt+c p",
-        "when": "editorTextFocus && resourceScheme == file"
-      },
-      {
-        "command": "claudeSandbox.askSelection",
-        "key": "ctrl+alt+c a",
         "when": "editorTextFocus && resourceScheme == file"
       },
       {
@@ -249,6 +244,10 @@
         {
           "command": "claudeSandbox.markReviewed",
           "when": "false"
+        },
+        {
+          "command": "claudeSandbox.runPreset",
+          "when": "false"
         }
       ],
       "explorer/context": [
@@ -283,12 +282,8 @@
           "group": "1_presets@4"
         },
         {
-          "command": "claudeSandbox.askSelection",
-          "group": "2_ask@1"
-        },
-        {
           "command": "claudeSandbox.mention",
-          "group": "2_ask@2"
+          "group": "2_mention@1"
         }
       ],
       "view/title": [

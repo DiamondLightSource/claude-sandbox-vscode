@@ -41,11 +41,13 @@ never upgrades it.
   closing its tab or reloading the window ends the session.
 - **Presets**: select text, right-click **Claude Sandbox**, or press
   `Ctrl+Alt+C` then `E` Explain, `R` Reword, `T` Tighten, `P` My presets,
-  `A` Ask about selection, `M` Mention (inserts `@file#L1-3` without
-  sending), `V` Review All. A preset is typed only when Claude's input box is
-  showing; while Claude is working or asking you something you get a warning
-  instead. Claude sees your selection, or the cursor's file and line, for
-  workspace files only.
+  `M` Mention (inserts `@file#L1-3` without sending), `V` Review All. With
+  text selected, **Refactor…** (`Ctrl+Shift+R`) and `Ctrl+.` list your
+  presets then Explain, Reword and Tighten; to drop Copilot's entries from
+  those menus, set `github.copilot.editor.enableCodeActions` to `false`. A
+  preset is typed only when Claude's input box is showing; while Claude is
+  working or asking you something you get a warning instead. Claude sees
+  your selection, or the cursor's file and line, for workspace files only.
 - **Changed this session**: the side bar lists files changed while the
   session ran (your own saves excluded, and only those git shows a change
   for). Click one for a diff against HEAD, tick **Mark as reviewed**, or

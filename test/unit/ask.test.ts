@@ -8,7 +8,7 @@ describe("presets", () => {
   it("Explain, Reword and Tighten are built in", () => {
     assert.deepEqual(BUILTIN_PRESETS.map((x) => x.id), ["explain", "reword", "tighten"]);
   });
-  it("the user's presets: valid entries only, trimmed, capped; prototype keys are plain keys", () => {
+  it("the user's presets: valid entries only, trimmed, capped, first of a title; prototype keys are plain keys", () => {
     const got = customPresets([
       { title: " Summarise ", prompt: "Summarise it." },
       { title: "", prompt: "x" },
@@ -17,13 +17,14 @@ describe("presets", () => {
       null,
       JSON.parse('{"__proto__": {"title": "evil"}, "title": "Own", "prompt": "p"}'),
       { title: 3, prompt: "p" },
+      { title: "Summarise", prompt: "Another." },
     ]);
     assert.deepEqual(got, [
       { title: "Summarise", prompt: "Summarise it." },
       { title: "Own", prompt: "p" },
     ]);
     assert.deepEqual(customPresets("x"), []);
-    assert.equal(customPresets(Array.from({ length: 99 }, () => ({ title: "a", prompt: "b" }))).length, PRESETS_MAX);
+    assert.equal(customPresets(Array.from({ length: 99 }, (_, i) => ({ title: `a${i}`, prompt: "b" }))).length, PRESETS_MAX);
   });
   it("extraArgs: strings only", () => {
     assert.deepEqual(extraArgs(["--model", "opus", 3, null, "a\u0000b"]), ["--model", "opus"]);

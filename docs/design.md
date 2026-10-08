@@ -426,10 +426,16 @@ never an upgrade.
 
 The editor's context menu has a **Claude Sandbox** submenu: Explain, Reword,
 Tighten, **My presets…** (from `claudeSandbox.presets`, a list of
-`{title, prompt}` in user settings), **Ask about selection…** (an input box)
-and **Mention in Claude**. Keybindings share one chord prefix,
+`{title, prompt}` in user settings) and **Mention in Claude**. With text
+selected, the presets are also code actions of kind
+`refactor.rewrite.claudeSandbox`, one flat list in **Refactor…** and `Ctrl+.`:
+the user's first, then Explain, Reword and Tighten. A user preset's action
+names it by title (the hidden `claudeSandbox.runPreset` looks the prompt up in
+the setting), so no command argument carries a prompt. There is no free-form
+ask: Claude already sees the selection with whatever is typed in its terminal.
+Keybindings share one chord prefix,
 `Ctrl+Alt+C`: Start `Ctrl+Alt+C Ctrl+Alt+C`, then a letter for Explain `E`,
-Reword `R`, Tighten `T`, My presets `P`, Ask `A`, Mention `M`, Review All `V`
+Reword `R`, Tighten `T`, My presets `P`, Mention `M`, Review All `V`
 (Next and Previous Change take `F8` and `Shift+F8`, scoped to Review All: see
 the Claude Changes view).
 The earlier single `Ctrl+Alt+<letter>` keys collided with VS Code's own
