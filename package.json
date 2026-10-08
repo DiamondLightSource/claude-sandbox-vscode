@@ -251,6 +251,13 @@
           "when": "false"
         }
       ],
+      "explorer/context": [
+        {
+          "command": "claudeSandbox.start",
+          "group": "claudeSandbox@1",
+          "when": "explorerResourceIsRoot && resourceScheme == file && !claudeSandbox.running"
+        }
+      ],
       "editor/context": [
         {
           "submenu": "claudeSandbox.editor",

@@ -34,8 +34,10 @@ never upgrades it.
 
 - **Start**: **Claude Sandbox: Start** (command palette, the `Claude:` status
   bar item, or `Ctrl+Alt+C Ctrl+Alt+C`) opens Claude in a terminal beside
-  your editor, sandboxed and linked to this window, in the first workspace
-  folder. The status bar goes from `waiting` to `connected`. Exiting Claude,
+  your editor, sandboxed and linked to this window. Claude runs in, and can
+  write, one workspace folder: in a multi-root workspace Start asks which (the
+  last one chosen comes first), or right-click a folder in the Explorer and
+  choose **Start**. The status bar goes from `waiting` to `connected`. Exiting Claude,
   closing its tab or reloading the window ends the session.
 - **Presets**: select text, right-click **Claude Sandbox**, or press
   `Ctrl+Alt+C` then `E` Explain, `R` Reword, `T` Tighten, `P` My presets,
@@ -69,7 +71,7 @@ Settings (user scope only):
 
 ## How it works
 
-The extension listens on a 0600 Unix socket in the first workspace folder,
+The extension listens on a 0600 Unix socket in the folder Claude runs in,
 which the jail can see. **Start** runs the sandbox's `claude` through a small
 Python pty relay (so the extension knows when the input box is up), with
 `--settings` hooks that, inside the jail, bridge `127.0.0.1:<port>` to the
