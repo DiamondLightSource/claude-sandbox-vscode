@@ -14,8 +14,8 @@ the "IDE link" section of its `CLAUDE.md`, `IdeBridge` in `server.py`, and
 ## Scope
 
 The extension supports one setup: a devcontainer with claude-sandbox installed
-in it, version 5.0.0b1 or later
-(`uvx --from 'claude-sandbox>=5.0.0b1' claude-sandbox install`), with VS Code attached from the host. The
+in it, version 5.0.0b3 or later
+(`uvx --from 'claude-sandbox>=5.0.0b3' claude-sandbox install`), with VS Code attached from the host. The
 extension runs in the devcontainer's remote extension host. Rootless Podman and
 the devcontainer are claude-sandbox prerequisites. claude-sandbox's standalone
 mode (the host launcher starting its own container) is not a target.
@@ -217,7 +217,7 @@ message as hostile. These rules are the security design; each has a test in
    by absolute path, with a fixed `PATH` and nothing else in its environment,
    for the outdated notice and the "too old" message.
 10. **Install offer.** Nothing runs without the user's click. The command is
-    fixed in the extension (`uvx --no-cache --from 'claude-sandbox>=5.0.0b1'
+    fixed in the extension (`uvx --no-cache --from 'claude-sandbox>=5.0.0b3'
     claude-sandbox install`,
     prefixed with `/usr/bin/sudo` when not uid 0), run in a visible terminal as
     `/bin/sh -c <constant script> sh <argv...>` (the command as positional
@@ -329,7 +329,7 @@ client on the real socket, with the real token, attacking).
 | 5 selection_changed | `test/unit/mcp.test.ts` "rule 5"; `test/unit/selection.test.ts` (select in a.py, focus the terminal: still a.py; a file outside the workspace clears it; a cursor in b.py sends b.py's position; closing the last tab of the selection's file clears it, a pending one too) |
 | 6 Terminal input | `test/unit/paste.test.ts` (the paste primitive); `test/unit/screen.test.ts` (the VT model: text, wrap, cursor moves, ED/EL/ECH, the scroll region, wide characters, the alternate screen, cursor visibility, ignored sequences, caps, combining marks capped per cell); `test/unit/prompt.test.ts` (the screen read at points of real Claude Code 2.1.292 sessions, `test/fixtures/claude-2.1.292.json`: the box, typed and multi-row input, `/permissions`, `/model`, `/ide`, `/help`, the trust and MCP questions, working, vim INSERT and NORMAL, a resumed transcript holding model-drawn fake boxes; any chunking; the review's spoof bytes, `test/fixtures/review-spoofs.json`, alone and over a real menu; fake boxes at column 0; resizes; 50 MB in small chunks within a time budget); `test/unit/session.test.ts` (selection → ping → one paste → Enter; refused in a menu, with a diff waiting, while working; a menu that appears during the ping or before the Enter; waiting for a starting session, and giving up; typed fallback; keys held; Mention via `at_mentioned` or typed only into the box); `test/unit/mcp.test.ts` "the ping barrier", "at_mentioned"; `test/hostile/audit.test.ts` "terminals" (no `sendText`, the session's terminal is a Pseudoterminal running CLAUDE) |
 | 9 The pty relay | `test/unit/pty.test.ts` (Claude's environment without VS Code's channels, an inherited link port or another Claude's child markers; argv constant but for size and arguments; the pty is the controlling terminal at the given size with no fd of ours; arguments are words; keys and UTF-8; SIGWINCH on resize, bad resize lines ignored; Ctrl-C and exit status; output before exit kept; kill hangs up; a slow reader of the output holds up neither keys nor resizes (fails on the old blocking relay); a flood of redraws with input bursts, resizes, a stalling host and a throwing output handler at once; a missing program is 127, a missing interpreter is explained; writes coalesced per 16 ms, a throwing sink reported); `test/hostile/audit.test.ts` "child_process only in the pty relay and the version check" |
-| 10 Install offer | `test/unit/install.test.ts` (the shim, CLI and interpreter recognised, read without blocking on a FIFO; the fixed command with `--no-cache` and the `>=5.0.0b1` requirement, and sudo; older than the minimum is too old; uvx only from the fixed paths, not a symlink out of them, not writable by others, not owned by another user; the terminal script runs its arguments as words; version parsing and comparison; PyPI JSON read as own keys); `test/hostile/audit.test.ts` "terminals" |
+| 10 Install offer | `test/unit/install.test.ts` (the shim, CLI and interpreter recognised, read without blocking on a FIFO; the fixed command with `--no-cache` and the `>=5.0.0b3` requirement, and sudo; older than the minimum is too old; uvx only from the fixed paths, not a symlink out of them, not writable by others, not owned by another user; the terminal script runs its arguments as words; version parsing and comparison; PyPI JSON read as own keys); `test/hostile/audit.test.ts` "terminals" |
 | 11 Settings | `test/unit/manifest.test.ts` (every setting `scope: application`; the code reads no other setting of ours and no other extension's, `files.watcherExclude` included; keybindings on the `Ctrl+Alt+C` chord only); `test/unit/settings.test.ts` "reviewEdits" (the ask list merged and deduplicated, theirs kept, `__proto__` a plain key) |
 | 12 Changes view | `test/unit/changes.test.ts` (only workspace files, not a `.git` segment or sockets, no settings patterns; any path decided in linear time; lstat: a symlink listed as one, a folder and a missing path told apart; the user's saves skipped; kinds; reviewed until changed again; Review All's rows: HEAD vs now, new against nothing, deleted HEAD vs nothing, symlinks left out; `splitByGit`: only what git shows changed, outside a repository all; git status re-read once per repository first, so a just-made file is shown and new); `test/hostile/audit.test.ts` "rule 3" (no write API; `workspace.fs` only for `stat`) |
 | 7 Lock files and sockets | `test/hostile/hook.test.ts` (the hook run for real with socat, in a workspace whose name tries to break out of the command; idempotent, one socat; another's lock left alone and not removed at SessionEnd; no lock when socat never listens; the matchers; silent on stderr when the lock folder cannot be made), "SessionEnd removes only a lock that is ours, byte for byte" (trailing newline, NUL, prefix, suffix kept; a FIFO at the lock path neither blocks nor is removed; a symlink and its target left; a huge file); `test/unit/settings.test.ts` "hook commands"; `test/hostile/audit.test.ts` "rule 7" (every fs path recorded during a session; none under the config folder); `test/hostile/link.test.ts` "rule 7: the socket name" |
@@ -411,15 +411,15 @@ On startup (`onStartupFinished`), if `/usr/local/bin/claude` is not
 claude-sandbox's shim (its text names `…/venv/bin/python -I -m claude_sandbox
 _shadow`) or `/usr/local/bin/claude-sandbox` is missing, a notification says
 "claude-sandbox isn't installed in this container" (or, when
-`claude-sandbox version` reports one older than 5.0.0b1, that it needs 5.0.0b1
+`claude-sandbox version` reports one older than 5.0.0b3, that it needs 5.0.0b3
 or later) and offers **Install**, which opens a visible terminal running
-`uvx --no-cache --from 'claude-sandbox>=5.0.0b1' claude-sandbox install` (with sudo when not root; uvx only from the fixed paths of rule 10).
+`uvx --no-cache --from 'claude-sandbox>=5.0.0b3' claude-sandbox install` (with sudo when not root; uvx only from the fixed paths of rule 10).
 Without uvx it links to the claude-sandbox docs instead. Start checks the same
 (the interpreter too) and offers the same; a relay that cannot start because
 the interpreter is missing says so on the terminal, not just "exited 127". Once a day at most, `claude-sandbox
 version` is compared with PyPI's latest (its latest stable, or for a
 pre-release install the newest release that is not yanked); a newer one gets a
-notice naming `uvx --from 'claude-sandbox>=5.0.0b1' claude-sandbox install`,
+notice naming `uvx --from 'claude-sandbox>=5.0.0b3' claude-sandbox install`,
 never an upgrade.
 
 ## Presets

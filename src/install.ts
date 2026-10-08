@@ -108,10 +108,10 @@ export function findUvx(candidates = uvxCandidates(), uid = process.getuid?.() ?
 }
 
 /**
- * The oldest claude-sandbox this extension works with: the first with the `_shadow` shim and
- * the root-owned interpreter in /usr/libexec that installState looks for.
+ * The oldest claude-sandbox this extension works with. It must have the `_shadow` shim and
+ * the root-owned interpreter in /usr/libexec that installState looks for (5.0.0b1 onward).
  */
-export const MIN_VERSION = "5.0.0b1";
+export const MIN_VERSION = "5.0.0b3";
 
 /** The requirement uvx installs; it names a pre-release, so uv allows betas for it. */
 export const REQUIREMENT = `claude-sandbox>=${MIN_VERSION}`;
