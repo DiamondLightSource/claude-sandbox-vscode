@@ -252,14 +252,10 @@ export class Bridge {
     if (this.conn !== conn) return;
     this.conn = null;
     this.endPings(conn);
-    this.forget(conn);
+    // its diffs can no longer be answered
+    this.dropDiffs((d) => d.conn === conn);
     if (this.state === "connected") this.setState("waiting");
     this.o.logger.info("[ide] Claude Code disconnected");
-  }
-
-  /** A connection has gone: its diffs can no longer be answered. */
-  private forget(conn: Conn): void {
-    this.dropDiffs((d) => d.conn === conn);
   }
 
   /** Remove the waiting diffs `pick` selects and close their tabs; returns them, unanswered. */
