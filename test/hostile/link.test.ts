@@ -6,11 +6,12 @@ import * as fs from "node:fs";
 import * as net from "node:net";
 import * as path from "node:path";
 import { afterEach, beforeEach, describe, it } from "node:test";
+import { setTimeout as sleep } from "node:timers/promises";
 import { IdeLink, socketName, type LinkOptions } from "../../src/link.ts";
 import { Workspace } from "../../src/paths.ts";
 import { HIGH_WATER, MAX_MESSAGE, MAX_QUEUED } from "../../src/websocket.ts";
 import { Client, clientFrame, isError, openDiff, texts, toolCall } from "../helpers/client.ts";
-import { FakeDiagnostics, FakePresenter, MemLogger, SECRET, snapshot, tmpWorkspace, type Tmp } from "../helpers/fakes.ts";
+import { FakePresenter, MemLogger, SECRET, snapshot, startTestLink, tmpWorkspace, type Tmp } from "../helpers/fakes.ts";
 
 let t: Tmp;
 let link: IdeLink;
@@ -23,19 +24,7 @@ const DOC = "line one\nhello world\n";
 async function start(pickPort?: () => number, extra: Partial<LinkOptions> = {}): Promise<IdeLink> {
   presenter = new FakePresenter();
   logger = new MemLogger();
-  return IdeLink.start({
-    folders: [t.ws],
-    presenter,
-    diagnostics: new FakeDiagnostics(),
-    logger,
-    handshakeMs: HANDSHAKE_MS,
-    ...(pickPort ? { pickPort } : {}),
-    ...extra,
-  });
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((r) => setTimeout(r, ms));
+  return startTestLink(t.ws, { presenter, logger, handshakeMs: HANDSHAKE_MS, ...(pickPort ? { pickPort } : {}), ...extra });
 }
 
 /** Wait until the link has noticed every client has gone (one session at a time). */
@@ -144,7 +133,7 @@ describe("rule 8: the socket and the handshake", () => {
   it("at most 4 connections in their handshake; idle ones are dropped after the handshake timeout", async () => {
     const idle: Client[] = [];
     for (let i = 0; i < 4; i++) idle.push(await Client.connect(link.socketPath));
-    await new Promise((r) => setTimeout(r, 50));
+    await sleep(50);
     const t0 = Date.now();
     const extra = await Client.connect(link.socketPath);
     await extra.until(() => extra.closed, 1000);
@@ -161,7 +150,7 @@ describe("rule 8: the socket and the handshake", () => {
     assert.ok(slow.closed);
     // once upgraded, Claude may be quiet as long as it likes
     const c = await claude();
-    await new Promise((r) => setTimeout(r, HANDSHAKE_MS * 2));
+    await sleep(HANDSHAKE_MS * 2);
     assert.deepEqual((await c.call({ jsonrpc: "2.0", id: 5, method: "ping" }))?.result, {});
     c.end();
   });

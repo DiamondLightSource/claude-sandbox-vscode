@@ -32,7 +32,7 @@ const S = { Ground: 0, Esc: 1, EscInter: 2, Csi: 3, Osc: 4, Str: 5, StrEsc: 6 } 
 type ParseState = (typeof S)[keyof typeof S];
 
 /** Two cells wide: East Asian Wide/Fullwidth and emoji presentation (best effort). */
-export function isWide(cp: number): boolean {
+function isWide(cp: number): boolean {
   if (cp < 0x1100) return false;
   return (
     (cp >= 0x1100 && cp <= 0x115f) ||
@@ -99,7 +99,7 @@ export function isWide(cp: number): boolean {
 }
 
 /** No cell of its own: combining marks, variation selectors, zero-width joiners. */
-export function isZeroWidth(cp: number): boolean {
+function isZeroWidth(cp: number): boolean {
   return (
     (cp >= 0x300 && cp <= 0x36f) ||
     (cp >= 0x1ab0 && cp <= 0x1aff) ||

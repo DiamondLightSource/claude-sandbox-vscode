@@ -41,7 +41,7 @@ export const ENVELOPE_MAX = 4096;
  */
 export const PROPOSAL_MAX = Math.floor((MAX_QUEUED - HIGH_WATER - ENVELOPE_MAX) / JSON_ESCAPE_MAX);
 
-export const PROTOCOLS = ["2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05", "2024-10-07"];
+const PROTOCOLS = ["2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05", "2024-10-07"];
 export const DIFFS_MAX = 16;
 export const RESEND_MS = 500;
 /** How long an ask waits for Claude to answer its ping. */
@@ -49,7 +49,7 @@ export const PING_MS = 2000;
 /** Our request ids (pings), never a number: Claude's own requests to us use numbers. */
 export const PING_PREFIX = "csv-ping-";
 
-export const INSTRUCTIONS =
+const INSTRUCTIONS =
   "You are attached to VS Code through claude-sandbox-vscode. When the user has text selected " +
   "in the editor, the selection is attached to their prompt. Proposed edits may be shown to " +
   "the user as a diff in VS Code, where they accept or reject them.";
@@ -140,15 +140,15 @@ export interface Peer {
 
 type Msg = Record<string, unknown>;
 
-export function rpcResult(id: unknown, result: unknown): Msg {
+function rpcResult(id: unknown, result: unknown): Msg {
   return { jsonrpc: "2.0", id, result };
 }
 
-export function rpcError(id: unknown, code: number, message: string): Msg {
+function rpcError(id: unknown, code: number, message: string): Msg {
   return { jsonrpc: "2.0", id, error: { code, message } };
 }
 
-export function toolText(texts: string[], isError = false): Msg {
+function toolText(texts: string[], isError = false): Msg {
   const out: Msg = { content: texts.map((text) => ({ type: "text", text })) };
   if (isError) out.isError = true;
   return out;

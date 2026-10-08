@@ -10,23 +10,16 @@ import * as path from "node:path";
 import { describe, it } from "node:test";
 import { IdeLink } from "../../src/link.ts";
 import { Client, openDiff, toolCall } from "../helpers/client.ts";
-import { FakeDiagnostics, FakePresenter, MemLogger, snapshot, tmpWorkspace } from "../helpers/fakes.ts";
+import { snapshot, startTestLink, tmpWorkspace, tsFiles } from "../helpers/fakes.ts";
 
 const root = path.resolve(import.meta.dirname, "..", "..");
-
-function sources(dir: string): string[] {
-  return fs
-    .readdirSync(dir, { withFileTypes: true, recursive: true })
-    .filter((e) => e.isFile() && e.name.endsWith(".ts"))
-    .map((e) => path.join(e.parentPath, e.name));
-}
 
 describe("rule 3: no code path writes a file", () => {
   it("src/ uses no write or delete API (libuv alone unlinks our socket when it closes)", () => {
     const write =
       /\bfs\.(write|writeSync|writeFile|writeFileSync|appendFile\w*|createWriteStream|rename\w*|copyFile\w*|cp\w*|truncate\w*|chmod\w*|chown\w*|lchown\w*|mkdir\w*|mkdtemp\w*|rm|rmSync|rmdir\w*|symlink\w*|link|linkSync|unlink|unlinkSync|utimes\w*)\b|O_WRONLY|O_RDWR|O_CREAT|O_TRUNC|O_APPEND|workspace\.fs\.(?!stat\()|applyEdit|WorkspaceEdit/;
     const hits: string[] = [];
-    for (const f of sources(path.join(root, "src"))) {
+    for (const f of tsFiles(path.join(root, "src"))) {
       fs.readFileSync(f, "utf8")
         .split("\n")
         .forEach((line) => {
@@ -38,7 +31,7 @@ describe("rule 3: no code path writes a file", () => {
   });
 
   it("the only save() is of our in-memory proposal documents", () => {
-    const hits = sources(path.join(root, "src")).flatMap((f) =>
+    const hits = tsFiles(path.join(root, "src")).flatMap((f) =>
       fs
         .readFileSync(f, "utf8")
         .split("\n")
@@ -52,7 +45,7 @@ describe("rule 3: no code path writes a file", () => {
   it("src/ has no runtime dependency", () => {
     const pkg = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8")) as Record<string, unknown>;
     assert.equal(pkg.dependencies, undefined);
-    for (const f of sources(path.join(root, "src"))) {
+    for (const f of tsFiles(path.join(root, "src"))) {
       for (const m of fs.readFileSync(f, "utf8").matchAll(/from "([^"]+)"/g)) {
         assert.ok(/^(node:|\.|vscode$)/.test(m[1]!), `${f} imports ${m[1]}`);
       }
@@ -63,7 +56,7 @@ describe("rule 3: no code path writes a file", () => {
 describe("rules 6, 9, 10: the processes the extension starts", () => {
   const read = (f: string): string => fs.readFileSync(path.join(root, f), "utf8");
   it("child_process only in the pty relay and the version check, with constant programs", () => {
-    const users = sources(path.join(root, "src"))
+    const users = tsFiles(path.join(root, "src"))
       .filter((f) => /child_process/.test(fs.readFileSync(f, "utf8").replace(/\/\/.*$/gm, "")))
       .map((f) => path.relative(root, f))
       .sort();
@@ -79,7 +72,7 @@ describe("rules 6, 9, 10: the processes the extension starts", () => {
   });
 
   it("terminals: the session's pty relay and the install's constant command; nothing typed into a shell", () => {
-    const hits = sources(path.join(root, "src")).flatMap((f) =>
+    const hits = tsFiles(path.join(root, "src")).flatMap((f) =>
       fs
         .readFileSync(f, "utf8")
         .split("\n")
@@ -126,12 +119,7 @@ describe("rule 7: the host never opens anything under the config folder", () => 
     syncBuiltinESMExports();
     let link: IdeLink | undefined;
     try {
-      link = await IdeLink.start({
-        folders: [t.ws],
-        presenter: new FakePresenter(),
-        diagnostics: new FakeDiagnostics(),
-        logger: new MemLogger(),
-      });
+      link = await startTestLink(t.ws);
       const c = await Client.open(link.socketPath, link.token);
       await c.handshake();
       c.send(openDiff(3, path.join(t.ws, "a.md"), "b\n"));
@@ -158,7 +146,7 @@ describe("rule 7: the host never opens anything under the config folder", () => 
   });
 
   it("no source names the config folder except the hook's in-jail path", () => {
-    for (const f of sources(path.join(root, "src"))) {
+    for (const f of tsFiles(path.join(root, "src"))) {
       const text = fs.readFileSync(f, "utf8").replace(/\/\/.*$/gm, "");
       assert.doesNotMatch(text, /terminal-config|CLAUDE_SANDBOX_SHARED_CONFIG|homedir\(/, f);
       if (!f.endsWith("settings.ts")) assert.doesNotMatch(text, /\.claude(?![\w-])/, f);

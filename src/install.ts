@@ -178,7 +178,7 @@ interface Version {
 const PRE: Record<string, number> = { a: 0, alpha: 0, b: 1, beta: 1, c: 2, rc: 2, pre: 2, preview: 2 };
 
 /** A PEP 440 version, or a semver-ish one (`5.0.0-beta.2` = `5.0.0b2`); null if neither. */
-export function parseVersion(s: string): Version | null {
+function parseVersion(s: string): Version | null {
   const m =
     /^v?(\d+(?:\.\d+)*)(?:[-_.]?(a|alpha|b|beta|c|rc|pre|preview)[-_.]?(\d*))?(?:[-_.]?post[-_.]?(\d*))?(?:[-_.]?dev[-_.]?(\d*))?(?:\+[\w.]+)?$/i.exec(
       s.trim(),

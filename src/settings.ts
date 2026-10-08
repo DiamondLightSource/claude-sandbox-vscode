@@ -18,7 +18,7 @@
 
 import { isObj, own } from "./json.ts";
 
-export const IDE_NAME = "Claude Sandbox for VS Code";
+const IDE_NAME = "Claude Sandbox for VS Code";
 export const PORT_MIN = 20000;
 export const PORT_MAX = 60000;
 
@@ -74,7 +74,7 @@ export const START_MATCHER = "startup|resume|fork";
  * (bypass_permissions_disabled was removed in 2.1.234). */
 export const END_MATCHER = "logout|prompt_input_exit|other";
 /** How long the SessionStart hook waits for socat to listen, in tenths of a second. */
-export const WAIT_STEPS = 100;
+const WAIT_STEPS = 100;
 
 /**
  * The SessionStart hook's command (POSIX sh, run in the jail). Idempotent: socat is started
@@ -147,7 +147,7 @@ export interface LinkSettings {
  * that it matches no known tool. Edits made through the shell (`sed -i`, `echo > f`) are not
  * these tools and are not caught; the Claude Changes view lists them.
  */
-export const REVIEW_TOOLS: readonly string[] = ["Edit", "Write", "NotebookEdit"];
+const REVIEW_TOOLS: readonly string[] = ["Edit", "Write", "NotebookEdit"];
 
 /** Our settings with the edit tools set to ask (claudeSandbox.reviewEdits). */
 export function withReviewEdits(ours: LinkSettings): LinkSettings {

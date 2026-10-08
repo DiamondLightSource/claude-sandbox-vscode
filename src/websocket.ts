@@ -12,20 +12,20 @@
 import { createHash, timingSafeEqual } from "node:crypto";
 import type { Socket } from "node:net";
 
-export const WS_GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
+const WS_GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
 export const MAX_MESSAGE = 16 * 1024 * 1024;
 export const MAX_HEADER = 16 * 1024;
-export const DRAIN_MS = 2000;
+const DRAIN_MS = 2000;
 export const HIGH_WATER = 1024 * 1024;
 export const MAX_QUEUED = 32 * 1024 * 1024;
 export const PING_MS = 30_000;
 
-export const OP_CONT = 0x0;
-export const OP_TEXT = 0x1;
-export const OP_BIN = 0x2;
-export const OP_CLOSE = 0x8;
-export const OP_PING = 0x9;
-export const OP_PONG = 0xa;
+const OP_CONT = 0x0;
+const OP_TEXT = 0x1;
+const OP_BIN = 0x2;
+const OP_CLOSE = 0x8;
+const OP_PING = 0x9;
+const OP_PONG = 0xa;
 
 /** One unmasked, unfragmented server frame. */
 export function encodeFrame(opcode: number, payload: Buffer = Buffer.alloc(0)): Buffer {

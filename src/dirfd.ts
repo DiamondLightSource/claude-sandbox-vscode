@@ -13,7 +13,7 @@ import * as fs from "node:fs";
 
 const C = fs.constants;
 export const O_NOFOLLOW = C.O_NOFOLLOW ?? 0;
-export const O_DIRECTORY = C.O_DIRECTORY ?? 0;
+const O_DIRECTORY = C.O_DIRECTORY ?? 0;
 export const O_NONBLOCK = C.O_NONBLOCK ?? 0;
 
 /** Whether this platform has what the safe file operations need. */

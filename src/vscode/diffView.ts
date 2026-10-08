@@ -128,7 +128,7 @@ export class DiffEditors implements DiffPresenter, vscode.Disposable {
 
   /** The bridge closes it: no answer. */
   close(id: string): void {
-    if (this.tabs.closeQuietly(id)) void this.closeTabs(id);
+    if (this.tabs.closeUnanswered(id)) void this.closeTabs(id);
   }
 
   private async closeTabs(id: string): Promise<void> {

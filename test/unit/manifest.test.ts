@@ -4,14 +4,13 @@ import assert from "node:assert/strict";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { describe, it } from "node:test";
+import { tsFiles } from "../helpers/fakes.ts";
 
 const root = path.resolve(import.meta.dirname, "..", "..");
 const pkg = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8"));
 const src = (dir: string): string =>
-  fs
-    .readdirSync(dir, { withFileTypes: true, recursive: true })
-    .filter((e) => e.isFile() && e.name.endsWith(".ts"))
-    .map((e) => fs.readFileSync(path.join(e.parentPath, e.name), "utf8"))
+  tsFiles(dir)
+    .map((f) => fs.readFileSync(f, "utf8"))
     .join("\n");
 
 describe("rule 11: settings the workspace cannot set", () => {

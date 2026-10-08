@@ -10,7 +10,7 @@ import * as path from "node:path";
 import * as dirfd from "./dirfd.ts";
 
 /** The largest file openDiff reads (the message cap; a larger file cannot come back anyway). */
-export const TEXT_MAX = 16 * 1024 * 1024;
+const TEXT_MAX = 16 * 1024 * 1024;
 
 export type Resolved = { ok: true; real: string; folder: string } | { ok: false; why: string };
 

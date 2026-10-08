@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
+import { setTimeout as sleep } from "node:timers/promises";
 import type { LinkState, Position } from "../../src/mcp.ts";
 import { PASTE_END, PASTE_START } from "../../src/paste.ts";
 import { PromptWatcher } from "../../src/prompt.ts";
@@ -147,7 +148,7 @@ describe("rule 6: asks are typed only into Claude Code's input box", () => {
   it("starting: waits for the prompt (telling once after a second), then sends", async () => {
     const { s, typed, events } = setup({ startWaitMs: 1e12 });
     const pending = s.ask({ question: "Hi" });
-    await new Promise((r) => setTimeout(r, 30));
+    await sleep(30);
     s.output(BOX);
     assert.deepEqual(await pending, { ok: true, via: "typed" });
     assert.deepEqual(typed, [paste("Hi"), "\r"]);

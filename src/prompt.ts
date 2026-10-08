@@ -29,11 +29,11 @@
 
 import { Screen } from "./screen.ts";
 
-export const GLYPH = "❯";
+const GLYPH = "❯";
 const BOX_START = GLYPH + " ";
 const RULE = "─";
 /** Rows Claude Code draws under the input box (status line, mode, hints); more is not the box. */
-export const FOOTER_MAX = 8;
+const FOOTER_MAX = 8;
 /** Rows above the box searched for the spinner. */
 const SPINNER_ROWS = 6;
 const SPINNER_RE = /^[·✢*✶✻✽✳∗] \S[^…]*…/u;

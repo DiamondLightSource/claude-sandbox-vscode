@@ -3,6 +3,7 @@
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
+import { IdeLink, type LinkOptions } from "../../src/link.ts";
 import type { Logger } from "../../src/log.ts";
 import type { DiagnosticsSource, DiffPresenter, DiffView, FileDiagnostics, Peer } from "../../src/mcp.ts";
 
@@ -90,4 +91,23 @@ export function snapshot(dir: string): Record<string, string> {
   };
   walk(dir);
   return out;
+}
+
+/** A link on `folder` with fresh fakes; `extra` overrides any option (pass fakes to keep them). */
+export function startTestLink(folder: string, extra: Partial<LinkOptions> = {}): Promise<IdeLink> {
+  return IdeLink.start({
+    folders: [folder],
+    presenter: new FakePresenter(),
+    diagnostics: new FakeDiagnostics(),
+    logger: new MemLogger(),
+    ...extra,
+  });
+}
+
+/** Every .ts file under `dir`. */
+export function tsFiles(dir: string): string[] {
+  return fs
+    .readdirSync(dir, { withFileTypes: true, recursive: true })
+    .filter((e) => e.isFile() && e.name.endsWith(".ts"))
+    .map((e) => path.join(e.parentPath, e.name));
 }

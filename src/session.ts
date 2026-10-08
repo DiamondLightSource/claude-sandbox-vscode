@@ -12,21 +12,21 @@
 // starts with a typed @-mention of the lines instead. Asks are one at a time, and the user's own
 // keys wait while an ask is between its paste and its Enter.
 
-import { lineSpan, typedRef } from "./ask.ts";
+import { lineSpan, relTo, typedRef } from "./ask.ts";
 import type { LinkState, Position } from "./mcp.ts";
 import { pasteText } from "./paste.ts";
 import type { Resolved } from "./paths.ts";
 import type { PromptWatcher } from "./prompt.ts";
 
-export const START_WAIT_MS = 20_000;
+const START_WAIT_MS = 20_000;
 /** For Claude to store the selection once it has answered the ping. */
-export const SETTLE_MS = 50;
+const SETTLE_MS = 50;
 /** Between pasting a question and pressing Enter. */
-export const ENTER_DELAY_MS = 100;
+const ENTER_DELAY_MS = 100;
 /** A frame is taken as drawn once output has paused this long... */
-export const QUIET_MS = 150;
+const QUIET_MS = 150;
 /** ...waited for at most this long before the screen is read as it is. */
-export const SETTLE_MAX_MS = 1000;
+const SETTLE_MAX_MS = 1000;
 const POLL_MS = 50;
 
 /** What the session needs of the link (the Bridge). */
@@ -236,7 +236,7 @@ export class Session {
     return this.serial(async () => {
       if (!this.alive) return { ok: false, error: "The Claude session has ended." };
       const span = lineSpan(f.start, f.end);
-      const rel = f.fsPath.startsWith(this.o.cwd + "/") ? f.fsPath.slice(this.o.cwd.length + 1) : f.fsPath;
+      const rel = relTo(f.fsPath, this.o.cwd);
       const link = this.o.link();
       // Claude Code inserts at_mentioned paths unquoted: one with whitespace is typed instead
       if (link !== null && link.state === "connected" && !/\s/.test(rel)) {

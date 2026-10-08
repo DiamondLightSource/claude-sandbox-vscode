@@ -95,7 +95,7 @@ export class DiffTabs<T> {
   }
 
   /** The bridge closes it (Claude closed it, or the connection went): no answer. */
-  closeQuietly(id: string): boolean {
+  closeUnanswered(id: string): boolean {
     const e = this.entries.get(id);
     if (e === undefined) return false;
     e.phase = "closing";

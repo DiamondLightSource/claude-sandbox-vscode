@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
+import { setTimeout as sleep } from "node:timers/promises";
 import type { Position } from "../../src/mcp.ts";
-import { SelectionTracker, TEXT_MAX, type EditorSelection } from "../../src/selection.ts";
+import { SelectionTracker, SELECTION_MAX, type EditorSelection } from "../../src/selection.ts";
 
 const p = (line: number, character: number): Position => ({ line, character });
 const ed = (fsPath: string, start: Position, end: Position, text = "", scheme = "file"): EditorSelection => ({ scheme, fsPath, start, end, text });
@@ -21,7 +22,7 @@ function setup() {
     },
   };
   const t = new SelectionTracker(() => sink, 5);
-  const settle = (): Promise<void> => new Promise((r) => setTimeout(r, 20));
+  const settle = (): Promise<void> => sleep(20);
   return { t, settle, sent, claude: () => claude };
 }
 
@@ -62,11 +63,11 @@ describe("rule 5: the selection Claude keeps", () => {
   it("debounced: only the last of a burst is sent; long text capped", async () => {
     const s = setup();
     s.t.event(ed("/w/a.py", p(0, 0), p(0, 1), "a"));
-    s.t.event(ed("/w/a.py", p(0, 0), p(9, 0), "z".repeat(TEXT_MAX + 10)));
+    s.t.event(ed("/w/a.py", p(0, 0), p(9, 0), "z".repeat(SELECTION_MAX + 10)));
     await s.settle();
     assert.equal(s.sent.length, 1);
     const c = s.claude() as { text: string };
-    assert.equal(c.text.length, TEXT_MAX);
+    assert.equal(c.text.length, SELECTION_MAX);
   });
   it("closing the last tab of the selection's file clears it; closing another file does not", async () => {
     const s = setup();
