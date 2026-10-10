@@ -73,7 +73,7 @@ describe("rule 9: the pty relay", () => {
 
   it("the program gets the pty as its controlling terminal, at the size given, and no fd of ours", async () => {
     const fds = "for f in 3 4 5 6 7 8 9; do if { true >&$f; } 2>/dev/null; then echo open$f; fi; done; echo fds-done";
-    const r = run("/bin/sh", ["-c", `stty size; tty; [ -t 0 ] && echo stdin-tty; ${fds}`], 100, 30);
+    const r = run("/bin/sh", ["-c", `stty size; echo "$(tty)"; [ -t 0 ] && echo stdin-tty; ${fds}`], 100, 30);
     assert.equal(await r.exit, 0);
     assert.match(r.out(), /^30 100\r\n\/dev\/pts\/\d+\r\nstdin-tty\r\nfds-done\r\n$/);
   });
