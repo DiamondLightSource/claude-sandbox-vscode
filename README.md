@@ -10,8 +10,12 @@ unsandboxed Claude. The full design, protocol notes and security rules are in
 
 ## Install
 
-The extension runs in a devcontainer. Until it is on the Marketplace, install
-the latest GitHub release from a devcontainer terminal with VS Code attached:
+The extension runs in a devcontainer. Install **Claude Sandbox for VS Code**
+from the Extensions view, or add `diamondlightsource.claude-sandbox-vscode` to
+the devcontainer's `customizations.vscode.extensions`.
+
+To install a GitHub release instead, run this from a devcontainer terminal
+with VS Code attached:
 
 ```sh
 curl -fsSLO https://github.com/DiamondLightSource/claude-sandbox-vscode/releases/latest/download/claude-sandbox-vscode.vsix
@@ -143,7 +147,9 @@ just push the tag: `.github/workflows/release.yml` tests and attaches the
 makes a GitHub pre-release only. With the repository variable
 `MARKETPLACE_PUBLISH` set to `true`, other tags are also published to the
 Marketplace, signing in via GitHub OIDC with the `marketplace` environment's
-`AZURE_CLIENT_ID` and `AZURE_TENANT_ID`.
+`AZURE_CLIENT_ID` and `AZURE_TENANT_ID`. Without it, upload the release's
+`.vsix` by hand on the publisher's page at
+<https://marketplace.visualstudio.com/manage>.
 
 ## License
 
