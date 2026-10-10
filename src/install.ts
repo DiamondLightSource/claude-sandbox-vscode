@@ -108,25 +108,34 @@ export function findUvx(candidates = uvxCandidates(), uid = process.getuid?.() ?
 }
 
 /**
- * The oldest claude-sandbox this extension works with. It must have the `_shadow` shim and
- * the root-owned interpreter in /usr/libexec that installState looks for (5.0.0b1 onward).
+ * The oldest claude-sandbox this extension works with (tooOld, the too-old message). It must
+ * have the `_shadow` shim and the root-owned interpreter in /usr/libexec that installState
+ * looks for. A stable release, so existing 5.0.0 installs are not told they are too old.
  */
-export const MIN_VERSION = "5.0.0b3";
-
-/** The requirement uvx installs; it names a pre-release, so uv allows betas for it. */
-export const REQUIREMENT = `claude-sandbox>=${MIN_VERSION}`;
-
-/** The install command for a person to type in a devcontainer terminal. */
-export const INSTALL_HINT = `uvx --from '${REQUIREMENT}' claude-sandbox install`;
+export const MIN_VERSION = "5.0.0";
 
 /**
- * The install command: `uvx --no-cache --from 'claude-sandbox>=MIN' claude-sandbox install`,
- * through sudo unless we are root. A requirement, not a bare name: an unpinned uvx reuses an
- * older cached tool environment, and @latest never picks a pre-release (PyPI's latest stable
- * may be older than MIN_VERSION). --no-cache: uv's cache is in ~/.cache, which the jail can write.
+ * The oldest claude-sandbox that has `install --minimal` (claude-sandbox #101), so the oldest
+ * the extension installs. Newer than MIN_VERSION: older installs still work, they just cannot
+ * be installed with --minimal.
+ */
+export const INSTALL_VERSION = "5.1.0";
+
+/** The requirement uvx installs. */
+export const REQUIREMENT = `claude-sandbox>=${INSTALL_VERSION}`;
+
+/** The install command for a person to type in a devcontainer terminal. */
+export const INSTALL_HINT = `uvx --from '${REQUIREMENT}' claude-sandbox install --minimal`;
+
+/**
+ * The install command: `uvx --no-cache --from 'claude-sandbox>=INSTALL' claude-sandbox install
+ * --minimal`, through sudo unless we are root. A requirement, not a bare name: an unpinned uvx
+ * reuses an older cached tool environment, and @latest may be older than INSTALL_VERSION.
+ * --minimal: Claude only, no Codex or Pi downloads. --no-cache: uv's cache is in ~/.cache,
+ * which the jail can write.
  */
 export function installArgv(uid: number, uvx: string): string[] {
-  const cmd = [uvx, "--no-cache", "--from", REQUIREMENT, "claude-sandbox", "install"];
+  const cmd = [uvx, "--no-cache", "--from", REQUIREMENT, "claude-sandbox", "install", "--minimal"];
   return uid === 0 ? cmd : [SUDO, ...cmd];
 }
 
