@@ -1,0 +1,56 @@
+// For format details, see https://containers.dev/implementors/json_reference/
+{
+    "name": "Claude Sandbox VS Code Developer Container",
+    "build": {
+        "dockerfile": "Dockerfile",
+        "target": "developer"
+    },
+    "remoteEnv": {
+        // Allow X11 apps to run inside the container
+        "DISPLAY": "${localEnv:DISPLAY}",
+        // Put things that allow it in the persistent cache
+        "UV_CACHE_DIR": "/cache/uv",
+        "UV_PYTHON_CACHE_DIR": "/cache/uv-python",
+        "npm_config_cache": "/cache/npm"
+    },
+    "customizations": {
+        "vscode": {
+            // Add the IDs of extensions you want installed when the container is created.
+            "extensions": [
+                "github.vscode-github-actions",
+                "redhat.vscode-yaml",
+                "ms-azuretools.vscode-docker"
+            ]
+        }
+    },
+    // Create the config folder for the bash-config feature and uv cache
+    "initializeCommand": "mkdir -p ${localEnv:HOME}/.config/terminal-config",
+    "runArgs": [
+        // Host network: reach the host's X11 display (DISPLAY is passed through above)
+        "--net=host",
+        // Keep SELinux from blocking access to the bind-mounted host folders
+        // (the workspace parent and the terminal config folder)
+        "--security-opt=label=disable",
+        // Needed by claude-sandbox's network egress jail
+        "--device=/dev/net/tun"
+    ],
+    "mounts": [
+        // Mount in the user terminal config folder so it can be edited
+        // (claude-sandbox also keeps agent logins here across rebuilds)
+        {
+            "source": "${localEnv:HOME}/.config/terminal-config",
+            "target": "/user-terminal-config",
+            "type": "bind"
+        },
+        // Keep a persistent cross container cache for uv and npm
+        {
+            "source": "devcontainer-shared-cache",
+            "target": "/cache",
+            "type": "volume"
+        }
+    ],
+    // Mount the parent as /workspaces so peers such as claude-sandbox are visible
+    "workspaceMount": "source=${localWorkspaceFolder}/..,target=/workspaces,type=bind",
+    // After the container is created, install claude-sandbox and the node modules
+    "postCreateCommand": "bash .devcontainer/postCreate.sh"
+}
