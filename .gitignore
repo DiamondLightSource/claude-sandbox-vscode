@@ -2,3 +2,5 @@ node_modules/
 dist/
 *.vsix
 .claude-sandbox-vscode-*.sock
+*.code-workspace
+.claude/worktrees/
