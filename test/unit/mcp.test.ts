@@ -194,7 +194,7 @@ describe("rule 2/3: openDiff", () => {
       t.secret,
       path.join(t.ws, "link.md"),
       path.join(t.ws, ".git", "config"),
-      `${t.ws}/../outside/secret.md`,
+      `${t.ws}/../../outside/secret.md`,
       "relative.md",
       t.ws,
       "/etc/passwd",
@@ -332,6 +332,42 @@ describe("rule 5: selection_changed", () => {
       { text: "", selection: { start: zero, end: zero, isEmpty: true } },
     ]);
     assert.doesNotMatch(JSON.stringify(peer.sent), new RegExp(SECRET));
+  });
+});
+
+describe("rule 5: peers of the workspace folder (the jail mounts them read-only)", () => {
+  let lib: string;
+  const zero = { line: 0, character: 0 };
+  const cleared = { text: "", selection: { start: zero, end: zero, isEmpty: true } };
+  const peerBridge = (home: readonly string[]): Bridge =>
+    new Bridge({ workspace: new Workspace([t.ws]), home, presenter, diagnostics: diags, logger });
+  beforeEach(() => {
+    lib = path.join(t.dir, "proj", "peer", "lib.py");
+    fs.mkdirSync(path.dirname(lib));
+    fs.writeFileSync(lib, "def f(): pass\n");
+  });
+  it("selections, mentions and diagnostics for a peer's files; openDiff still refused", () => {
+    bridge = peerBridge([]);
+    const { peer, send } = ready();
+    bridge.select(lib, zero, { line: 0, character: 3 }, "def");
+    assert.equal((peer.notes("selection_changed").at(-1) as { filePath?: string }).filePath, lib);
+    assert.equal(bridge.mention(lib), true);
+    bridge.select(t.secret, zero, { line: 0, character: 3 }, SECRET);
+    assert.deepEqual(peer.notes("selection_changed").at(-1), cleared, "not a peer: outside");
+    diags.entries = [{ uri: "file://" + lib, fsPath: lib, diagnostics: [] }];
+    send(toolCall(3, "getDiagnostics", { uri: "file://" + lib }));
+    assert.equal(JSON.parse(texts(peer.reply(3))[0]!).length, 1);
+    send(openDiff(4, lib, "x\n"));
+    assert.match(texts(peer.reply(4))[0]!, /workspace files only/);
+    assert.doesNotMatch(JSON.stringify(peer.sent), new RegExp(SECRET));
+  });
+  it("none when the folder holding them is a home folder", () => {
+    bridge = peerBridge([path.join(t.dir, "proj")]);
+    const { peer } = ready();
+    bridge.select(target, zero, { line: 0, character: 1 }, "x");
+    bridge.select(lib, zero, { line: 0, character: 3 }, "def");
+    assert.deepEqual(peer.notes("selection_changed").at(-1), cleared);
+    assert.equal(bridge.mention(lib), false);
   });
 });
 

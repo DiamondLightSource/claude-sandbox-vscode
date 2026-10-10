@@ -2,7 +2,7 @@
 // Ported from md-collab-editor's IdeBridge. Everything that arrives is hostile (trust
 // boundary): only four tools exist (rule 1), openDiff reads only files the path policy
 // allows (rule 2), the extension never writes a file (rule 3), diagnostics and selections
-// only for workspace files (rules 4, 5), and parsed JSON is only ever read through `own()`,
+// only for workspace files and their peers' (rules 4, 5), and parsed JSON is only ever read through `own()`,
 // never merged into objects (rule 8).
 //
 // Protocol notes (Claude Code 2.1.280 / 2.1.292):
@@ -25,7 +25,7 @@
 
 import { isObj, own } from "./json.ts";
 import { esc, type Logger } from "./log.ts";
-import { Workspace } from "./paths.ts";
+import { peerRoot, Workspace } from "./paths.ts";
 import { HIGH_WATER, MAX_QUEUED } from "./websocket.ts";
 
 /** JSON.stringify writes a byte of UTF-8 text as at most 6 (a control character: \u00XX). */
@@ -188,6 +188,8 @@ export type LinkState = "waiting" | "connected" | "off";
 export interface BridgeOptions {
   /** Replaced by setFolders. */
   workspace: Workspace;
+  /** Test seam: the home folders no peer may be in ($HOME and the passwd entry's). */
+  home?: readonly string[];
   presenter: DiffPresenter;
   diagnostics: DiagnosticsSource;
   logger: Logger;
@@ -204,10 +206,18 @@ export class Bridge {
   private nextPing = 1;
   private readonly pings = new Map<string, { conn: Conn; done: (ok: boolean) => void }>();
   private readonly salt = Math.random().toString(16).slice(2, 10);
+  /** The workspace folders and the folders holding them and their peers (rules 4, 5). */
+  private reads: Workspace;
   state: LinkState = "waiting";
 
   constructor(options: BridgeOptions) {
     this.o = { ...options };
+    this.reads = this.withPeers(this.o.workspace);
+  }
+
+  private withPeers(ws: Workspace): Workspace {
+    const roots = ws.folders.map((f) => peerRoot(f, this.o.home)).filter((r) => r !== null);
+    return new Workspace([...ws.folders, ...roots.filter((r) => Workspace.resolvable(r))]);
   }
 
   private setState(s: LinkState): void {
@@ -246,6 +256,7 @@ export class Bridge {
   setFolders(folders: readonly string[]): void {
     // a folder that cannot be resolved (already gone) is left out
     this.o.workspace = new Workspace(folders.filter((f) => Workspace.resolvable(f)));
+    this.reads = this.withPeers(this.o.workspace);
   }
 
   detach(conn: Conn): void {
@@ -407,9 +418,9 @@ export class Bridge {
     }
   }
 
-  /** Diagnostics for workspace files only, without the host-side fsPath (rule 4). */
+  /** Diagnostics for workspace and peer files only, without the host-side fsPath (rule 4). */
   private diagnostics(uri: unknown): { uri: string; diagnostics: FileDiagnostics["diagnostics"] }[] {
-    const ws = this.o.workspace;
+    const ws = this.reads;
     let entries: FileDiagnostics[];
     if (uri === undefined || uri === null || uri === "") {
       entries = this.o.diagnostics.get();
@@ -418,7 +429,7 @@ export class Bridge {
       if (!r.ok) return [];
       entries = this.o.diagnostics.get(r.real);
     }
-    // only files inside a workspace folder, whatever the source returned
+    // only files inside a workspace folder or a peer, whatever the source returned
     return entries.filter((e) => ws.resolve(e.fsPath).ok).map((e) => ({ uri: e.uri, diagnostics: e.diagnostics }));
   }
 
@@ -498,11 +509,11 @@ export class Bridge {
   }
 
   /**
-   * The editor's selection. Sent (and remembered) only for a file inside a workspace folder;
-   * anywhere else Claude is told to forget the last one: an empty range with no filePath.
+   * The editor's selection. Sent (and remembered) only for a file inside a workspace folder or
+   * a peer of one (peerRoot); anywhere else Claude is told to forget the last one: an empty range with no filePath.
    */
   select(fsPath: string, start: Position, end: Position, text: string): void {
-    const r = this.o.workspace.resolve(fsPath, { allowGit: true });
+    const r = this.reads.resolve(fsPath, { allowGit: true });
     if (!r.ok) {
       this.clearSelection();
       return;
@@ -546,11 +557,11 @@ export class Bridge {
 
   /**
    * Put an @-mention of a workspace file (and lines, 0-based, inclusive) into Claude's prompt:
-   * at_mentioned, never Enter. Only for a file inside a workspace folder (not .git); false
+   * at_mentioned, never Enter. Only for a file inside a workspace folder or a peer (not .git); false
    * otherwise, or when no session is linked.
    */
   mention(fsPath: string, lines?: { start: number; end: number }): boolean {
-    const r = this.o.workspace.resolve(fsPath);
+    const r = this.reads.resolve(fsPath);
     const conn = this.live();
     if (!r.ok || conn === null) return false;
     const params: Msg = { filePath: fsPath };

@@ -3,7 +3,7 @@ import { execFileSync } from "node:child_process";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { afterEach, beforeEach, describe, it } from "node:test";
-import { hasGitPart, isInside, realpathLoose, Workspace } from "../../src/paths.ts";
+import { hasGitPart, isInside, peerRoot, realpathLoose, Workspace } from "../../src/paths.ts";
 import { SECRET, type Tmp, tmpWorkspace } from "../helpers/fakes.ts";
 
 let t: Tmp;
@@ -22,6 +22,15 @@ describe("helpers", () => {
     assert.ok(isInside("/a/b", "/a"));
     assert.ok(isInside("/a", "/a"));
     assert.ok(!isInside("/ab", "/a"));
+  });
+  it("peerRoot: the parent, never the root nor a home folder, inside one or holding one", () => {
+    assert.equal(peerRoot("/workspaces/proj", ["/root"]), "/workspaces");
+    assert.equal(peerRoot("/workspaces/a/proj", []), "/workspaces/a");
+    assert.equal(peerRoot("/proj", []), null, "the root");
+    assert.equal(peerRoot("/root/proj", ["/root"]), null, "$HOME");
+    assert.equal(peerRoot("/root/src/proj", ["/root"]), null, "inside $HOME");
+    assert.equal(peerRoot("/home/proj", ["/home/u"]), null, "holds $HOME");
+    assert.equal(peerRoot("/homes/proj", ["/home/u"]), "/homes");
   });
   it("hasGitPart, any case", () => {
     assert.ok(hasGitPart(".git/config"));

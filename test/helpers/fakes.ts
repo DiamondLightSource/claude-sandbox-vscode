@@ -67,9 +67,10 @@ export const SECRET = "TOP-SECRET-OUTSIDE-THE-WORKSPACE";
 /** A temp dir holding a workspace `ws/` and a sibling `outside/` with a secret file. */
 export function tmpWorkspace(): Tmp {
   const dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "csv-")));
-  const ws = path.join(dir, "ws");
+  // ws is alone in its parent: anything beside it would be a peer (peerRoot)
+  const ws = path.join(dir, "proj", "ws");
   const outside = path.join(dir, "outside");
-  fs.mkdirSync(ws);
+  fs.mkdirSync(ws, { recursive: true });
   fs.mkdirSync(outside);
   const secret = path.join(outside, "secret.md");
   fs.writeFileSync(secret, SECRET + "\n");

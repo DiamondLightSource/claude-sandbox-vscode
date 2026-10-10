@@ -47,7 +47,9 @@ never upgrades it.
   those menus, set `github.copilot.editor.enableCodeActions` to `false`. A
   preset is typed only when Claude's input box is showing; while Claude is
   working or asking you something you get a warning instead. Claude sees
-  your selection, or the cursor's file and line, for workspace files only.
+  your selection, or the cursor's file and line, for files in Claude's folder
+  and its peers (the folders beside it, such as the rest of `/workspaces`,
+  which the sandbox can read but not write).
 - **Changed this session**: the side bar lists files changed while the
   session ran (your own saves excluded, and only those git shows a change
   for). Click one for a diff against HEAD, tick **Mark as reviewed**, or
@@ -96,7 +98,9 @@ message from the sandbox is treated as hostile
   sandbox.
 - `openDiff` reads only real workspace paths outside `.git`, without
   following symlinks.
-- Diagnostics, selections and mentions are sent only for workspace files.
+- Diagnostics, selections and mentions are sent only for files in Claude's
+  folder and its peers, which the sandbox can read anyway; never for files
+  under your home folder.
 - Presets are typed only into Claude's input box (read from a virtual
   screen), never into a menu, as one bracketed paste with control characters
   removed.

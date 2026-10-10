@@ -299,12 +299,12 @@ describe("rules 1, 2, 4, 8 over the wire", () => {
     const c = await claude();
     const paths = [
       t.secret,
-      `${t.ws}/../outside/secret.md`,
+      `${t.ws}/../../outside/secret.md`,
       `${t.ws}/outdir/secret.md`,
       `${t.ws}/link.md`,
       `${t.ws}/.git/config`,
       `${t.ws}/.git/hooks/pre-commit`,
-      `${t.ws}/sub/../../outside/secret.md`,
+      `${t.ws}/sub/../../../outside/secret.md`,
       "/etc/passwd",
       "../outside/secret.md",
       "outside/secret.md",

@@ -1,7 +1,7 @@
 // Feeds the editor's selection to the bridge through SelectionTracker (src/selection.ts): only a
 // text editor showing a file replaces Claude's selection, so focusing the Claude terminal (or
-// any non-text tab) keeps it. The bridge sends it only for workspace files (trust boundary
-// rule 5) and otherwise clears Claude's.
+// any non-text tab) keeps it. The bridge sends it only for workspace files and their peers'
+// (trust boundary rule 5) and otherwise clears Claude's.
 
 import * as vscode from "vscode";
 import type { Bridge } from "../mcp.ts";
