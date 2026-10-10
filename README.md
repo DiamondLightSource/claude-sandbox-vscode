@@ -43,13 +43,17 @@ never upgrades it.
   `Ctrl+Alt+C` then `E` Explain, `R` Reword, `T` Tighten, `P` My presets,
   `M` Mention (inserts `@file#L1-3` without sending), `V` Review All. With
   text selected, **Refactor…** (`Ctrl+Shift+R`) and `Ctrl+.` list your
-  presets then Explain, Reword and Tighten; to drop Copilot's entries from
+  presets then Explain, Reword, Tighten and Mention; with no selection they
+  offer Mention, for the whole file. To drop Copilot's entries from
   those menus, set `github.copilot.editor.enableCodeActions` to `false`. A
   preset is typed only when Claude's input box is showing; while Claude is
   working or asking you something you get a warning instead. Claude sees
   your selection, or the cursor's file and line, for files in Claude's folder
   and its peers (the folders beside it, such as the rest of `/workspaces`,
-  which the sandbox can read but not write).
+  which the sandbox can read but not write); presets and Mention send those
+  over the link, and name any other file with a typed `@path`. The commands
+  reach the session started in the same VS Code window: a folder open in
+  another window has its own.
 - **Changed this session**: the side bar lists files changed while the
   session ran (your own saves excluded, and only those git shows a change
   for). Click one for a diff against HEAD, tick **Mark as reviewed**, or

@@ -45,6 +45,27 @@ export function customPresets(value: unknown): Preset[] {
   return out;
 }
 
+export interface ActionSpec {
+  title: string;
+  command: string;
+  args: unknown[];
+}
+
+/**
+ * The code actions for a range, in the Refactor menu's order: with a selection the user's
+ * presets, the built-in ones, then Mention; with none Mention alone, and only when asked for
+ * (Refactor…, Ctrl+.), so the lightbulb does not show on every line.
+ */
+export function codeActions(selected: boolean, invoked: boolean, user: readonly Preset[]): ActionSpec[] {
+  const mention: ActionSpec = { title: "Mention", command: "claudeSandbox.mention", args: [] };
+  if (!selected) return invoked ? [mention] : [];
+  return [
+    ...user.map((p) => ({ title: p.title, command: "claudeSandbox.runPreset", args: [p.title] })),
+    ...BUILTIN_PRESETS.map((p) => ({ title: p.title, command: `claudeSandbox.preset.${p.id}`, args: [] })),
+    mention,
+  ];
+}
+
 /** The user's `claudeSandbox.extraArgs` setting: strings only (anything else: none). */
 export function extraArgs(value: unknown): string[] {
   if (!Array.isArray(value)) return [];

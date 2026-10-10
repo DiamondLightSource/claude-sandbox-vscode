@@ -1,6 +1,14 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { BUILTIN_PRESETS, customPresets, extraArgs, lineSpan, PRESETS_MAX, typedRef } from "../../src/ask.ts";
+import {
+  BUILTIN_PRESETS,
+  codeActions,
+  customPresets,
+  extraArgs,
+  lineSpan,
+  PRESETS_MAX,
+  typedRef,
+} from "../../src/ask.ts";
 
 const p = (line: number, character: number) => ({ line, character });
 
@@ -31,6 +39,20 @@ describe("presets", () => {
       customPresets(Array.from({ length: 99 }, (_, i) => ({ title: `a${i}`, prompt: "b" }))).length,
       PRESETS_MAX,
     );
+  });
+  it("code actions: the user's presets, the built-in ones, then Mention; Mention alone, asked for, with no selection", () => {
+    const got = codeActions(true, false, [{ title: "Mine", prompt: "p" }]);
+    assert.deepEqual(
+      got.map((a) => a.title),
+      ["Mine", "Explain", "Reword", "Tighten", "Mention"],
+    );
+    assert.deepEqual(got[0], { title: "Mine", command: "claudeSandbox.runPreset", args: ["Mine"] });
+    assert.equal(got.at(-1)!.command, "claudeSandbox.mention");
+    assert.deepEqual(
+      codeActions(false, true, [{ title: "Mine", prompt: "p" }]).map((a) => a.command),
+      ["claudeSandbox.mention"],
+    );
+    assert.deepEqual(codeActions(false, false, []), [], "no lightbulb on every line");
   });
   it("extraArgs: strings only", () => {
     assert.deepEqual(extraArgs(["--model", "opus", 3, null, "a\u0000b"]), ["--model", "opus"]);

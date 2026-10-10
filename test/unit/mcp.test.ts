@@ -352,6 +352,10 @@ describe("rule 5: peers of the workspace folder (the jail mounts them read-only)
     bridge.select(lib, zero, { line: 0, character: 3 }, "def");
     assert.equal((peer.notes("selection_changed").at(-1) as { filePath?: string }).filePath, lib);
     assert.equal(bridge.mention(lib), true);
+    // what an ask checks before sending a selection over the link (Session)
+    assert.equal(bridge.reads.resolve(lib, { allowGit: true }).ok, true);
+    assert.equal(bridge.workspace.resolve(lib).ok, false);
+    assert.equal(bridge.reads.resolve(t.secret, { allowGit: true }).ok, false);
     bridge.select(t.secret, zero, { line: 0, character: 3 }, SECRET);
     assert.deepEqual(peer.notes("selection_changed").at(-1), cleared, "not a peer: outside");
     diags.entries = [{ uri: "file://" + lib, fsPath: lib, diagnostics: [] }];
