@@ -5,8 +5,8 @@
 //
 // So only a text editor showing a file replaces Claude's selection: its selection, or with
 // nothing selected its cursor position (file and line, as Claude Code expects). The bridge
-// sends it only for a workspace file and otherwise clears Claude's (trust boundary rule 5), so
-// selecting in a file outside the workspace clears it. Anything else (the terminal, a webview,
+// sends it only for a file in the workspace folder or a peer of it and otherwise clears
+// Claude's (trust boundary rule 5), so selecting in any other file clears it. Anything else (the terminal, a webview,
 // no editor, an editor that is not a file: output, untitled, a diff's proposal side) keeps the
 // last one, and does not cancel one still waiting for its debounce. Closing the last tab of
 // the file it came from clears it: Claude would otherwise keep a selection the user can no

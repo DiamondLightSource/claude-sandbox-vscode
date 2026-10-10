@@ -6,6 +6,7 @@
 // (as the kernel holds it) is checked again after opening.
 
 import * as fs from "node:fs";
+import * as os from "node:os";
 import * as path from "node:path";
 import * as dirfd from "./dirfd.ts";
 
@@ -50,6 +51,23 @@ export function realpathLoose(p: string): string {
       cur = parent;
     }
   }
+}
+
+/** The user's home folders, by $HOME and by the passwd entry; only compared, never opened. */
+function homes(): string[] {
+  return [process.env.HOME ?? "", os.userInfo().homedir].filter((h) => path.isAbsolute(h));
+}
+
+/**
+ * The folder holding `folder` and its peers (/workspaces for /workspaces/proj), which the jail
+ * mounts read-only, so a selection there tells Claude nothing it could not read (rule 5). Null
+ * when that is the root, or a home folder, inside one or holding one: the jail hides $HOME.
+ */
+export function peerRoot(folder: string, home: readonly string[] = homes()): string | null {
+  const parent = path.dirname(folder);
+  if (parent === path.parse(parent).root) return null;
+  if (home.some((h) => isInside(parent, h) || isInside(h, parent))) return null;
+  return parent;
 }
 
 export function hasGitPart(rel: string): boolean {
