@@ -113,7 +113,10 @@ files before reopening.
 
 ## Development
 
-Linux, Node 22.18+, `socat` and Python 3 for the tests.
+Linux, Node 22.18+, `socat` and Python 3 for the tests. The repository's
+devcontainer has all of them, installs claude-sandbox and runs `npm ci`; its
+**Run Extension** launch configuration opens an Extension Development Host
+with the development build.
 
 ```sh
 npm ci
