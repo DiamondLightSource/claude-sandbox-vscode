@@ -16,7 +16,10 @@ import { type Tmp, tmpWorkspace } from "../helpers/fakes.ts";
 import { startTestLink } from "../helpers/link.ts";
 
 const hasSocat = spawnSync("sh", ["-c", "command -v socat"]).status === 0;
-const EVIL = "a'b $(touch PWNED1) `touch PWNED2` ;c,d:e\"f!x";
+// Every character that could break the hook's quoting or socat's address syntax, kept short:
+// the socket sits in this folder and its path must fit in 107 bytes under any TMPDIR the
+// tests run with (claude-sandbox sets /var/tmp/claude-agent). `$(>F)` creates F like `touch F`.
+const EVIL = "a'b $(>PWNED1)`>PWNED2`;,:\"!x";
 
 function freePort(): Promise<number> {
   return new Promise((resolve) => {
