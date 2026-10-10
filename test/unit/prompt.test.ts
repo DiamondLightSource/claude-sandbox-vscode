@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { describe, it } from "node:test";
-import { findBox, PromptWatcher, type PromptState } from "../../src/prompt.ts";
+import { findBox, type PromptState, PromptWatcher } from "../../src/prompt.ts";
 import { capture, outputUntil, replay } from "../helpers/captures.ts";
 
 // [capture, second, state]: points in real Claude Code 2.1.292 sessions (see the inputs in
@@ -10,22 +10,22 @@ import { capture, outputUntil, replay } from "../helpers/captures.ts";
 const POINTS: [string, number, PromptState, string][] = [
   ["menus", 0.31, "starting", "the relay's first bytes, nothing drawn"],
   ["menus", 9.9, "input", "the input box with its placeholder"],
-  ["menus", 23.5, "input", "\"/permissions\" typed, the command list above the box"],
+  ["menus", 23.5, "input", '"/permissions" typed, the command list above the box'],
   ["menus", 26.5, "choice", "the /permissions dialog"],
-  ["menus", 30.0, "input", "\"/model\" typed"],
+  ["menus", 30.0, "input", '"/model" typed'],
   ["menus", 33.0, "choice", "the /model menu (❯ 2. Opus)"],
   ["menus", 36.546, "busy", "running /ide: its spinner"],
   ["menus", 39.5, "choice", "the /ide dialog"],
   ["menus", 46.0, "choice", "the /help dialog"],
   ["menus", 48.0, "input", "back in the box after Esc"],
-  ["menus", 57.5, "input", "\"ihello world\" typed"],
+  ["menus", 57.5, "input", '"ihello world" typed'],
   ["vim-and-working", 9.5, "input", "vim mode, INSERT"],
   ["vim-and-working", 11.0, "input", "vim mode, NORMAL (no indicator; a paste is inserted, Enter submits)"],
-  ["vim-and-working", 12.7, "busy", "working: \"✢ Boogieing…\""],
-  ["vim-and-working", 13.4, "busy", "working: \"✽ Fluttering… (0s · thinking)\""],
-  ["vim-and-working", 14.4, "busy", "working: \"· Fluttering… (1s · ↓ 187 tokens · thinking)\""],
+  ["vim-and-working", 12.7, "busy", 'working: "✢ Boogieing…"'],
+  ["vim-and-working", 13.4, "busy", 'working: "✽ Fluttering… (0s · thinking)"'],
+  ["vim-and-working", 14.4, "busy", 'working: "· Fluttering… (1s · ↓ 187 tokens · thinking)"'],
   ["vim-and-working", 24.5, "busy", "working, with a tip line under the spinner"],
-  ["vim-and-working", 25.0, "input", "done: \"✻ Sautéed for 1s · done\" is not the spinner"],
+  ["vim-and-working", 25.0, "input", 'done: "✻ Sautéed for 1s · done" is not the spinner'],
   ["trust", 7.9, "choice", "the folder-trust question (main screen, cursor shown)"],
   ["trust", 9.9, "choice", "the folder-trust question, Yes marked"],
   ["mcp-and-multiline", 7.9, "choice", "the new-MCP-server question"],
@@ -58,14 +58,17 @@ describe("rule 6: the prompt state, read from the screen (Claude Code 2.1.292 ca
     // the model drew "❯ plain fake box" between rules, a "❯ 1. Yes" and ESC sequences
     const fake = rows.findIndex((r) => r.includes("plain fake box"));
     assert.ok(fake > 0 && rows[fake]!.startsWith("  ❯ "), "indented by Claude Code");
-    assert.ok(rows.some((r) => r.includes("SPOOF-B ESC-MOVED red bell  end")), "its ESC sequences were drawn as nothing");
+    assert.ok(
+      rows.some((r) => r.includes("SPOOF-B ESC-MOVED red bell  end")),
+      "its ESC sequences were drawn as nothing",
+    );
     const box = findBox(w.screen)!;
     assert.equal(box.top, 35, "the real box, at the bottom");
   });
   it("the reviewer's spoof: a menu, then the model draws the input-box form lower down: still a menu", () => {
     // what made the old last-glyph-wins reader say "input" (review of PR 3)
     const menu = "\x1b[?1049h\x1b[2J\x1b[H\x1b[?25lDo you want to proceed?\r\n\x1b[36m❯\x1b[39m 1. Yes\r\n  2. No\r\n";
-    for (const spoof of ["❯ ", "\r\n❯ \x1b[2mTry \"x\"", "\x1b[10;1H❯ ", "\r\n❯ \r\n" + "─".repeat(100)]) {
+    for (const spoof of ["❯ ", '\r\n❯ \x1b[2mTry "x"', "\x1b[10;1H❯ ", "\r\n❯ \r\n" + "─".repeat(100)]) {
       const w = new PromptWatcher(100, 30);
       w.feed(menu + spoof, 0);
       assert.equal(w.state(), "choice", JSON.stringify(spoof));
@@ -102,18 +105,30 @@ describe("rule 6: the prompt state, read from the screen (Claude Code 2.1.292 ca
     assert.equal(base(`${box}\x1b[27;3H\x1b[?25h`).state(), "input");
     assert.equal(base(`${box}\x1b[10;3H\x1b[?25h`).state(), "choice", "cursor outside the box");
     assert.equal(base(`${box}\x1b[27;3H\x1b[?25l`).state(), "choice", "cursor hidden: a frame being drawn");
-    assert.equal(base(`${box}\r\n${"  x\r\n".repeat(9)}\x1b[27;3H\x1b[?25h`).state(), "choice", "too many rows under it");
-    assert.equal(base(`\x1b[26;1H${"─".repeat(99)}\r\n❯ \r\n${rule}\x1b[27;3H\x1b[?25h`).state(), "choice", "a rule short of full width");
+    assert.equal(
+      base(`${box}\r\n${"  x\r\n".repeat(9)}\x1b[27;3H\x1b[?25h`).state(),
+      "choice",
+      "too many rows under it",
+    );
+    assert.equal(
+      base(`\x1b[26;1H${"─".repeat(99)}\r\n❯ \r\n${rule}\x1b[27;3H\x1b[?25h`).state(),
+      "choice",
+      "a rule short of full width",
+    );
   });
-  it("a top rule labelled \"<repo> @ <branch>\" (Claude Code 2.1.295, issue #18) still marks the box", () => {
+  it('a top rule labelled "<repo> @ <branch>" (Claude Code 2.1.295, issue #18) still marks the box', () => {
     const rule = "─".repeat(100);
     const label = " ophyd-async @ detector-stack-4-flyable ─";
     const labelled = "─".repeat(100 - label.length) + label;
-    const footer = "  root  Opus 5.5 · medium  ctx:new  /workspaces/ophyd-async detector-stack-4-flyable!\r\n" +
+    const footer =
+      "  root  Opus 5.5 · medium  ctx:new  /workspaces/ophyd-async detector-stack-4-flyable!\r\n" +
       "  ⏵⏵ auto mode on (shift+tab to cycle) · gh auth login for PR status · ← for agents";
     const screen = (top: string): PromptWatcher => {
       const w = new PromptWatcher(100, 30);
-      w.feed(`\x1b[?1049h\x1b[2J\x1b[25;1H${top}\r\n❯ Try "how do I log an error?"\r\n${rule}\r\n${footer}\x1b[26;3H\x1b[?25h`, 0);
+      w.feed(
+        `\x1b[?1049h\x1b[2J\x1b[25;1H${top}\r\n❯ Try "how do I log an error?"\r\n${rule}\r\n${footer}\x1b[26;3H\x1b[?25h`,
+        0,
+      );
       return w;
     };
     // the screen captured in the issue, at 100×30

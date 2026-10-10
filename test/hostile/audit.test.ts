@@ -8,7 +8,7 @@ import * as fs from "node:fs";
 import { createRequire, syncBuiltinESMExports } from "node:module";
 import * as path from "node:path";
 import { describe, it } from "node:test";
-import { IdeLink } from "../../src/link.ts";
+import type { IdeLink } from "../../src/link.ts";
 import { Client, openDiff, toolCall } from "../helpers/client.ts";
 import { snapshot, tmpWorkspace, tsFiles } from "../helpers/fakes.ts";
 import { startTestLink } from "../helpers/link.ts";
@@ -34,9 +34,18 @@ describe("rule 3: no code path writes a file", () => {
   it("the changes view's Stage and Revert are the Git extension's; Revert asks first", () => {
     // a tripwire, not a proof: a Git API write anywhere else, or one moved before the prompt
     const calls = tsFiles(path.join(root, "src")).flatMap((f) =>
-      [...fs.readFileSync(f, "utf8").replace(/\/\/.*$/gm, "").matchAll(/(?<!\bthis)\.(revert|clean)\(|\brepo\.add\(/g)].map((m) => `${path.basename(f)}: ${m[0]}`),
+      [
+        ...fs
+          .readFileSync(f, "utf8")
+          .replace(/\/\/.*$/gm, "")
+          .matchAll(/(?<!\bthis)\.(revert|clean)\(|\brepo\.add\(/g),
+      ].map((m) => `${path.basename(f)}: ${m[0]}`),
     );
-    assert.deepEqual(calls.sort(), ["changesView.ts: .clean(", "changesView.ts: .revert(", "changesView.ts: repo.add("]);
+    assert.deepEqual(calls.sort(), [
+      "changesView.ts: .clean(",
+      "changesView.ts: .revert(",
+      "changesView.ts: repo.add(",
+    ]);
     const view = fs.readFileSync(path.join(root, "src", "vscode", "changesView.ts"), "utf8");
     const revert = view.slice(view.indexOf("private async revert("));
     const at = (s: string): number => revert.indexOf(s);
@@ -53,7 +62,10 @@ describe("rule 3: no code path writes a file", () => {
         .map((l) => `${path.basename(f)}: ${l.trim()}`),
     );
     assert.deepEqual(hits, ["diffView.ts: if (doc?.isDirty) await doc.save();"]);
-    assert.match(fs.readFileSync(path.join(root, "src", "vscode", "diffView.ts"), "utf8"), /d\.uri\.toString\(\) === e\.data\.right\.toString\(\)/);
+    assert.match(
+      fs.readFileSync(path.join(root, "src", "vscode", "diffView.ts"), "utf8"),
+      /d\.uri\.toString\(\) === e\.data\.right\.toString\(\)/,
+    );
   });
 
   it("src/ has no runtime dependency", () => {
@@ -74,11 +86,17 @@ describe("rules 6, 9, 10: the processes the extension starts", () => {
       .filter((f) => /child_process/.test(fs.readFileSync(f, "utf8").replace(/\/\/.*$/gm, "")))
       .map((f) => path.relative(root, f))
       .sort();
-    assert.deepEqual(users, ["src/install.ts", "src/pty.ts", "src/vscode/installOffer.ts"].filter((f) => f !== "src/install.ts"));
+    assert.deepEqual(
+      users,
+      ["src/install.ts", "src/pty.ts", "src/vscode/installOffer.ts"].filter((f) => f !== "src/install.ts"),
+    );
     // the relay: the root-owned interpreter (a test seam aside), never a shell
     assert.match(read("src/pty.ts"), /spawn\(o\.python \?\? PYTHON, helperArgs\(/);
     assert.match(read("src/pty.ts"), /shell: false/);
-    assert.match(read("src/ptyHelper.ts"), /export const PYTHON = "\/usr\/libexec\/claude-sandbox\/venv\/bin\/python";/);
+    assert.match(
+      read("src/ptyHelper.ts"),
+      /export const PYTHON = "\/usr\/libexec\/claude-sandbox\/venv\/bin\/python";/,
+    );
     assert.match(read("src/ptyHelper.ts"), /export const CLAUDE = "\/usr\/local\/bin\/claude";/);
     // the version check: claude-sandbox by absolute path
     assert.match(read("src/vscode/installOffer.ts"), /execFile\(CLAUDE_SANDBOX, \["version"\]/);
@@ -150,7 +168,10 @@ describe("rule 7: the host never opens anything under the config folder", () => 
       if (env.CSC === undefined) delete process.env.CLAUDE_SANDBOX_SHARED_CONFIG;
       else process.env.CLAUDE_SANDBOX_SHARED_CONFIG = env.CSC;
     }
-    assert.ok(seen.some((p) => p.startsWith(t.ws) || p.startsWith("/proc/self/fd/")), "the recorder saw fs calls");
+    assert.ok(
+      seen.some((p) => p.startsWith(t.ws) || p.startsWith("/proc/self/fd/")),
+      "the recorder saw fs calls",
+    );
     assert.deepEqual(
       seen.filter((p) => p.startsWith(cfg) || /\/\.claude(?![\w-])/.test(p)),
       [],

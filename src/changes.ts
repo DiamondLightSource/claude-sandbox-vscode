@@ -165,7 +165,10 @@ export class ChangeSet {
  * the session controls (a commit, `.gitignore`, `.git/info/exclude`, skip-worktree) can take
  * a file out of the view, exactly as it takes it out of Source Control.
  */
-export function splitByGit(changes: readonly Change[], inGit: (c: Change) => boolean | undefined): { active: Change[]; quiet: Change[] } {
+export function splitByGit(
+  changes: readonly Change[],
+  inGit: (c: Change) => boolean | undefined,
+): { active: Change[]; quiet: Change[] } {
   const active: Change[] = [];
   const quiet: Change[] = [];
   for (const c of changes) (inGit(c) === false ? quiet : active).push(c);
@@ -199,9 +202,13 @@ export function groupByRoot(changes: readonly Change[], rootOf: (c: Change) => s
  * selected. The selection when it holds that row (a right-click elsewhere acts on that row
  * alone), files only (a repository row in the selection is not all of its files).
  */
-export function picked<T, F extends T>(clicked: T | undefined, selected: readonly T[] | undefined, isFile: (n: T) => n is F): F[] {
+export function picked<T, F extends T>(
+  clicked: T | undefined,
+  selected: readonly T[] | undefined,
+  isFile: (n: T) => n is F,
+): F[] {
   if (clicked === undefined) return [];
-  const rows = selected !== undefined && selected.includes(clicked) ? selected : [clicked];
+  const rows = selected?.includes(clicked) ? selected : [clicked];
   return rows.filter(isFile);
 }
 
@@ -224,7 +231,10 @@ const REVIEW_TITLE = "Claude changes";
  * symlinks left out (never opened), a deleted file only when HEAD has it (else there is
  * nothing to show). `inHead` says whether HEAD has the file (false outside a repository).
  */
-export function reviewPlan(changes: readonly Change[], inHead: (c: Change) => boolean): { rows: ReviewRow[]; symlinks: number; title: string } {
+export function reviewPlan(
+  changes: readonly Change[],
+  inHead: (c: Change) => boolean,
+): { rows: ReviewRow[]; symlinks: number; title: string } {
   const rows: ReviewRow[] = [];
   let symlinks = 0;
   for (const c of changes) {

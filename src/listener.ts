@@ -40,7 +40,9 @@ export class Listener {
   /** Listen on `socketPath` (mode 0600; EADDRINUSE if anything is there already). */
   static async listen(o: ListenerOptions): Promise<Listener> {
     if (Buffer.byteLength(o.socketPath) > SUN_PATH_MAX) {
-      throw new Error(`the socket path would be longer than ${SUN_PATH_MAX} bytes (move the workspace to a shorter path): ${o.socketPath}`);
+      throw new Error(
+        `the socket path would be longer than ${SUN_PATH_MAX} bytes (move the workspace to a shorter path): ${o.socketPath}`,
+      );
     }
     const server = net.createServer({ allowHalfOpen: false, pauseOnConnect: false });
     const l = new Listener(server, o);

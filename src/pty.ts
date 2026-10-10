@@ -1,9 +1,9 @@
 // A program on a real pty, through the Python relay in ptyHelper.ts (trust boundary rule 9).
 // No vscode import: the Pseudoterminal glue is src/vscode/terminal.ts.
 
-import { spawn, type ChildProcess } from "node:child_process";
-import { StringDecoder } from "node:string_decoder";
+import { type ChildProcess, spawn } from "node:child_process";
 import type { Writable } from "node:stream";
+import { StringDecoder } from "node:string_decoder";
 import { helperArgs, PYTHON, resizeLine } from "./ptyHelper.ts";
 
 export interface PtyOptions {
@@ -39,7 +39,8 @@ export function childEnv(base: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   for (const [k, v] of Object.entries(base)) {
     // VSCODE_IPC_HOOK_CLI and friends reach the window; an inherited port would be someone
     // else's link (ours is in --settings)
-    if (k.startsWith("VSCODE_") || k.startsWith("ELECTRON_") || k === "CLAUDE_CODE_SSE_PORT" || CLAUDE_CHILD.has(k)) continue;
+    if (k.startsWith("VSCODE_") || k.startsWith("ELECTRON_") || k === "CLAUDE_CODE_SSE_PORT" || CLAUDE_CHILD.has(k))
+      continue;
     env[k] = v;
   }
   env.TERM = "xterm-256color";

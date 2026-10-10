@@ -120,6 +120,7 @@ with the development build.
 
 ```sh
 npm ci
+npm run lint        # Biome: format and lint check (npm run format fixes)
 npm run typecheck
 npm test            # test/unit and test/hostile
 npm run build       # dist/extension.cjs

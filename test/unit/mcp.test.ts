@@ -3,11 +3,29 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import { afterEach, beforeEach, describe, it } from "node:test";
 import { setTimeout as sleep } from "node:timers/promises";
-import { Bridge, DIFFS_MAX, PING_PREFIX, ENVELOPE_MAX, ID_MAX, JSON_ESCAPE_MAX, PROPOSAL_MAX, RESEND_MS, TOOLS } from "../../src/mcp.ts";
-import { HIGH_WATER, MAX_QUEUED } from "../../src/websocket.ts";
+import {
+  Bridge,
+  DIFFS_MAX,
+  ENVELOPE_MAX,
+  ID_MAX,
+  JSON_ESCAPE_MAX,
+  PING_PREFIX,
+  PROPOSAL_MAX,
+  RESEND_MS,
+  TOOLS,
+} from "../../src/mcp.ts";
 import { Workspace } from "../../src/paths.ts";
-import { IDE_CONNECTED, INITIALIZE, INITIALIZED, TOOLS_LIST, openDiff, texts, toolCall } from "../helpers/client.ts";
-import { FakeDiagnostics, FakePeer, FakePresenter, MemLogger, SECRET, tmpWorkspace, type Tmp } from "../helpers/fakes.ts";
+import { HIGH_WATER, MAX_QUEUED } from "../../src/websocket.ts";
+import { IDE_CONNECTED, INITIALIZE, INITIALIZED, openDiff, TOOLS_LIST, texts, toolCall } from "../helpers/client.ts";
+import {
+  FakeDiagnostics,
+  FakePeer,
+  FakePresenter,
+  MemLogger,
+  SECRET,
+  type Tmp,
+  tmpWorkspace,
+} from "../helpers/fakes.ts";
 
 let t: Tmp;
 let presenter: FakePresenter;
@@ -71,7 +89,10 @@ describe("handshake as Claude Code 2.1.292 sends it", () => {
 
 describe("rule 1: four tools, nothing that runs anything", () => {
   it("lists exactly openDiff, close_tab, closeAllDiffTabs, getDiagnostics", () => {
-    assert.deepEqual(TOOLS.map((x) => x.name), ["openDiff", "close_tab", "closeAllDiffTabs", "getDiagnostics"]);
+    assert.deepEqual(
+      TOOLS.map((x) => x.name),
+      ["openDiff", "close_tab", "closeAllDiffTabs", "getDiagnostics"],
+    );
     assert.doesNotMatch(JSON.stringify(TOOLS), /executeCode/);
   });
   it("executeCode as a tool is -32602, as a method -32601; unknown methods -32601", () => {
@@ -112,7 +133,10 @@ describe("rule 2/3: openDiff", () => {
     send(openDiff(3, target, "line one\ngoodbye\n", "tab"));
     assert.equal(peer.reply(3), undefined, "Claude waits for the user");
     const v = presenter.shown[0]!;
-    assert.deepEqual({ ...v, id: "" }, { id: "", file: target, title: "tab", old: DOC, proposed: "line one\ngoodbye\n", exists: true });
+    assert.deepEqual(
+      { ...v, id: "" },
+      { id: "", file: target, title: "tab", old: DOC, proposed: "line one\ngoodbye\n", exists: true },
+    );
     assert.ok(bridge.decide(v.id, { kind: "accept", contents: "edited\n" }));
     assert.deepEqual(texts(peer.reply(3)), ["FILE_SAVED", "edited\n"]);
     assert.equal(fs.readFileSync(target, "utf8"), DOC);
@@ -166,12 +190,27 @@ describe("rule 2/3: openDiff", () => {
     fs.writeFileSync(path.join(t.ws, "other.md"), "o\n");
     const { peer, send } = ready();
     let id = 10;
-    for (const p of [t.secret, path.join(t.ws, "link.md"), path.join(t.ws, ".git", "config"), `${t.ws}/../outside/secret.md`, "relative.md", t.ws, "/etc/passwd"]) {
+    for (const p of [
+      t.secret,
+      path.join(t.ws, "link.md"),
+      path.join(t.ws, ".git", "config"),
+      `${t.ws}/../outside/secret.md`,
+      "relative.md",
+      t.ws,
+      "/etc/passwd",
+    ]) {
       send(openDiff(id, p, "x\n"));
       const r = peer.reply(id++)!;
       assert.equal((r.result as { isError: boolean }).isError, true, p);
     }
-    send(toolCall(30, "openDiff", { old_file_path: target, new_file_path: path.join(t.ws, "other.md"), new_file_contents: "x", tab_name: "t" }));
+    send(
+      toolCall(30, "openDiff", {
+        old_file_path: target,
+        new_file_path: path.join(t.ws, "other.md"),
+        new_file_contents: "x",
+        tab_name: "t",
+      }),
+    );
     assert.match(texts(peer.reply(30))[0]!, /one file at a time/);
     send(toolCall(31, "openDiff", { old_file_path: 1 }));
     assert.equal((peer.reply(31)!.error as { code: number }).code, -32602);
@@ -244,7 +283,11 @@ describe("connections", () => {
 
 describe("rule 4: getDiagnostics", () => {
   it("returns only workspace files' diagnostics", () => {
-    const d = { message: "m", severity: "Error", range: { start: { line: 0, character: 0 }, end: { line: 0, character: 1 } } };
+    const d = {
+      message: "m",
+      severity: "Error",
+      range: { start: { line: 0, character: 0 }, end: { line: 0, character: 1 } },
+    };
     diags.entries = [
       { uri: "file://" + target, fsPath: target, diagnostics: [d] },
       { uri: "file://" + t.secret, fsPath: t.secret, diagnostics: [{ ...d, message: SECRET }] },
@@ -285,7 +328,9 @@ describe("rule 5: selection_changed", () => {
     bridge.select(t.secret, { line: 0, character: 0 }, { line: 0, character: 3 }, SECRET);
     bridge.select(path.join(t.ws, "link.md"), { line: 0, character: 0 }, { line: 0, character: 3 }, SECRET);
     const zero = { line: 0, character: 0 };
-    assert.deepEqual(peer.notes("selection_changed").slice(1), [{ text: "", selection: { start: zero, end: zero, isEmpty: true } }]);
+    assert.deepEqual(peer.notes("selection_changed").slice(1), [
+      { text: "", selection: { start: zero, end: zero, isEmpty: true } },
+    ]);
     assert.doesNotMatch(JSON.stringify(peer.sent), new RegExp(SECRET));
   });
 });
@@ -327,21 +372,39 @@ describe("rule 5: at_mentioned", () => {
     assert.equal(bridge.mention(target), true);
     assert.equal(bridge.mention(t.secret), false);
     assert.equal(bridge.mention(path.join(t.ws, ".git", "config")), false);
-    assert.deepEqual(peer.notes("at_mentioned"), [{ filePath: target, lineStart: 1, lineEnd: 2 }, { filePath: target }]);
+    assert.deepEqual(peer.notes("at_mentioned"), [
+      { filePath: target, lineStart: 1, lineEnd: 2 },
+      { filePath: target },
+    ]);
   });
 });
 
 describe("rule 8: hostile JSON", () => {
   it("__proto__ / constructor payloads pollute nothing and are read as own keys only", () => {
     const { peer, conn } = ready();
-    bridge.receive(conn, '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"__proto__":{"name":"openDiff"},"name":"getDiagnostics","arguments":{"__proto__":{"uri":"file:///etc/passwd"}}}}');
+    bridge.receive(
+      conn,
+      '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"__proto__":{"name":"openDiff"},"name":"getDiagnostics","arguments":{"__proto__":{"uri":"file:///etc/passwd"}}}}',
+    );
     assert.deepEqual(texts(peer.reply(3)), ["[]"]);
-    bridge.receive(conn, `{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"openDiff","arguments":{"__proto__":{"old_file_path":"${target}","new_file_contents":"x","tab_name":"t"}}}}`);
+    bridge.receive(
+      conn,
+      `{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"openDiff","arguments":{"__proto__":{"old_file_path":"${target}","new_file_contents":"x","tab_name":"t"}}}}`,
+    );
     assert.equal((peer.reply(4)!.error as { code: number }).code, -32602, "inherited arguments are not arguments");
-    bridge.receive(conn, '{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"constructor","arguments":{}}}');
+    bridge.receive(
+      conn,
+      '{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"constructor","arguments":{}}}',
+    );
     assert.equal((peer.reply(5)!.error as { code: number }).code, -32602);
-    bridge.receive(conn, `{"jsonrpc":"2.0","id":6,"method":"tools/call","params":{"name":"openDiff","arguments":{"old_file_path":"${target}","new_file_contents":"x","tab_name":"__proto__"}}}`);
-    bridge.receive(conn, '{"jsonrpc":"2.0","id":7,"method":"tools/call","params":{"name":"close_tab","arguments":{"tab_name":"__proto__"}}}');
+    bridge.receive(
+      conn,
+      `{"jsonrpc":"2.0","id":6,"method":"tools/call","params":{"name":"openDiff","arguments":{"old_file_path":"${target}","new_file_contents":"x","tab_name":"__proto__"}}}`,
+    );
+    bridge.receive(
+      conn,
+      '{"jsonrpc":"2.0","id":7,"method":"tools/call","params":{"name":"close_tab","arguments":{"tab_name":"__proto__"}}}',
+    );
     assert.deepEqual(texts(peer.reply(6)), ["TAB_CLOSED"]);
     assert.equal(({} as Record<string, unknown>).name, undefined);
     assert.equal(({} as Record<string, unknown>).uri, undefined);

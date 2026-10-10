@@ -5,8 +5,8 @@ import {
   checkUpgrade,
   encodeFrame,
   FrameParser,
-  parseRequestHead,
   ProtocolError,
+  parseRequestHead,
   tokenMatches,
   type UpgradeRequest,
 } from "../../src/websocket.ts";
@@ -53,7 +53,10 @@ describe("handshake", () => {
 
   it("answers 101, echoes mcp, never offers an extension", () => {
     const r = checkUpgrade(
-      req({ "sec-websocket-protocol": ["mcp"], "sec-websocket-extensions": ["permessage-deflate; client_max_window_bits"] }),
+      req({
+        "sec-websocket-protocol": ["mcp"],
+        "sec-websocket-extensions": ["permessage-deflate; client_max_window_bits"],
+      }),
       TOKEN,
     );
     assert.ok(r.ok);
@@ -67,7 +70,15 @@ describe("handshake", () => {
   });
 
   it("refuses a wrong, missing or doubled token, other paths and non-upgrades", () => {
-    for (const bad of [[], [""], ["b".repeat(64)], [TOKEN.slice(1)], [TOKEN + "0"], [TOKEN.toUpperCase()], [TOKEN, TOKEN]]) {
+    for (const bad of [
+      [],
+      [""],
+      ["b".repeat(64)],
+      [TOKEN.slice(1)],
+      [TOKEN + "0"],
+      [TOKEN.toUpperCase()],
+      [TOKEN, TOKEN],
+    ]) {
       const r = checkUpgrade(req({ "x-claude-code-ide-authorization": bad }), TOKEN);
       assert.ok(!r.ok && r.status === 401, JSON.stringify(bad));
     }
@@ -136,31 +147,68 @@ describe("frames", () => {
       ev.map((e) => e.type),
       ["close"],
     );
-    assert.equal(codeOf(() => new FrameParser().push(clientFrame(8, Buffer.from([3])))), 1002);
+    assert.equal(
+      codeOf(() => new FrameParser().push(clientFrame(8, Buffer.from([3])))),
+      1002,
+    );
   });
 
   it("refuses RSV bits (no permessage-deflate), unmasked frames and bad control frames", () => {
-    assert.equal(codeOf(() => new FrameParser().push(clientFrame(1, Buffer.from("x"), { rsv: 4 }))), 1002);
-    assert.equal(codeOf(() => new FrameParser().push(clientFrame(1, Buffer.from("x"), { mask: false }))), 1002);
-    assert.equal(codeOf(() => new FrameParser().push(clientFrame(9, Buffer.alloc(126)))), 1002);
-    assert.equal(codeOf(() => new FrameParser().push(clientFrame(9, Buffer.alloc(1), { fin: false }))), 1002);
-    assert.equal(codeOf(() => new FrameParser().push(clientFrame(3, Buffer.alloc(1)))), 1002);
-    assert.equal(codeOf(() => new FrameParser().push(clientFrame(0, Buffer.alloc(1)))), 1002);
     assert.equal(
-      codeOf(() => new FrameParser().push(Buffer.concat([clientFrame(1, Buffer.from("a"), { fin: false }), clientFrame(1, Buffer.from("b"))]))),
+      codeOf(() => new FrameParser().push(clientFrame(1, Buffer.from("x"), { rsv: 4 }))),
+      1002,
+    );
+    assert.equal(
+      codeOf(() => new FrameParser().push(clientFrame(1, Buffer.from("x"), { mask: false }))),
+      1002,
+    );
+    assert.equal(
+      codeOf(() => new FrameParser().push(clientFrame(9, Buffer.alloc(126)))),
+      1002,
+    );
+    assert.equal(
+      codeOf(() => new FrameParser().push(clientFrame(9, Buffer.alloc(1), { fin: false }))),
+      1002,
+    );
+    assert.equal(
+      codeOf(() => new FrameParser().push(clientFrame(3, Buffer.alloc(1)))),
+      1002,
+    );
+    assert.equal(
+      codeOf(() => new FrameParser().push(clientFrame(0, Buffer.alloc(1)))),
+      1002,
+    );
+    assert.equal(
+      codeOf(() =>
+        new FrameParser().push(
+          Buffer.concat([clientFrame(1, Buffer.from("a"), { fin: false }), clientFrame(1, Buffer.from("b"))]),
+        ),
+      ),
       1002,
     );
   });
 
   it("refuses an oversized message from its header alone (1009)", () => {
-    assert.equal(codeOf(() => new FrameParser(100).push(clientFrame(1, Buffer.alloc(0), { length: 101 }).subarray(0, 4))), 1009);
-    assert.equal(codeOf(() => new FrameParser().push(clientFrame(1, Buffer.alloc(0), { length: 2 ** 53 }).subarray(0, 10))), 1009);
+    assert.equal(
+      codeOf(() => new FrameParser(100).push(clientFrame(1, Buffer.alloc(0), { length: 101 }).subarray(0, 4))),
+      1009,
+    );
+    assert.equal(
+      codeOf(() => new FrameParser().push(clientFrame(1, Buffer.alloc(0), { length: 2 ** 53 }).subarray(0, 10))),
+      1009,
+    );
     const p = new FrameParser(100);
     p.push(clientFrame(1, Buffer.alloc(60), { fin: false }));
-    assert.equal(codeOf(() => p.push(clientFrame(0, Buffer.alloc(41)))), 1009);
+    assert.equal(
+      codeOf(() => p.push(clientFrame(0, Buffer.alloc(41)))),
+      1009,
+    );
   });
 
   it("refuses text that is not UTF-8 (1007)", () => {
-    assert.equal(codeOf(() => new FrameParser().push(clientFrame(1, Buffer.from([0xff, 0xfe])))), 1007);
+    assert.equal(
+      codeOf(() => new FrameParser().push(clientFrame(1, Buffer.from([0xff, 0xfe])))),
+      1007,
+    );
   });
 });

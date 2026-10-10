@@ -18,6 +18,7 @@
             // Add the IDs of extensions you want installed when the container is created.
             "extensions": [
                 "github.vscode-github-actions",
+                "biomejs.biome",
                 "redhat.vscode-yaml",
                 "ms-azuretools.vscode-docker"
             ]

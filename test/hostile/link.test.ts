@@ -7,11 +7,11 @@ import * as net from "node:net";
 import * as path from "node:path";
 import { afterEach, beforeEach, describe, it } from "node:test";
 import { setTimeout as sleep } from "node:timers/promises";
-import { IdeLink, socketName, type LinkOptions } from "../../src/link.ts";
-import { Workspace } from "../../src/paths.ts";
+import { type IdeLink, type LinkOptions, socketName } from "../../src/link.ts";
+import type { Workspace } from "../../src/paths.ts";
 import { HIGH_WATER, MAX_MESSAGE, MAX_QUEUED } from "../../src/websocket.ts";
 import { Client, clientFrame, isError, openDiff, texts, toolCall } from "../helpers/client.ts";
-import { FakePresenter, MemLogger, SECRET, snapshot, tmpWorkspace, type Tmp } from "../helpers/fakes.ts";
+import { FakePresenter, MemLogger, SECRET, snapshot, type Tmp, tmpWorkspace } from "../helpers/fakes.ts";
 import { startTestLink } from "../helpers/link.ts";
 
 let t: Tmp;
@@ -248,7 +248,10 @@ describe("rule 8: the socket and the handshake", () => {
     const mute = await claude();
     await mute.until(() => mute.closed, PING * 10);
     assert.ok(mute.closed, "dropped after a ping went unanswered");
-    assert.ok(mute.frames.some((f) => f.op === 9), "it was pinged");
+    assert.ok(
+      mute.frames.some((f) => f.op === 9),
+      "it was pinged",
+    );
     await unlinked();
     const live = await claude();
     live.autoPong = true;
@@ -289,7 +292,6 @@ describe("rule 8: the socket and the handshake", () => {
     assert.deepEqual((await c.call({ jsonrpc: "2.0", id: 9, method: "ping" }))?.result, {});
     c.end();
   });
-
 });
 
 describe("rules 1, 2, 4, 8 over the wire", () => {
@@ -330,7 +332,8 @@ describe("rules 1, 2, 4, 8 over the wire", () => {
     const ws = link.workspace;
     const orig = ws.readInside.bind(ws);
     let swap: (() => void) | undefined;
-    (ws as { readInside: Workspace["readInside"] }).readInside = (real, folder) => orig(real, folder, { beforeOpen: () => swap?.() });
+    (ws as { readInside: Workspace["readInside"] }).readInside = (real, folder) =>
+      orig(real, folder, { beforeOpen: () => swap?.() });
     const c = await claude();
     const target = path.join(t.ws, "target.md");
     swap = () => {

@@ -2,10 +2,16 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { setTimeout as sleep } from "node:timers/promises";
 import type { Position } from "../../src/mcp.ts";
-import { SelectionTracker, SELECTION_MAX, type EditorSelection } from "../../src/selection.ts";
+import { type EditorSelection, SELECTION_MAX, SelectionTracker } from "../../src/selection.ts";
 
 const p = (line: number, character: number): Position => ({ line, character });
-const ed = (fsPath: string, start: Position, end: Position, text = "", scheme = "file"): EditorSelection => ({ scheme, fsPath, start, end, text });
+const ed = (fsPath: string, start: Position, end: Position, text = "", scheme = "file"): EditorSelection => ({
+  scheme,
+  fsPath,
+  start,
+  end,
+  text,
+});
 
 // what Claude holds, as the bridge decides it (rule 5: only workspace files, else cleared)
 function setup() {

@@ -32,7 +32,7 @@ exec /usr/libexec/claude-sandbox/venv/bin/python -I -m claude_sandbox _shadow "\
 describe("rule 10: the install offer", () => {
   it("knows the shadow shim (and nothing else) for claude-sandbox's", () => {
     assert.equal(isShadow(SHIM), true);
-    assert.equal(isShadow("#!/bin/sh\nexec /root/.local/bin/claude \"$@\"\n"), false);
+    assert.equal(isShadow('#!/bin/sh\nexec /root/.local/bin/claude "$@"\n'), false);
     assert.equal(isShadow("\x7fELF..." + SHADOW_MARK), false, "a binary is not the shim");
   });
   it("installState: the shim, the CLI and the interpreter, read without blocking on a FIFO", () => {
@@ -40,10 +40,17 @@ describe("rule 10: the install offer", () => {
     try {
       const shim = path.join(d, "claude");
       const cli = path.join(d, "claude-sandbox");
-      assert.match(installState("/bin/sh", "/bin/sh", path.join(d, "python")).why ?? "", /^\/bin\/sh is not claude-sandbox's/);
+      assert.match(
+        installState("/bin/sh", "/bin/sh", path.join(d, "python")).why ?? "",
+        /^\/bin\/sh is not claude-sandbox's/,
+      );
       fs.writeFileSync(shim, SHIM);
       fs.writeFileSync(cli, "#!/bin/sh\n", { mode: 0o755 });
-      assert.match(installState(shim, cli, path.join(d, "python")).why!, /python is missing/, "a missing interpreter is not installed");
+      assert.match(
+        installState(shim, cli, path.join(d, "python")).why!,
+        /python is missing/,
+        "a missing interpreter is not installed",
+      );
       fs.rmSync(shim);
       fs.rmSync(cli);
       assert.equal(installState(shim, cli).installed, false);

@@ -24,8 +24,8 @@
 //   MAX_QUEUED, even JSON-escaped at its worst and with HIGH_WATER queued already.
 
 import { isObj, own } from "./json.ts";
-import { Workspace } from "./paths.ts";
 import { esc, type Logger } from "./log.ts";
+import { Workspace } from "./paths.ts";
 import { HIGH_WATER, MAX_QUEUED } from "./websocket.ts";
 
 /** JSON.stringify writes a byte of UTF-8 text as at most 6 (a control character: \u00XX). */
@@ -301,7 +301,7 @@ export class Bridge {
       return;
     }
     const method = own(msg, "method");
-    const hasId = Object.prototype.hasOwnProperty.call(msg, "id");
+    const hasId = Object.hasOwn(msg, "id");
     const rid = own(msg, "id");
     if (method === undefined) {
       // an answer to a request of ours: only pings are sent, under ids of our own
@@ -427,7 +427,12 @@ export class Bridge {
     const nw = own(args, "new_file_path") ?? old;
     const contents = own(args, "new_file_contents");
     const title = own(args, "tab_name");
-    if (typeof old !== "string" || typeof nw !== "string" || typeof contents !== "string" || typeof title !== "string") {
+    if (
+      typeof old !== "string" ||
+      typeof nw !== "string" ||
+      typeof contents !== "string" ||
+      typeof title !== "string"
+    ) {
       return rpcError(rid, -32602, "openDiff needs old_file_path, new_file_contents and tab_name");
     }
     const refuse = (why: string): Msg => {
@@ -436,7 +441,8 @@ export class Bridge {
     };
     // first, so a refusal reads nothing
     if (this.diffs.size >= DIFFS_MAX) return refuse("too many changes are waiting in VS Code");
-    if (Buffer.byteLength(contents) > PROPOSAL_MAX) return refuse(`VS Code shows changes of at most ${PROPOSAL_MAX} bytes`);
+    if (Buffer.byteLength(contents) > PROPOSAL_MAX)
+      return refuse(`VS Code shows changes of at most ${PROPOSAL_MAX} bytes`);
     const ws = this.o.workspace;
     const a = ws.resolve(old);
     if (!a.ok) return refuse(`VS Code shows changes to workspace files only (${a.why})`);
@@ -488,7 +494,7 @@ export class Bridge {
   // -- to Claude
 
   private live(): Conn | null {
-    return this.conn !== null && this.conn.ready ? this.conn : null;
+    return this.conn?.ready ? this.conn : null;
   }
 
   /**
@@ -561,7 +567,10 @@ export class Bridge {
     const conn = this.live();
     if (!conn) return false;
     const zero = { line: 0, character: 0 };
-    return this.sendTo(conn, notify("selection_changed", { text: "", selection: { start: zero, end: zero, isEmpty: true } }));
+    return this.sendTo(
+      conn,
+      notify("selection_changed", { text: "", selection: { start: zero, end: zero, isEmpty: true } }),
+    );
   }
 }
 
@@ -576,4 +585,3 @@ function notify(method: string, params: unknown): Msg {
 function fileUrl(p: string): string {
   return "file://" + p.split("/").map(encodeURIComponent).join("/");
 }
-

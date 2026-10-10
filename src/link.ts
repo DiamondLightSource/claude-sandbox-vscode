@@ -5,13 +5,13 @@
 import { randomBytes, randomInt } from "node:crypto";
 import * as fs from "node:fs";
 import * as path from "node:path";
+import * as dirfd from "./dirfd.ts";
 import { Listener } from "./listener.ts";
 import { esc, type Logger } from "./log.ts";
 import { Bridge, type DiagnosticsSource, type DiffPresenter, type LinkState } from "./mcp.ts";
 import { Workspace } from "./paths.ts";
-import { linkSettings, PORT_MAX, PORT_MIN, type LinkSettings } from "./settings.ts";
+import { type LinkSettings, linkSettings, PORT_MAX, PORT_MIN } from "./settings.ts";
 import type { WsConnection, WsOptions } from "./websocket.ts";
-import * as dirfd from "./dirfd.ts";
 
 export function socketName(port: number): string {
   return `.claude-sandbox-vscode-${port}.sock`;

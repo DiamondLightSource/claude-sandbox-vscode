@@ -4,7 +4,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import { afterEach, beforeEach, describe, it } from "node:test";
 import { hasGitPart, isInside, realpathLoose, Workspace } from "../../src/paths.ts";
-import { SECRET, tmpWorkspace, type Tmp } from "../helpers/fakes.ts";
+import { SECRET, type Tmp, tmpWorkspace } from "../helpers/fakes.ts";
 
 let t: Tmp;
 let ws: Workspace;
@@ -76,8 +76,16 @@ describe("resolve", () => {
 describe("readInside", () => {
   it("reads text, keeps CRLF, reports a missing file as new", () => {
     assert.deepEqual(ws.readInside(path.join(t.ws, "a.md"), t.ws), { kind: "text", text: "hello\n", exists: true });
-    assert.deepEqual(ws.readInside(path.join(t.ws, "sub", "b.md"), t.ws), { kind: "text", text: "b\r\n", exists: true });
-    assert.deepEqual(ws.readInside(path.join(t.ws, "nope", "c.md"), t.ws), { kind: "missing", text: "", exists: false });
+    assert.deepEqual(ws.readInside(path.join(t.ws, "sub", "b.md"), t.ws), {
+      kind: "text",
+      text: "b\r\n",
+      exists: true,
+    });
+    assert.deepEqual(ws.readInside(path.join(t.ws, "nope", "c.md"), t.ws), {
+      kind: "missing",
+      text: "",
+      exists: false,
+    });
   });
   it("refuses binary, FIFOs, directories, .git and paths outside", () => {
     fs.writeFileSync(path.join(t.ws, "bin.dat"), Buffer.from([0, 1, 2]));

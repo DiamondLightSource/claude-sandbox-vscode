@@ -5,7 +5,7 @@
 // jail. What each event means (closing the tab is a rejection...) is src/diffTabs.ts.
 
 import * as vscode from "vscode";
-import { DiffTabs, diffColumn, diffIdOf, ORIGINAL_SCHEME, PROPOSAL_SCHEME, type Entry } from "../diffTabs.ts";
+import { DiffTabs, diffColumn, diffIdOf, type Entry, ORIGINAL_SCHEME, PROPOSAL_SCHEME } from "../diffTabs.ts";
 import type { Decision, DiffPresenter, DiffView } from "../mcp.ts";
 
 interface Shown {
@@ -69,7 +69,9 @@ export class DiffEditors implements DiffPresenter, vscode.Disposable {
     this.tabs = new DiffTabs<Shown>(decide);
     this.claudeName = claudeName;
     this.subs.push(
-      vscode.workspace.registerFileSystemProvider(PROPOSAL_SCHEME, new ProposalFs(this.tabs), { isCaseSensitive: true }),
+      vscode.workspace.registerFileSystemProvider(PROPOSAL_SCHEME, new ProposalFs(this.tabs), {
+        isCaseSensitive: true,
+      }),
       vscode.workspace.registerTextDocumentContentProvider(ORIGINAL_SCHEME, {
         provideTextDocumentContent: (uri) => this.tabs.get(diffIdOf(uri) ?? "")?.data.view.old ?? "",
       }),
@@ -121,7 +123,8 @@ export class DiffEditors implements DiffPresenter, vscode.Disposable {
       all.map((g) => ({
         column: g.viewColumn,
         active: g === active,
-        holdsClaude: name !== undefined && g.tabs.some((t) => t.input instanceof vscode.TabInputTerminal && t.label === name),
+        holdsClaude:
+          name !== undefined && g.tabs.some((t) => t.input instanceof vscode.TabInputTerminal && t.label === name),
       })),
     );
   }
@@ -161,7 +164,7 @@ export class DiffEditors implements DiffPresenter, vscode.Disposable {
   }
 
   dispose(): void {
-    this.subs.forEach((s) => s.dispose());
+    for (const s of this.subs) s.dispose();
     this.tabs.clear();
   }
 }

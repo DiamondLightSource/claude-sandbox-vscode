@@ -17,7 +17,10 @@ import * as path from "node:path";
 import * as vscode from "vscode";
 import {
   CHANGES_MAX,
+  type Change,
+  type ChangeGroup,
   ChangeSet,
+  type EntryKind,
   entryKind as entry,
   freshStatus as fresh,
   groupByRoot,
@@ -25,9 +28,6 @@ import {
   picked,
   reviewPlan,
   splitByGit,
-  type Change,
-  type ChangeGroup,
-  type EntryKind,
 } from "../changes.ts";
 
 /** A row of the view: a file, or (when the files span several repositories) a repository. */
@@ -135,23 +135,41 @@ export class ChangesView implements vscode.TreeDataProvider<Node>, vscode.Dispos
   onCount: (unreviewed: number) => void = () => undefined;
 
   constructor() {
-    this.view = vscode.window.createTreeView("claudeSandbox.changes", { treeDataProvider: this, showCollapseAll: false, canSelectMany: true });
+    this.view = vscode.window.createTreeView("claudeSandbox.changes", {
+      treeDataProvider: this,
+      showCollapseAll: false,
+      canSelectMany: true,
+    });
     this.subs.push(
       this.view,
       this.emitter,
       vscode.workspace.registerTextDocumentContentProvider(EMPTY_SCHEME, { provideTextDocumentContent: () => "" }),
       vscode.commands.registerCommand("claudeSandbox.openChange", (c?: Change) => c && this.open(c, false)),
-      vscode.commands.registerCommand("claudeSandbox.markReviewed", (c?: Node, sel?: Node[]) => this.mark(files(c, sel), true)),
-      vscode.commands.registerCommand("claudeSandbox.markUnreviewed", (c?: Node, sel?: Node[]) => this.mark(files(c, sel), false)),
-      vscode.commands.registerCommand("claudeSandbox.openChangedFile", (c?: Node, sel?: Node[]) => this.openFiles(files(c, sel))),
-      vscode.commands.registerCommand("claudeSandbox.stageChange", (c?: Node, sel?: Node[]) => this.stage(files(c, sel))),
-      vscode.commands.registerCommand("claudeSandbox.revertChange", (c?: Node, sel?: Node[]) => this.revert(files(c, sel))),
+      vscode.commands.registerCommand("claudeSandbox.markReviewed", (c?: Node, sel?: Node[]) =>
+        this.mark(files(c, sel), true),
+      ),
+      vscode.commands.registerCommand("claudeSandbox.markUnreviewed", (c?: Node, sel?: Node[]) =>
+        this.mark(files(c, sel), false),
+      ),
+      vscode.commands.registerCommand("claudeSandbox.openChangedFile", (c?: Node, sel?: Node[]) =>
+        this.openFiles(files(c, sel)),
+      ),
+      vscode.commands.registerCommand("claudeSandbox.stageChange", (c?: Node, sel?: Node[]) =>
+        this.stage(files(c, sel)),
+      ),
+      vscode.commands.registerCommand("claudeSandbox.revertChange", (c?: Node, sel?: Node[]) =>
+        this.revert(files(c, sel)),
+      ),
       vscode.commands.registerCommand("claudeSandbox.revertAll", () => this.revert(this.shown())),
       vscode.commands.registerCommand("claudeSandbox.revealChange", (c?: Node) => {
         if (c && isFile(c)) void vscode.commands.executeCommand("revealInExplorer", vscode.Uri.file(c.path));
       }),
-      vscode.commands.registerCommand("claudeSandbox.copyChangePath", (c?: Node, sel?: Node[]) => this.copy(files(c, sel), false)),
-      vscode.commands.registerCommand("claudeSandbox.copyChangeRelativePath", (c?: Node, sel?: Node[]) => this.copy(files(c, sel), true)),
+      vscode.commands.registerCommand("claudeSandbox.copyChangePath", (c?: Node, sel?: Node[]) =>
+        this.copy(files(c, sel), false),
+      ),
+      vscode.commands.registerCommand("claudeSandbox.copyChangeRelativePath", (c?: Node, sel?: Node[]) =>
+        this.copy(files(c, sel), true),
+      ),
       vscode.commands.registerCommand("claudeSandbox.reviewAll", () => this.reviewAll()),
       vscode.commands.registerCommand("claudeSandbox.markAllReviewed", () => {
         let any = false;
@@ -199,7 +217,9 @@ export class ChangesView implements vscode.TreeDataProvider<Node>, vscode.Dispos
       return;
     }
     if (!this.canStep) {
-      void vscode.window.showInformationMessage("Claude Sandbox: stepping through changes needs VS Code 1.106 or later.");
+      void vscode.window.showInformationMessage(
+        "Claude Sandbox: stepping through changes needs VS Code 1.106 or later.",
+      );
       return;
     }
     await vscode.commands.executeCommand(STEP[dir]);
@@ -231,7 +251,7 @@ export class ChangesView implements vscode.TreeDataProvider<Node>, vscode.Dispos
   }
 
   private unfollow(): void {
-    this.repos.forEach((d) => d.dispose());
+    for (const d of this.repos.values()) d.dispose();
     this.repos.clear();
   }
 
@@ -255,11 +275,20 @@ export class ChangesView implements vscode.TreeDataProvider<Node>, vscode.Dispos
       this.rootOf.set(c.path, repo.rootUri.fsPath);
       this.inRepo.add(c.path);
       const root = repo.rootUri.toString();
-      if (!this.repos.has(root)) this.repos.set(root, repo.state.onDidChange(() => this.refreshSoon()));
+      if (!this.repos.has(root))
+        this.repos.set(
+          root,
+          repo.state.onDidChange(() => this.refreshSoon()),
+        );
       let paths = changed.get(root);
       if (paths === undefined) {
         const s = repo.state;
-        const all = [...s.workingTreeChanges, ...s.indexChanges, ...(s.untrackedChanges ?? []), ...(s.mergeChanges ?? [])];
+        const all = [
+          ...s.workingTreeChanges,
+          ...s.indexChanges,
+          ...(s.untrackedChanges ?? []),
+          ...(s.mergeChanges ?? []),
+        ];
         paths = new Set(all.flatMap((x) => (x.originalUri ? [x.uri.fsPath, x.originalUri.fsPath] : [x.uri.fsPath])));
         changed.set(root, paths);
       }
@@ -270,7 +299,7 @@ export class ChangesView implements vscode.TreeDataProvider<Node>, vscode.Dispos
 
   /** The session ended: the list stays for review, nothing more is recorded. */
   stop(): void {
-    this.watching.forEach((d) => d.dispose());
+    for (const d of this.watching) d.dispose();
     this.watching = [];
     for (const t of this.autoTimers.values()) clearTimeout(t);
     this.autoTimers.clear();
@@ -347,7 +376,8 @@ export class ChangesView implements vscode.TreeDataProvider<Node>, vscode.Dispos
   private original(git: GitApi, repo: GitRepository, c: Change, uri: vscode.Uri): vscode.Uri {
     const s = repo.state;
     const isNew = [...s.workingTreeChanges, ...s.indexChanges, ...(s.untrackedChanges ?? [])].some(
-      (x) => x.uri.fsPath === c.path && (x.status === UNTRACKED || x.status === INDEX_ADDED || x.status === INTENT_TO_ADD),
+      (x) =>
+        x.uri.fsPath === c.path && (x.status === UNTRACKED || x.status === INDEX_ADDED || x.status === INTENT_TO_ADD),
     );
     return isNew ? empty(uri) : git.toGitUri(uri, "HEAD");
   }
@@ -367,19 +397,29 @@ export class ChangesView implements vscode.TreeDataProvider<Node>, vscode.Dispos
     const uri = vscode.Uri.file(c.path);
     const name = path.basename(c.path);
     if ((await this.check(c)) === "symlink") {
-      if (!auto) void vscode.window.showInformationMessage(`${name} is a symlink: it is not opened here. Look at it in Source Control.`);
+      if (!auto)
+        void vscode.window.showInformationMessage(
+          `${name} is a symlink: it is not opened here. Look at it in Source Control.`,
+        );
       return;
     }
     const opts: vscode.TextDocumentShowOptions = { preview: true, preserveFocus: auto };
     const git = await gitApi();
     const repo = git?.getRepository(uri) ?? null;
     if (git === null || repo === null) {
-      if (c.kind === "deleted") void vscode.window.showInformationMessage(`${name} was deleted (not in a Git repository).`);
+      if (c.kind === "deleted")
+        void vscode.window.showInformationMessage(`${name} was deleted (not in a Git repository).`);
       else await vscode.window.showTextDocument(uri, opts);
       return;
     }
     if (c.kind === "deleted") {
-      await vscode.commands.executeCommand("vscode.diff", git.toGitUri(uri, "HEAD"), empty(uri), `${name} (deleted)`, opts);
+      await vscode.commands.executeCommand(
+        "vscode.diff",
+        git.toGitUri(uri, "HEAD"),
+        empty(uri),
+        `${name} (deleted)`,
+        opts,
+      );
       return;
     }
     await fresh([repo]);
@@ -406,14 +446,21 @@ export class ChangesView implements vscode.TreeDataProvider<Node>, vscode.Dispos
     for (const c of list) if (c.kind !== "deleted") await this.check(c); // a symlink now is marked
     const plan = reviewPlan(list, (c) => {
       const repo = repoOf(c);
-      return git !== null && repo !== null && (c.kind === "deleted" || this.original(git, repo, c, vscode.Uri.file(c.path)).scheme !== EMPTY_SCHEME);
+      return (
+        git !== null &&
+        repo !== null &&
+        (c.kind === "deleted" || this.original(git, repo, c, vscode.Uri.file(c.path)).scheme !== EMPTY_SCHEME)
+      );
     });
     const rows = plan.rows.map((r): [vscode.Uri, vscode.Uri | undefined, vscode.Uri | undefined] => {
       const uri = vscode.Uri.file(r.path);
       return [uri, r.head && git !== null ? git.toGitUri(uri, "HEAD") : undefined, r.now ? uri : undefined];
     });
     const links = plan.symlinks;
-    if (links > 0) void vscode.window.showInformationMessage(`Claude Sandbox: ${links} symlink${links === 1 ? " is" : "s are"} left out of the review.`);
+    if (links > 0)
+      void vscode.window.showInformationMessage(
+        `Claude Sandbox: ${links} symlink${links === 1 ? " is" : "s are"} left out of the review.`,
+      );
     if (rows.length === 0) {
       void vscode.window.showInformationMessage("Claude Sandbox: no changed files to review.");
       return;
@@ -438,7 +485,12 @@ export class ChangesView implements vscode.TreeDataProvider<Node>, vscode.Dispos
       if (c.kind === "deleted") continue;
       const e = await this.check(c);
       if (e !== "file") {
-        const why = e === "symlink" ? "is a symlink: it is not opened here. Look at it in Source Control." : e === "dir" ? "is now a folder." : "is gone.";
+        const why =
+          e === "symlink"
+            ? "is a symlink: it is not opened here. Look at it in Source Control."
+            : e === "dir"
+              ? "is now a folder."
+              : "is gone.";
         void vscode.window.showInformationMessage(`${path.basename(c.path)} ${why}`);
         continue;
       }
@@ -453,7 +505,9 @@ export class ChangesView implements vscode.TreeDataProvider<Node>, vscode.Dispos
   }
 
   /** The files by repository (status re-read), and how many are in none. */
-  private async byRepo(cs: readonly Change[]): Promise<{ repos: { repo: GitRepository; paths: string[] }[]; outside: number }> {
+  private async byRepo(
+    cs: readonly Change[],
+  ): Promise<{ repos: { repo: GitRepository; paths: string[] }[]; outside: number }> {
     const git = await gitApi();
     const repos = new Map<string, { repo: GitRepository; paths: string[] }>();
     let outside = 0;
@@ -474,7 +528,10 @@ export class ChangesView implements vscode.TreeDataProvider<Node>, vscode.Dispos
   }
 
   private notInGit(n: number): void {
-    if (n > 0) void vscode.window.showInformationMessage(`Claude Sandbox: ${n} file${n === 1 ? " is" : "s are"} not in a Git repository: left as they are.`);
+    if (n > 0)
+      void vscode.window.showInformationMessage(
+        `Claude Sandbox: ${n} file${n === 1 ? " is" : "s are"} not in a Git repository: left as they are.`,
+      );
   }
 
   /** Source Control's Stage, by the Git extension; a staged file counts as reviewed. */
@@ -485,10 +542,15 @@ export class ChangesView implements vscode.TreeDataProvider<Node>, vscode.Dispos
       try {
         await r.repo.add(r.paths);
       } catch (e) {
-        void vscode.window.showErrorMessage(`Claude Sandbox: staging failed: ${e instanceof Error ? e.message : String(e)}`);
+        void vscode.window.showErrorMessage(
+          `Claude Sandbox: staging failed: ${e instanceof Error ? e.message : String(e)}`,
+        );
         continue;
       }
-      this.mark(cs.filter((c) => r.paths.includes(c.path)), true);
+      this.mark(
+        cs.filter((c) => r.paths.includes(c.path)),
+        true,
+      );
     }
   }
 
@@ -528,9 +590,20 @@ export class ChangesView implements vscode.TreeDataProvider<Node>, vscode.Dispos
         const want = new Set(paths);
         // a staged rename is reset whole: one side alone would leave the other staged
         const sides = (x: GitChange): string[] => [x.uri.fsPath, ...(x.originalUri ? [x.originalUri.fsPath] : [])];
-        const staged = [...new Set(repo.state.indexChanges.map(sides).filter((ps) => ps.some((p) => want.has(p))).flat())];
+        const staged = [
+          ...new Set(
+            repo.state.indexChanges
+              .map(sides)
+              .filter((ps) => ps.some((p) => want.has(p)))
+              .flat(),
+          ),
+        ];
         // staged paths HEAD lacks (added, or a rename's or copy's new path): untracked once reset
-        const added = new Set(repo.state.indexChanges.filter((x) => [INDEX_ADDED, INDEX_RENAMED, INDEX_COPIED].includes(x.status)).map((x) => x.uri.fsPath));
+        const added = new Set(
+          repo.state.indexChanges
+            .filter((x) => [INDEX_ADDED, INDEX_RENAMED, INDEX_COPIED].includes(x.status))
+            .map((x) => x.uri.fsPath),
+        );
         if (staged.length > 0) {
           await repo.revert(staged);
           await repo.status();
@@ -539,14 +612,27 @@ export class ChangesView implements vscode.TreeDataProvider<Node>, vscode.Dispos
         await repo.clean(all);
         await repo.status();
         const s = repo.state;
-        const still = new Set([...s.workingTreeChanges, ...s.indexChanges, ...(s.untrackedChanges ?? []), ...(s.mergeChanges ?? [])].flatMap(sides));
+        const still = new Set(
+          [
+            ...s.workingTreeChanges,
+            ...s.indexChanges,
+            ...(s.untrackedChanges ?? []),
+            ...(s.mergeChanges ?? []),
+          ].flatMap(sides),
+        );
         for (const p of all) if (still.has(p) || (added.has(p) && (await entry(p)) !== "gone")) left.push(p);
       } catch (e) {
-        void vscode.window.showErrorMessage(`Claude Sandbox: revert failed: ${e instanceof Error ? e.message : String(e)}`);
+        void vscode.window.showErrorMessage(
+          `Claude Sandbox: revert failed: ${e instanceof Error ? e.message : String(e)}`,
+        );
       }
     }
     if (left.length > 0) {
-      const names = left.slice(0, 3).map((p) => path.basename(p)).join(", ") + (left.length > 3 ? ", …" : "");
+      const names =
+        left
+          .slice(0, 3)
+          .map((p) => path.basename(p))
+          .join(", ") + (left.length > 3 ? ", …" : "");
       void vscode.window.showWarningMessage(
         `Claude Sandbox: ${left.length} file${left.length === 1 ? " was" : "s were"} not reverted (${names}): look at ${left.length === 1 ? "it" : "them"} with git status.`,
       );
@@ -595,7 +681,13 @@ export class ChangesView implements vscode.TreeDataProvider<Node>, vscode.Dispos
     item.tooltip = `${c.path}\n${c.kind}${c.reviewed ? ", reviewed" : ""}`;
     if (c.reviewed) item.iconPath = new vscode.ThemeIcon("pass", new vscode.ThemeColor("testing.iconPassed"));
     // "change;reviewed|unreviewed" then ";deleted", ";symlink", ";git": the menus' when clauses
-    item.contextValue = ["change", c.reviewed ? "reviewed" : "unreviewed", c.kind === "deleted" ? "deleted" : "", c.symlink ? "symlink" : "", this.inRepo.has(c.path) ? "git" : ""]
+    item.contextValue = [
+      "change",
+      c.reviewed ? "reviewed" : "unreviewed",
+      c.kind === "deleted" ? "deleted" : "",
+      c.symlink ? "symlink" : "",
+      this.inRepo.has(c.path) ? "git" : "",
+    ]
       .filter(Boolean)
       .join(";");
     item.command = { command: "claudeSandbox.openChange", title: "Open diff", arguments: [c] };
@@ -606,6 +698,6 @@ export class ChangesView implements vscode.TreeDataProvider<Node>, vscode.Dispos
     this.stop();
     this.unfollow();
     if (this.refreshTimer) clearTimeout(this.refreshTimer);
-    this.subs.forEach((s) => s.dispose());
+    for (const s of this.subs) s.dispose();
   }
 }

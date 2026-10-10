@@ -48,7 +48,9 @@ export function encodeFrame(opcode: number, payload: Buffer = Buffer.alloc(0)): 
 }
 
 export function acceptKey(key: string): string {
-  return createHash("sha1").update(key + WS_GUID).digest("base64");
+  return createHash("sha1")
+    .update(key + WS_GUID)
+    .digest("base64");
 }
 
 /** Constant-time comparison of a presented token with ours (any lengths). */
@@ -81,14 +83,13 @@ export function parseRequestHead(head: string): UpgradeRequest | null {
     const name = line.slice(0, i).trim().toLowerCase();
     if (!/^[a-z0-9!#$%&'*+.^_`|~-]+$/.test(name)) return null;
     const value = line.slice(i + 1).trim();
+    // biome-ignore lint/suspicious/noAssignInExpressions: create the list on first use
     (headers[name] ??= []).push(value);
   }
   return { method: m[1]!, path: m[2]!, version: m[3]!, headers };
 }
 
-export type HandshakeResult =
-  | { ok: true; response: string }
-  | { ok: false; status: number; reason: string };
+export type HandshakeResult = { ok: true; response: string } | { ok: false; status: number; reason: string };
 
 /** Check an upgrade request against our token; the 101 response, or why it is refused. */
 export function checkUpgrade(req: UpgradeRequest, token: string): HandshakeResult {
@@ -103,7 +104,9 @@ export function checkUpgrade(req: UpgradeRequest, token: string): HandshakeResul
     return { ok: false, status: 401, reason: "missing or wrong X-Claude-Code-Ide-Authorization" };
   }
   const key = one("sec-websocket-key");
-  const conn = one("connection").split(",").map((t) => t.trim().toLowerCase());
+  const conn = one("connection")
+    .split(",")
+    .map((t) => t.trim().toLowerCase());
   if (
     one("upgrade").toLowerCase() !== "websocket" ||
     !conn.includes("upgrade") ||
@@ -337,7 +340,7 @@ export class WsConnection {
   /** Start delivering messages (bytes that arrived before this are delivered now). */
   start(handlers: WsHandlers, early?: Buffer): void {
     this.handlers = handlers;
-    if (early && early.length) this.pending.push(early);
+    if (early?.length) this.pending.push(early);
     const queued = this.pending;
     this.pending = [];
     for (const b of queued) this.receive(b);

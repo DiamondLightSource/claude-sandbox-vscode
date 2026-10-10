@@ -35,7 +35,7 @@ async function report(r: SendResult, host: PresetHost): Promise<void> {
 
 function needSession(host: PresetHost): Session | null {
   const s = host.session();
-  if (s !== null && s.running) return s;
+  if (s?.running) return s;
   void vscode.window
     .showWarningMessage("Claude Sandbox: start the linked session first.", "Start")
     .then((pick) => pick && host.start());

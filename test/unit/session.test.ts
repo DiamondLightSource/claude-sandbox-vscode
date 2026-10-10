@@ -4,7 +4,7 @@ import { setTimeout as sleep } from "node:timers/promises";
 import type { LinkState, Position } from "../../src/mcp.ts";
 import { PASTE_END, PASTE_START } from "../../src/paste.ts";
 import { PromptWatcher } from "../../src/prompt.ts";
-import { Session, type LinkPort } from "../../src/session.ts";
+import { type LinkPort, Session } from "../../src/session.ts";
 import { outputUntil } from "../helpers/captures.ts";
 
 // whole screens as Claude Code 2.1.292 drew them (test/fixtures/), each fed over whatever came before
@@ -21,13 +21,17 @@ class FakeLink implements LinkPort {
   onPing: () => void = () => undefined;
   readonly workspace = {
     resolve: (f: unknown) =>
-      typeof f === "string" && f.startsWith("/w/") ? { ok: true as const, real: f, folder: "/w" } : { ok: false as const, why: "outside" },
+      typeof f === "string" && f.startsWith("/w/")
+        ? { ok: true as const, real: f, folder: "/w" }
+        : { ok: false as const, why: "outside" },
   };
   waitingDiffs(): string[] {
     return this.diffs;
   }
   select(fsPath: string, start: Position, end: Position, text: string): void {
-    this.log.push(`select ${fsPath} ${start.line}:${start.character}-${end.line}:${end.character} ${JSON.stringify(text)}`);
+    this.log.push(
+      `select ${fsPath} ${start.line}:${start.character}-${end.line}:${end.character} ${JSON.stringify(text)}`,
+    );
   }
   clearSelection(): boolean {
     this.log.push("clear");
