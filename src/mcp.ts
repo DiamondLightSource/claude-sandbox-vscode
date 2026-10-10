@@ -206,12 +206,12 @@ export class Bridge {
   private nextPing = 1;
   private readonly pings = new Map<string, { conn: Conn; done: (ok: boolean) => void }>();
   private readonly salt = Math.random().toString(16).slice(2, 10);
-  private peers: Workspace;
+  private readable: Workspace;
   state: LinkState = "waiting";
 
   constructor(options: BridgeOptions) {
     this.o = { ...options };
-    this.peers = this.withPeers(this.o.workspace);
+    this.readable = this.withPeers(this.o.workspace);
   }
 
   private withPeers(ws: Workspace): Workspace {
@@ -256,14 +256,14 @@ export class Bridge {
    * selections, mentions and diagnostics cover, and so the ones an ask sends over the link.
    */
   get reads(): Workspace {
-    return this.peers;
+    return this.readable;
   }
 
   /** The window's folders changed: paths are checked against the new set from now on. */
   setFolders(folders: readonly string[]): void {
     // a folder that cannot be resolved (already gone) is left out
     this.o.workspace = new Workspace(folders.filter((f) => Workspace.resolvable(f)));
-    this.peers = this.withPeers(this.o.workspace);
+    this.readable = this.withPeers(this.o.workspace);
   }
 
   detach(conn: Conn): void {

@@ -163,8 +163,8 @@ message as hostile. These rules are the security design; each has a test in
    is waited for at most 20 s, then nothing is typed. A typed @-mention (no
    link) goes only into the input box; `at_mentioned` and `selection_changed`
    only for files inside a workspace folder or a peer of one (rule 5): an ask
-   checks the same set (`Bridge.reads`) before sending its selection. The user's keys wait while an ask
-   is between its paste and its Enter. **Residual:** the screen says what
+   checks the same set (`Bridge.reads`) before sending its selection. The
+   user's keys wait while an ask is between its paste and its Enter. **Residual:** the screen says what
    Claude Code drew, and a menu that appears between the last check and the
    Enter takes that Enter; and whatever an Enter reaches (an answered
    question, a submitted prompt) still runs inside the jail, never on the

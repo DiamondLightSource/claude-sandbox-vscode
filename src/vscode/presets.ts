@@ -1,7 +1,8 @@
 // Explain / Reword / Tighten, the user's own presets and "Mention in Claude", from the editor's
 // context menu and keybindings, and as code actions from the Refactor menu and Ctrl+. (the
-// presets for a selection, Mention for a selection or the whole file: codeActions in src/ask.ts). Each goes to the linked session (src/session.ts decides whether and
-// how it may be typed). The user's presets come only from the application-scoped setting
+// presets for a selection, Mention for a selection or the whole file: codeActions in
+// src/ask.ts). Each goes to the linked session (src/session.ts decides whether and how it may
+// be typed). The user's presets come only from the application-scoped setting
 // `claudeSandbox.presets`: the workspace cannot set them, and a code action names one by title,
 // never carries a prompt.
 

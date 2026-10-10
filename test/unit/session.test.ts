@@ -21,8 +21,8 @@ class FakeLink implements LinkPort {
   onPing: () => void = () => undefined;
   // the workspace folder /w and a peer /peer (Bridge.reads)
   readonly reads = {
-    resolve: (f: unknown) =>
-      typeof f === "string" && /^\/(w|peer)\//.test(f)
+    resolve: (f: unknown, opts: { allowGit?: boolean } = {}) =>
+      typeof f === "string" && /^\/(w|peer)\//.test(f) && (opts.allowGit || !f.split("/").includes(".git"))
         ? { ok: true as const, real: f, folder: f.startsWith("/w/") ? "/w" : "/peer" }
         : { ok: false as const, why: "outside" },
   };
@@ -120,6 +120,12 @@ describe("rule 6: asks are typed only into Claude Code's input box", () => {
     });
     assert.deepEqual(r, { ok: true, via: "ide" });
     assert.equal(typed[0], paste("@/peer/lib.py Review it"));
+  });
+  it("a file under .git (a commit message): its selection goes over the link, as select() allows", async () => {
+    const { s, link } = setup({ output: BOX });
+    const r = await s.ask({ question: "Tighten", file: { ...sel, fsPath: "/w/.git/COMMIT_EDITMSG" } });
+    assert.deepEqual(r, { ok: true, via: "ide" });
+    assert.ok(link!.log[0]!.startsWith("select /w/.git/COMMIT_EDITMSG "));
   });
   it("a file outside the workspace: Claude's selection is cleared first, nothing of it sent", async () => {
     const { s, link } = setup({ output: BOX });
