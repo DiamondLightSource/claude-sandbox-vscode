@@ -32,7 +32,8 @@ const POLL_MS = 50;
 /** What the session needs of the link (the Bridge). */
 export interface LinkPort {
   readonly state: LinkState;
-  readonly workspace: { resolve(p: unknown): Resolved };
+  /** The files a selection is sent for: the workspace folders and their peers. */
+  readonly reads: { resolve(p: unknown, opts?: { allowGit?: boolean }): Resolved };
   waitingDiffs(): string[];
   select(fsPath: string, start: Position, end: Position, text: string): void;
   clearSelection(): boolean;
@@ -196,7 +197,8 @@ export class Session {
     let via: "ide" | "typed" = "typed";
     const link = this.o.link();
     if (link !== null && link.state === "connected" && f !== undefined) {
-      if (link.workspace.resolve(f.fsPath).ok) {
+      // the same files select() sends, so a peer's selection goes over the link too
+      if (link.reads.resolve(f.fsPath, { allowGit: true }).ok) {
         link.select(f.fsPath, f.start, f.end, f.text);
         if (await link.ping()) {
           await this.sleep(SETTLE_MS); // Claude stores the selection a moment after answering
@@ -230,7 +232,7 @@ export class Session {
 
   /**
    * Put an @-mention of a file (and lines) into Claude's prompt, never Enter: at_mentioned
-   * over the link for a workspace file, else typed, and typed only into the input box.
+   * over the link for a file in a workspace folder or a peer, else typed, and typed only into the input box.
    */
   mention(f: FileRange): Promise<SendResult> {
     return this.serial(async () => {

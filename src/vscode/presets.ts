@@ -1,12 +1,13 @@
 // Explain / Reword / Tighten, the user's own presets and "Mention in Claude", from the editor's
-// context menu and keybindings, and the presets, for a selection, from the Refactor menu and
-// Ctrl+. (as code actions). Each goes to the linked session (src/session.ts decides whether and
-// how it may be typed). The user's presets come only from the application-scoped setting
+// context menu and keybindings, and as code actions from the Refactor menu and Ctrl+. (the
+// presets for a selection, Mention for a selection or the whole file: codeActions in
+// src/ask.ts). Each goes to the linked session (src/session.ts decides whether and how it may
+// be typed). The user's presets come only from the application-scoped setting
 // `claudeSandbox.presets`: the workspace cannot set them, and a code action names one by title,
 // never carries a prompt.
 
 import * as vscode from "vscode";
-import { BUILTIN_PRESETS, customPresets, type Preset } from "../ask.ts";
+import { BUILTIN_PRESETS, codeActions, customPresets, type Preset } from "../ask.ts";
 import type { FileRange, SendResult, Session } from "../session.ts";
 
 export interface PresetHost {
@@ -55,21 +56,21 @@ function userPresets(): Preset[] {
 
 const KIND = vscode.CodeActionKind.RefactorRewrite.append("claudeSandbox");
 
-/** A selection's presets, the user's first then the built-in ones, in the Refactor menu and Ctrl+. */
+/** The presets and Mention in the Refactor menu and Ctrl+. (codeActions). */
 class PresetActions implements vscode.CodeActionProvider {
   static readonly metadata: vscode.CodeActionProviderMetadata = { providedCodeActionKinds: [KIND] };
 
-  provideCodeActions(_doc: vscode.TextDocument, range: vscode.Range | vscode.Selection): vscode.CodeAction[] {
-    if (range.isEmpty) return [];
-    const action = (title: string, command: string, args: unknown[] = []): vscode.CodeAction => {
+  provideCodeActions(
+    _doc: vscode.TextDocument,
+    range: vscode.Range | vscode.Selection,
+    context: vscode.CodeActionContext,
+  ): vscode.CodeAction[] {
+    const invoked = context.triggerKind === vscode.CodeActionTriggerKind.Invoke;
+    return codeActions(!range.isEmpty, invoked, userPresets()).map(({ title, command, args }) => {
       const a = new vscode.CodeAction(`Claude: ${title}`, KIND);
       a.command = { title, command, arguments: args };
       return a;
-    };
-    return [
-      ...userPresets().map((p) => action(p.title, "claudeSandbox.runPreset", [p.title])),
-      ...BUILTIN_PRESETS.map((p) => action(p.title, `claudeSandbox.preset.${p.id}`)),
-    ];
+    });
   }
 }
 

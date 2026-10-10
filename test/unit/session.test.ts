@@ -19,10 +19,11 @@ class FakeLink implements LinkPort {
   pingOk = true;
   log: string[] = [];
   onPing: () => void = () => undefined;
-  readonly workspace = {
-    resolve: (f: unknown) =>
-      typeof f === "string" && f.startsWith("/w/")
-        ? { ok: true as const, real: f, folder: "/w" }
+  // the workspace folder /w and a peer /peer (Bridge.reads)
+  readonly reads = {
+    resolve: (f: unknown, opts: { allowGit?: boolean } = {}) =>
+      typeof f === "string" && /^\/(w|peer)\//.test(f) && (opts.allowGit || !f.split("/").includes(".git"))
+        ? { ok: true as const, real: f, folder: f.startsWith("/w/") ? "/w" : "/peer" }
         : { ok: false as const, why: "outside" },
   };
   waitingDiffs(): string[] {
@@ -43,7 +44,7 @@ class FakeLink implements LinkPort {
     return this.pingOk;
   }
   mention(fsPath: string, lines?: { start: number; end: number }): boolean {
-    if (!this.workspace.resolve(fsPath).ok) return false;
+    if (!this.reads.resolve(fsPath).ok) return false;
     this.log.push(`mention ${fsPath}${lines ? ` ${lines.start}-${lines.end}` : ""}`);
     return true;
   }
@@ -103,6 +104,28 @@ describe("rule 6: asks are typed only into Claude Code's input box", () => {
     const b = setup({ output: BOX, link: null });
     assert.deepEqual(await b.s.ask({ question: "Explain", file: sel }), { ok: true, via: "typed" });
     assert.equal(b.typed[0], paste("@a.py#L2-3 Explain"));
+  });
+  it("a peer's file: its selection goes over the link, as a workspace file's does", async () => {
+    const { s, link, typed } = setup({ output: BOX });
+    const r = await s.ask({ question: "Explain", file: { ...sel, fsPath: "/peer/lib.py" } });
+    assert.deepEqual(r, { ok: true, via: "ide" });
+    assert.deepEqual(link!.log.slice(0, 2), ['select /peer/lib.py 1:0-3:0 "x = 1\\ny = 2\\n"', "ping"]);
+    assert.equal(typed[0], paste("Explain"));
+  });
+  it("a peer's whole file is named with a typed absolute @-mention", async () => {
+    const { s, typed } = setup({ output: BOX });
+    const r = await s.ask({
+      question: "Review it",
+      file: { fsPath: "/peer/lib.py", start: p(0, 0), end: p(0, 0), text: "" },
+    });
+    assert.deepEqual(r, { ok: true, via: "ide" });
+    assert.equal(typed[0], paste("@/peer/lib.py Review it"));
+  });
+  it("a file under .git (a commit message): its selection goes over the link, as select() allows", async () => {
+    const { s, link } = setup({ output: BOX });
+    const r = await s.ask({ question: "Tighten", file: { ...sel, fsPath: "/w/.git/COMMIT_EDITMSG" } });
+    assert.deepEqual(r, { ok: true, via: "ide" });
+    assert.ok(link!.log[0]!.startsWith("select /w/.git/COMMIT_EDITMSG "));
   });
   it("a file outside the workspace: Claude's selection is cleared first, nothing of it sent", async () => {
     const { s, link } = setup({ output: BOX });
