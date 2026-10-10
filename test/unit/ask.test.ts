@@ -6,7 +6,10 @@ const p = (line: number, character: number) => ({ line, character });
 
 describe("presets", () => {
   it("Explain, Reword and Tighten are built in", () => {
-    assert.deepEqual(BUILTIN_PRESETS.map((x) => x.id), ["explain", "reword", "tighten"]);
+    assert.deepEqual(
+      BUILTIN_PRESETS.map((x) => x.id),
+      ["explain", "reword", "tighten"],
+    );
   });
   it("the user's presets: valid entries only, trimmed, capped, first of a title; prototype keys are plain keys", () => {
     const got = customPresets([
@@ -24,7 +27,10 @@ describe("presets", () => {
       { title: "Own", prompt: "p" },
     ]);
     assert.deepEqual(customPresets("x"), []);
-    assert.equal(customPresets(Array.from({ length: 99 }, (_, i) => ({ title: `a${i}`, prompt: "b" }))).length, PRESETS_MAX);
+    assert.equal(
+      customPresets(Array.from({ length: 99 }, (_, i) => ({ title: `a${i}`, prompt: "b" }))).length,
+      PRESETS_MAX,
+    );
   });
   it("extraArgs: strings only", () => {
     assert.deepEqual(extraArgs(["--model", "opus", 3, null, "a\u0000b"]), ["--model", "opus"]);

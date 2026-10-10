@@ -10,5 +10,5 @@ export function isObj(v: unknown): v is JsonObj {
 
 /** An own property of parsed JSON, never one inherited from Object.prototype. */
 export function own(o: unknown, k: string): unknown {
-  return isObj(o) && Object.prototype.hasOwnProperty.call(o, k) ? o[k] : undefined;
+  return isObj(o) && Object.hasOwn(o, k) ? o[k] : undefined;
 }

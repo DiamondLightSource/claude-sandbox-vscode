@@ -16,7 +16,12 @@ const src = (dir: string): string =>
 describe("rule 11: settings the workspace cannot set", () => {
   it("every setting is application-scoped (user settings only: not workspace, folder, or a devcontainer's machine settings)", () => {
     const props = pkg.contributes.configuration.properties as Record<string, { scope?: string }>;
-    assert.deepEqual(Object.keys(props).sort(), ["claudeSandbox.autoOpenDiffs", "claudeSandbox.extraArgs", "claudeSandbox.presets", "claudeSandbox.reviewEdits"]);
+    assert.deepEqual(Object.keys(props).sort(), [
+      "claudeSandbox.autoOpenDiffs",
+      "claudeSandbox.extraArgs",
+      "claudeSandbox.presets",
+      "claudeSandbox.reviewEdits",
+    ]);
     for (const [k, v] of Object.entries(props)) assert.equal(v.scope, "application", k);
   });
   it("the code reads no other setting of ours, and nothing that runs from settings", () => {
@@ -24,7 +29,11 @@ describe("rule 11: settings the workspace cannot set", () => {
     const ours = [...code.matchAll(/getConfiguration\("claudeSandbox"\)\.get(?:<[^>]+>)?\("(\w+)"/g)].map((m) => m[1]);
     assert.deepEqual([...new Set(ours)].sort(), ["autoOpenDiffs", "extraArgs", "presets", "reviewEdits"]);
     const others = [...code.matchAll(/getConfiguration\("(\w+)"\)/g)].map((m) => m[1]);
-    assert.deepEqual([...new Set(others)].sort(), ["claudeSandbox"], "no other extension's settings (files.watcherExclude is workspace-writable)");
+    assert.deepEqual(
+      [...new Set(others)].sort(),
+      ["claudeSandbox"],
+      "no other extension's settings (files.watcherExclude is workspace-writable)",
+    );
   });
 });
 
@@ -33,10 +42,16 @@ describe("the manifest", () => {
     const kb = pkg.contributes.keybindings as { command: string; key: string; mac?: string; when?: string }[];
     // F8 and Shift+F8 (VS Code's next and previous problem) step through changes, but only in
     // Review All or with the Changes view focused
-    const steps = kb.filter((k) => k.command === "claudeSandbox.nextChange" || k.command === "claudeSandbox.previousChange");
+    const steps = kb.filter(
+      (k) => k.command === "claudeSandbox.nextChange" || k.command === "claudeSandbox.previousChange",
+    );
     assert.deepEqual(steps.map((k) => k.key).sort(), ["f8", "shift+f8"]);
     for (const k of steps) {
-      assert.equal(k.when, "claudeSandbox.reviewing && activeEditor == 'multiDiffEditor' || focusedView == 'claudeSandbox.changes'", k.command);
+      assert.equal(
+        k.when,
+        "claudeSandbox.reviewing && activeEditor == 'multiDiffEditor' || focusedView == 'claudeSandbox.changes'",
+        k.command,
+      );
     }
     const chords = kb.filter((k) => !steps.includes(k));
     for (const k of chords) {

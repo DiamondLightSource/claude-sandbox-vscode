@@ -9,10 +9,10 @@ import * as fs from "node:fs";
 import * as net from "node:net";
 import * as path from "node:path";
 import { afterEach, beforeEach, describe, it } from "node:test";
-import { IdeLink } from "../../src/link.ts";
+import type { IdeLink } from "../../src/link.ts";
 import { lockJson, sessionEndCommand, sessionStartCommand } from "../../src/settings.ts";
 import { Client } from "../helpers/client.ts";
-import { tmpWorkspace, type Tmp } from "../helpers/fakes.ts";
+import { type Tmp, tmpWorkspace } from "../helpers/fakes.ts";
 import { startTestLink } from "../helpers/link.ts";
 
 const hasSocat = spawnSync("sh", ["-c", "command -v socat"]).status === 0;
@@ -191,7 +191,10 @@ describe("rule 7: SessionEnd removes only a lock that is ours, byte for byte", (
   const ours = (): string => lockJson(PORT, TOKEN, [t.ws]);
   function end(): { status: number | null; stdout: string; stderr: string; ms: number } {
     const t0 = Date.now();
-    const r = run(sessionEndCommand(PORT, TOKEN, [t.ws]), { PATH: process.env.PATH ?? "/usr/bin:/bin", HOME: path.join(t.dir, "home") });
+    const r = run(sessionEndCommand(PORT, TOKEN, [t.ws]), {
+      PATH: process.env.PATH ?? "/usr/bin:/bin",
+      HOME: path.join(t.dir, "home"),
+    });
     return { ...r, ms: Date.now() - t0 };
   }
   function lockPath(): string {
@@ -215,7 +218,14 @@ describe("rule 7: SessionEnd removes only a lock that is ours, byte for byte", (
   it("keeps ours with a trailing newline, a NUL, a byte changed, a prefix or a suffix", () => {
     const f = lockPath();
     const o = ours();
-    for (const v of [o + "\n", o + "\n\n", o.slice(0, 10) + "\0" + o.slice(10), "X" + o.slice(1), o.slice(0, -1), o + "x"]) {
+    for (const v of [
+      o + "\n",
+      o + "\n\n",
+      o.slice(0, 10) + "\0" + o.slice(10),
+      "X" + o.slice(1),
+      o.slice(0, -1),
+      o + "x",
+    ]) {
       fs.writeFileSync(f, v);
       silent(end());
       assert.equal(fs.readFileSync(f, "utf8"), v, JSON.stringify(v.slice(-3)));

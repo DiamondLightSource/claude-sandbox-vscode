@@ -14,7 +14,14 @@ import { IdeLink } from "./link.ts";
 import type { Logger } from "./log.ts";
 import type { LinkState } from "./mcp.ts";
 import { CLAUDE } from "./ptyHelper.ts";
-import { mergeSettings, SettingsError, shellQuote, withReviewEdits, withSettings, type LinkSettings } from "./settings.ts";
+import {
+  type LinkSettings,
+  mergeSettings,
+  SettingsError,
+  shellQuote,
+  withReviewEdits,
+  withSettings,
+} from "./settings.ts";
 import { ChangesView } from "./vscode/changesView.ts";
 import { vscodeDiagnostics } from "./vscode/diagnostics.ts";
 import { DiffEditors } from "./vscode/diffView.ts";
@@ -73,9 +80,14 @@ export function activate(context: vscode.ExtensionContext): void {
   const pickRoot = async (roots: readonly string[]): Promise<string | undefined> => {
     if (roots.length === 1) return roots[0];
     const last = context.workspaceState.get<string>(LAST_ROOT);
-    const ordered = last !== undefined && roots.includes(last) ? [last, ...roots.filter((r) => r !== last)] : [...roots];
+    const ordered =
+      last !== undefined && roots.includes(last) ? [last, ...roots.filter((r) => r !== last)] : [...roots];
     const pick = await vscode.window.showQuickPick(
-      ordered.map((r) => ({ label: vscode.workspace.getWorkspaceFolder(vscode.Uri.file(r))?.name ?? r, description: r, root: r })),
+      ordered.map((r) => ({
+        label: vscode.workspace.getWorkspaceFolder(vscode.Uri.file(r))?.name ?? r,
+        description: r,
+        root: r,
+      })),
       { title: "Claude Sandbox: start in which folder?", placeHolder: "Claude can write only this folder" },
     );
     if (pick !== undefined) await context.workspaceState.update(LAST_ROOT, pick.root);
@@ -187,7 +199,9 @@ export function activate(context: vscode.ExtensionContext): void {
       if (root === undefined) return;
       const l = await ensureLink(root);
       if (l === undefined) return;
-      await vscode.env.clipboard.writeText(`claude --settings ${shellQuote(JSON.stringify(mergeSettings(null, sessionSettings(l))))}`);
+      await vscode.env.clipboard.writeText(
+        `claude --settings ${shellQuote(JSON.stringify(mergeSettings(null, sessionSettings(l))))}`,
+      );
       void vscode.window.showInformationMessage(
         `Claude Sandbox: launch command copied. Paste it into a devcontainer terminal in ${root}. It holds the link's token.`,
       );

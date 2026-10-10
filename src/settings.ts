@@ -56,7 +56,13 @@ export function lockJson(port: number, token: string, folders: readonly string[]
   checkPort(port);
   checkToken(token);
   folders.forEach(checkPath);
-  return JSON.stringify({ pid: 1, workspaceFolders: [...folders], ideName: IDE_NAME, transport: "ws", authToken: token });
+  return JSON.stringify({
+    pid: 1,
+    workspaceFolders: [...folders],
+    ideName: IDE_NAME,
+    transport: "ws",
+    authToken: token,
+  });
 }
 
 /** /proc/net/tcp's form of 127.0.0.1:port in LISTEN state. */

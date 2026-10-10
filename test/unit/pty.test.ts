@@ -4,9 +4,9 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { describe, it } from "node:test";
 import { setTimeout as sleep } from "node:timers/promises";
-import { childEnv, FLUSH_MS, OutputBatcher, PtyProcess } from "../../src/pty.ts";
 import { PromptWatcher } from "../../src/prompt.ts";
-import { clampDim, CLAUDE, DIM_MAX, helperArgs, PTY_HELPER, PYTHON, resizeLine } from "../../src/ptyHelper.ts";
+import { childEnv, FLUSH_MS, OutputBatcher, PtyProcess } from "../../src/pty.ts";
+import { CLAUDE, clampDim, DIM_MAX, helperArgs, PTY_HELPER, PYTHON, resizeLine } from "../../src/ptyHelper.ts";
 
 // claude-sandbox's interpreter when it is installed (the devcontainer), else the system's (CI),
 // by absolute path: the relay runs programs by path, never through PATH
@@ -57,7 +57,13 @@ describe("Claude's environment", () => {
       CLAUDE_CONFIG_DIR: "/kept",
       TERM: "dumb",
     });
-    assert.deepEqual(env, { PATH: "/usr/bin", HOME: "/root", CLAUDE_CONFIG_DIR: "/kept", TERM: "xterm-256color", COLORTERM: "truecolor" });
+    assert.deepEqual(env, {
+      PATH: "/usr/bin",
+      HOME: "/root",
+      CLAUDE_CONFIG_DIR: "/kept",
+      TERM: "xterm-256color",
+      COLORTERM: "truecolor",
+    });
   });
 });
 
@@ -94,7 +100,10 @@ describe("rule 9: the pty relay", () => {
   });
 
   it("resizes reach the program as SIGWINCH; bad resize lines are ignored", async () => {
-    const r = run("/bin/bash", ["-c", "trap 'echo WINCH $(stty size)' WINCH; echo ready; while :; do sleep 0.05; done"]);
+    const r = run("/bin/bash", [
+      "-c",
+      "trap 'echo WINCH $(stty size)' WINCH; echo ready; while :; do sleep 0.05; done",
+    ]);
     await r.until(/ready/);
     (r.p as unknown as { ctl: { write(s: string): void } }).ctl.write("x y\n0 0\n99999 3\n\n");
     r.p.resize(132, 43);
@@ -182,7 +191,15 @@ describe("rule 9: the pty relay", () => {
     let out = "";
     const code = await new Promise<number>((res) => {
       new PtyProcess(
-        { program: "/bin/true", args: [], cwd: "/", env: {}, cols: 80, rows: 24, python: "/nonexistent/venv/bin/python" },
+        {
+          program: "/bin/true",
+          args: [],
+          cwd: "/",
+          env: {},
+          cols: 80,
+          rows: 24,
+          python: "/nonexistent/venv/bin/python",
+        },
         { onData: (t) => (out += t), onExit: res },
       );
     });
@@ -227,7 +244,15 @@ while True:
     let exited: (c: number) => void = () => undefined;
     const exit = new Promise<number>((r) => (exited = r));
     const p = new PtyProcess(
-      { program: python, args: ["-c", prog, log], cwd: "/", env: { PATH: process.env.PATH, TERM: "xterm-256color" }, cols: 80, rows: 24, python },
+      {
+        program: python,
+        args: ["-c", prog, log],
+        cwd: "/",
+        env: { PATH: process.env.PATH, TERM: "xterm-256color" },
+        cols: 80,
+        rows: 24,
+        python,
+      },
       {
         onData: (t) => {
           chunks++;
@@ -268,7 +293,10 @@ while True:
       assert.match(seen(), new RegExp(`keys ${sent}\\n`), "every byte of input arrived");
       assert.match(seen(), /size 132 43\n/, "the last resize arrived");
       assert.ok(chunks > 10, "output kept flowing");
-      assert.ok(errors.some((e) => /output handler failed: Error: a fault in the output path/.test(e)), "the fault was reported");
+      assert.ok(
+        errors.some((e) => /output handler failed: Error: a fault in the output path/.test(e)),
+        "the fault was reported",
+      );
       assert.equal(watcher.screen.cols, 80, "the watcher is sized by the terminal, not by the program");
     } finally {
       p.kill();
@@ -281,7 +309,11 @@ describe("terminal writes are coalesced", () => {
   it("many small reads become one write per FLUSH_MS (about 16 ms), in order, nothing lost", async () => {
     assert.ok(FLUSH_MS >= 8 && FLUSH_MS <= 20);
     const writes: string[] = [];
-    const b = new OutputBatcher((t) => writes.push(t), () => undefined, 30);
+    const b = new OutputBatcher(
+      (t) => writes.push(t),
+      () => undefined,
+      30,
+    );
     let want = "";
     for (let i = 0; i < 10_000; i++) {
       const c = `\x1b[${i % 30};1H${i}`;

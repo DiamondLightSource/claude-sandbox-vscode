@@ -5,7 +5,7 @@
 
 import * as vscode from "vscode";
 import type { Bridge } from "../mcp.ts";
-import { SelectionTracker, type EditorSelection } from "../selection.ts";
+import { type EditorSelection, SelectionTracker } from "../selection.ts";
 
 function snapshot(editor: vscode.TextEditor | undefined): EditorSelection | undefined {
   if (editor === undefined) return undefined;
@@ -41,6 +41,6 @@ export function trackSelection(getBridge: () => Bridge | undefined): vscode.Disp
   tracker.event(snapshot(vscode.window.activeTextEditor));
   return new vscode.Disposable(() => {
     tracker.dispose();
-    subs.forEach((s) => s.dispose());
+    for (const s of subs) s.dispose();
   });
 }

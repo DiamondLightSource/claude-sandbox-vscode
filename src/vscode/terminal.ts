@@ -8,7 +8,7 @@ import * as vscode from "vscode";
 import { PromptWatcher } from "../prompt.ts";
 import { childEnv, OutputBatcher, PtyProcess } from "../pty.ts";
 import { CLAUDE } from "../ptyHelper.ts";
-import { Session, type LinkPort } from "../session.ts";
+import { type LinkPort, Session } from "../session.ts";
 
 export interface ClaudeTerminalOptions {
   args: readonly string[];
@@ -24,6 +24,7 @@ export class ClaudeTerminal implements vscode.Disposable {
   readonly session: Session;
   private pty: PtyProcess | null = null;
   private readonly write = new vscode.EventEmitter<string>();
+  // biome-ignore lint/suspicious/noConfusingVoidType: vscode.Pseudoterminal.onDidClose's type
   private readonly close = new vscode.EventEmitter<number | void>();
   private readonly name = new vscode.EventEmitter<string>();
   private ended = false;
@@ -34,7 +35,10 @@ export class ClaudeTerminal implements vscode.Disposable {
     const fault = (where: string, e: unknown): void =>
       o.log(`[pty] ${where} failed: ${e instanceof Error ? (e.stack ?? e.message) : String(e)}`);
     // one write to VS Code's terminal per batch (src/pty.ts)
-    this.out = new OutputBatcher((t) => this.write.fire(t), (e) => fault("terminal write", e));
+    this.out = new OutputBatcher(
+      (t) => this.write.fire(t),
+      (e) => fault("terminal write", e),
+    );
     const watcher = new PromptWatcher();
     this.session = new Session({
       write: (d) => this.pty?.write(d),

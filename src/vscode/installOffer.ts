@@ -16,8 +16,8 @@ import {
   isPre,
   MIN_VERSION,
   outdated,
-  parseVersionOutput,
   PYPI_URL,
+  parseVersionOutput,
   pypiLatest,
   tooOld,
 } from "../install.ts";

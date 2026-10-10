@@ -71,7 +71,8 @@ export class Client {
   /** Connect to a Unix socket path, or to 127.0.0.1:<port> (as Claude in the jail does). */
   static connect(target: string | number): Promise<Client> {
     return new Promise((resolve, reject) => {
-      const s = typeof target === "number" ? net.connect({ host: "127.0.0.1", port: target }) : net.connect({ path: target });
+      const s =
+        typeof target === "number" ? net.connect({ host: "127.0.0.1", port: target }) : net.connect({ path: target });
       s.once("connect", () => resolve(new Client(s)));
       s.once("error", reject);
     });
@@ -90,7 +91,13 @@ export class Client {
       ...extra,
     };
     if (token !== null) h["X-Claude-Code-Ide-Authorization"] = token;
-    c.raw("GET / HTTP/1.1\r\n" + Object.entries(h).map(([k, v]) => `${k}: ${v}\r\n`).join("") + "\r\n");
+    c.raw(
+      "GET / HTTP/1.1\r\n" +
+        Object.entries(h)
+          .map(([k, v]) => `${k}: ${v}\r\n`)
+          .join("") +
+        "\r\n",
+    );
     await c.until(() => c.status !== 0 || c.closed, 5000);
     return c;
   }
@@ -158,7 +165,9 @@ export class Client {
   }
 
   msgs(): Record<string, unknown>[] {
-    return this.frames.filter((f) => f.op === 1).map((f) => JSON.parse(f.payload.toString("utf8")) as Record<string, unknown>);
+    return this.frames
+      .filter((f) => f.op === 1)
+      .map((f) => JSON.parse(f.payload.toString("utf8")) as Record<string, unknown>);
   }
 
   closeCodes(): number[] {
@@ -166,8 +175,7 @@ export class Client {
   }
 
   async reply(id: unknown, timeoutMs = 5000): Promise<Record<string, unknown> | undefined> {
-    const find = (): Record<string, unknown> | undefined =>
-      this.msgs().find((m) => m.id === id && !("method" in m));
+    const find = (): Record<string, unknown> | undefined => this.msgs().find((m) => m.id === id && !("method" in m));
     await this.until(() => find() !== undefined, timeoutMs);
     return find();
   }
@@ -209,8 +217,18 @@ export function toolCall(id: number, name: string, args: unknown): Record<string
   return { method: "tools/call", params: { name, arguments: args, _meta: { progressToken: id } }, jsonrpc: "2.0", id };
 }
 
-export function openDiff(id: number, path: string, contents: string, tab = "✻ [Claude Code] target.md ⧉"): Record<string, unknown> {
-  return toolCall(id, "openDiff", { old_file_path: path, new_file_path: path, new_file_contents: contents, tab_name: tab });
+export function openDiff(
+  id: number,
+  path: string,
+  contents: string,
+  tab = "✻ [Claude Code] target.md ⧉",
+): Record<string, unknown> {
+  return toolCall(id, "openDiff", {
+    old_file_path: path,
+    new_file_path: path,
+    new_file_contents: contents,
+    tab_name: tab,
+  });
 }
 
 export function texts(reply: Record<string, unknown> | undefined): string[] {

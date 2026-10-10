@@ -15,8 +15,8 @@
         },
         {
             "type": "shell",
-            "label": "Typecheck and tests",
-            "command": "npm run typecheck && npm test",
+            "label": "Lint, typecheck and tests",
+            "command": "npm run lint && npm run typecheck && npm test",
             "group": "test",
             "problemMatcher": "$tsc"
         }

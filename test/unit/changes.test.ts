@@ -3,7 +3,18 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import { describe, it } from "node:test";
-import { CHANGES_MAX, ChangeSet, entryKind, freshStatus, groupByRoot, isReviewTitle, picked, reviewPlan, SAVE_WINDOW_MS, splitByGit } from "../../src/changes.ts";
+import {
+  CHANGES_MAX,
+  ChangeSet,
+  entryKind,
+  freshStatus,
+  groupByRoot,
+  isReviewTitle,
+  picked,
+  reviewPlan,
+  SAVE_WINDOW_MS,
+  splitByGit,
+} from "../../src/changes.ts";
 
 const set = () => new ChangeSet({ roots: ["/w", "/v/"] });
 
@@ -53,7 +64,11 @@ describe("Changed this session: the list", () => {
       assert.equal(await entryKind(path.join(dir, "gone")), "gone");
       const s = new ChangeSet({ roots: [dir] });
       assert.equal(s.event("created", path.join(dir, "l"), 0, true)?.symlink, true);
-      assert.equal(s.event("deleted", path.join(dir, "old"), 1, true)?.symlink, false, "a deleted entry is not opened either way");
+      assert.equal(
+        s.event("deleted", path.join(dir, "old"), 1, true)?.symlink,
+        false,
+        "a deleted entry is not opened either way",
+      );
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });
     }
@@ -122,8 +137,10 @@ describe("Review All (vscode.changes rows)", () => {
     // VS Code's MultiDiffEditorInput names the tab "<title> (N files)" / "<title> (1 file)",
     // localised, and shows the bare title until the resources resolve
     const title = reviewPlan([], () => true).title;
-    for (const t of [title, `${title} (4 files)`, `${title} (1 file)`, `${title} (4 Dateien)`]) assert.ok(isReviewTitle(t), t);
-    for (const t of ["Changes", "Claude changes.md", "My Claude changes (4 files)", "mod.py (HEAD ↔ now)"]) assert.ok(!isReviewTitle(t), t);
+    for (const t of [title, `${title} (4 files)`, `${title} (1 file)`, `${title} (4 Dateien)`])
+      assert.ok(isReviewTitle(t), t);
+    for (const t of ["Changes", "Claude changes.md", "My Claude changes (4 files)", "mod.py (HEAD ↔ now)"])
+      assert.ok(!isReviewTitle(t), t);
   });
 });
 
@@ -134,11 +151,24 @@ describe("shown as Source Control shows it", () => {
     s.event("changed", "/w/reverted.py", 0); // git: nothing (back as HEAD has it)
     s.event("created", "/w/__pycache__/m.cpython-313.pyc", 0); // git: nothing (ignored)
     s.event("changed", "/v/outside-repo.md", 0); // no repository
-    const git: Record<string, boolean | undefined> = { "/w/mod.py": true, "/w/reverted.py": false, "/w/__pycache__/m.cpython-313.pyc": false };
+    const git: Record<string, boolean | undefined> = {
+      "/w/mod.py": true,
+      "/w/reverted.py": false,
+      "/w/__pycache__/m.cpython-313.pyc": false,
+    };
     const { active, quiet } = splitByGit(s.list(), (c) => git[c.path]);
-    assert.deepEqual(active.map((c) => c.path), ["/v/outside-repo.md", "/w/mod.py"]);
-    assert.deepEqual(quiet.map((c) => c.path), ["/w/__pycache__/m.cpython-313.pyc", "/w/reverted.py"]);
-    assert.deepEqual(splitByGit([], () => false), { active: [], quiet: [] });
+    assert.deepEqual(
+      active.map((c) => c.path),
+      ["/v/outside-repo.md", "/w/mod.py"],
+    );
+    assert.deepEqual(
+      quiet.map((c) => c.path),
+      ["/w/__pycache__/m.cpython-313.pyc", "/w/reverted.py"],
+    );
+    assert.deepEqual(
+      splitByGit([], () => false),
+      { active: [], quiet: [] },
+    );
   });
 });
 
@@ -149,7 +179,8 @@ describe("grouped by repository, as Source Control groups them", () => {
     s.event("changed", "/w/sub/repo2/x.ts", 0);
     s.event("changed", "/w/a.py", 0);
     s.event("changed", "/v/notes.md", 0);
-    const rootOf = (c: { path: string }): string => (c.path.startsWith("/w/sub/repo2/") ? "/w/sub/repo2" : c.path.startsWith("/w/") ? "/w" : "/v");
+    const rootOf = (c: { path: string }): string =>
+      c.path.startsWith("/w/sub/repo2/") ? "/w/sub/repo2" : c.path.startsWith("/w/") ? "/w" : "/v";
     const groups = groupByRoot(s.list(), rootOf);
     assert.deepEqual(
       groups.map((g) => [g.root, g.changes.map((c) => c.path)]),
@@ -175,7 +206,10 @@ describe("a full list", () => {
     // the view keeps p0 (git shows it changed); p1 changed too recently to judge
     const gone = s.prune((c) => c.path === "/w/node_modules/p0.js", 5);
     assert.equal(gone, CHANGES_MAX - 2);
-    assert.deepEqual(s.list().map((c) => c.path), ["/w/node_modules/p0.js", "/w/node_modules/p1.js"]);
+    assert.deepEqual(
+      s.list().map((c) => c.path),
+      ["/w/node_modules/p0.js", "/w/node_modules/p1.js"],
+    );
     assert.ok(s.event("changed", "/w/real.py", 20), "room again for real changes");
   });
 });
