@@ -5,6 +5,11 @@
   "version": "0.0.1",
   "publisher": "diamondlightsource",
   "license": "MIT",
+  "icon": "media/icon.png",
+  "galleryBanner": {
+    "color": "#2b2f36",
+    "theme": "dark"
+  },
   "type": "module",
   "repository": {
     "type": "git",
@@ -15,7 +20,15 @@
     "node": ">=22.18"
   },
   "categories": [
-    "Other"
+    "AI",
+    "Chat"
+  ],
+  "keywords": [
+    "claude",
+    "claude code",
+    "sandbox",
+    "devcontainer",
+    "mcp"
   ],
   "main": "./dist/extension.cjs",
   "extensionKind": [
