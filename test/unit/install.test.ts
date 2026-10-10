@@ -103,6 +103,11 @@ describe("rule 10: the install offer", () => {
     assert.ok(version, "postCreate.sh pins claude-sandbox");
     assert.notEqual(compareVersions(version, MIN_VERSION), null, `${version} is a version`);
     assert.equal(tooOld(version), false);
+    assert.match(
+      script,
+      /uvx claude-sandbox==\S+ install --minimal$/m,
+      "postCreate.sh installs --minimal like installArgv",
+    );
   });
   it("uvx only from fixed places the jail cannot write, never PATH or ~/.local/bin", () => {
     assert.deepEqual(uvxCandidates("/home/me"), ["/usr/local/bin/uvx", "/usr/bin/uvx", "/home/me/.cargo/bin/uvx"]);
