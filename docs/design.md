@@ -471,8 +471,11 @@ The earlier single `Ctrl+Alt+<letter>` keys collided with VS Code's own
 `Shift+Alt+C`), so one prefix claims a single key and the letters after it
 cannot collide. The chord is the same on macOS (where `Cmd+Alt+C` is Copy
 Path, not `Ctrl+Alt+C`).
-The submenu (`resourceScheme == file`), the code actions (any `file`
-document) and the commands take every local file; which path it then goes by is
+The submenu and keybindings (`resourceScheme == file || resourceScheme ==
+vscode-remote`), the code actions (any `file` document) and the commands take
+every local file. Menu and keybinding `when` clauses are evaluated in the UI,
+which sees a devcontainer, SSH or WSL file as `vscode-remote`; the extension
+host sees the same file as `file`. Which path the file then goes by is
 the send path's choice: a file in Claude's folder or a peer has its selection
 or mention sent over the link, any other is named with a typed `@path`. The
 commands reach only the session started in their own window (each window has

@@ -235,27 +235,27 @@
       {
         "command": "claudeSandbox.preset.explain",
         "key": "ctrl+alt+c e",
-        "when": "editorTextFocus && resourceScheme == file"
+        "when": "editorTextFocus && (resourceScheme == file || resourceScheme == vscode-remote)"
       },
       {
         "command": "claudeSandbox.preset.reword",
         "key": "ctrl+alt+c r",
-        "when": "editorTextFocus && resourceScheme == file"
+        "when": "editorTextFocus && (resourceScheme == file || resourceScheme == vscode-remote)"
       },
       {
         "command": "claudeSandbox.preset.tighten",
         "key": "ctrl+alt+c t",
-        "when": "editorTextFocus && resourceScheme == file"
+        "when": "editorTextFocus && (resourceScheme == file || resourceScheme == vscode-remote)"
       },
       {
         "command": "claudeSandbox.customPreset",
         "key": "ctrl+alt+c p",
-        "when": "editorTextFocus && resourceScheme == file"
+        "when": "editorTextFocus && (resourceScheme == file || resourceScheme == vscode-remote)"
       },
       {
         "command": "claudeSandbox.mention",
         "key": "ctrl+alt+c m",
-        "when": "editorTextFocus && resourceScheme == file"
+        "when": "editorTextFocus && (resourceScheme == file || resourceScheme == vscode-remote)"
       },
       {
         "command": "claudeSandbox.reviewAll",
@@ -339,14 +339,14 @@
         {
           "command": "claudeSandbox.start",
           "group": "claudeSandbox@1",
-          "when": "explorerResourceIsRoot && resourceScheme == file && !claudeSandbox.running"
+          "when": "explorerResourceIsRoot && (resourceScheme == file || resourceScheme == vscode-remote) && !claudeSandbox.running"
         }
       ],
       "editor/context": [
         {
           "submenu": "claudeSandbox.editor",
           "group": "claudeSandbox@1",
-          "when": "resourceScheme == file"
+          "when": "resourceScheme == file || resourceScheme == vscode-remote"
         }
       ],
       "claudeSandbox.editor": [
