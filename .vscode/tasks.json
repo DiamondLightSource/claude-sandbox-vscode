@@ -11,17 +11,14 @@
                 "kind": "build",
                 "isDefault": true
             },
-            "problemMatcher": [],
+            "problemMatcher": []
         },
         {
             "type": "shell",
             "label": "Typecheck and tests",
             "command": "npm run typecheck && npm test",
-            "options": {
-                "cwd": "${workspaceRoot}"
-            },
             "group": "test",
-            "problemMatcher": "$tsc",
+            "problemMatcher": "$tsc"
         }
     ]
 }

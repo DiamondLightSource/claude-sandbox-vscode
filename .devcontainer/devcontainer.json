@@ -26,9 +26,10 @@
     // Create the config folder for the bash-config feature and uv cache
     "initializeCommand": "mkdir -p ${localEnv:HOME}/.config/terminal-config",
     "runArgs": [
-        // Allow the container to access the host X11 display and EPICS CA
+        // Host network: reach the host's X11 display (DISPLAY is passed through above)
         "--net=host",
-        // Make sure SELinux does not disable with access to host filesystems like tmp
+        // Keep SELinux from blocking access to the bind-mounted host folders
+        // (the workspace parent and the terminal config folder)
         "--security-opt=label=disable",
         // Needed by claude-sandbox's network egress jail
         "--device=/dev/net/tun"
