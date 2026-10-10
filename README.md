@@ -26,9 +26,9 @@ Or download the `.vsix` from the
 [releases page](https://github.com/DiamondLightSource/claude-sandbox-vscode/releases)
 and use **Extensions → ⋯ → Install from VSIX…**. Repeat to update.
 
-It needs claude-sandbox 5.0.0b3 or later. If it is missing or older, a
+It needs claude-sandbox 5.0.0 or later. If it is missing or older, a
 notification offers **Install**, which runs
-`uvx --no-cache --from 'claude-sandbox>=5.0.0b3' claude-sandbox install`
+`uvx --no-cache --from 'claude-sandbox>=5.1.0' claude-sandbox install --minimal`
 (with sudo when not root) in a terminal you can watch. uvx is taken only from
 `/usr/local/bin`, `/usr/bin` or `~/.cargo/bin`, never from `PATH`. The
 extension tells you (at most daily) when a newer claude-sandbox is on PyPI but

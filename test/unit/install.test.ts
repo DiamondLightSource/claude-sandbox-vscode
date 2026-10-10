@@ -8,6 +8,7 @@ import {
   compareVersions,
   findUvx,
   INSTALL_SCRIPT,
+  INSTALL_VERSION,
   installArgv,
   installState,
   isPre,
@@ -67,18 +68,31 @@ describe("rule 10: the install offer", () => {
       fs.rmSync(d, { recursive: true, force: true });
     }
   });
-  it("the command is fixed: uvx --no-cache --from 'claude-sandbox>=MIN' claude-sandbox install, through sudo unless root", () => {
-    const cmd = ["/usr/bin/uvx", "--no-cache", "--from", "claude-sandbox>=5.0.0b3", "claude-sandbox", "install"];
+  it("the command is fixed: uvx --no-cache --from 'claude-sandbox>=INSTALL' claude-sandbox install --minimal, through sudo unless root", () => {
+    const cmd = [
+      "/usr/bin/uvx",
+      "--no-cache",
+      "--from",
+      "claude-sandbox>=5.1.0",
+      "claude-sandbox",
+      "install",
+      "--minimal",
+    ];
     assert.deepEqual(installArgv(0, "/usr/bin/uvx"), cmd);
     assert.deepEqual(installArgv(1000, "/usr/bin/uvx"), [SUDO, ...cmd]);
-    assert.equal(REQUIREMENT, `claude-sandbox>=${MIN_VERSION}`);
-    assert.equal(isPre(MIN_VERSION), true, "a pre-release floor, so uv allows betas");
+    assert.equal(REQUIREMENT, `claude-sandbox>=${INSTALL_VERSION}`);
+    assert.equal(isPre(MIN_VERSION), false, "a stable floor");
+    assert.notEqual(
+      compareVersions(INSTALL_VERSION, MIN_VERSION),
+      -1,
+      "the install floor is not below the works-with floor",
+    );
   });
   it("a claude-sandbox older than MIN_VERSION is too old", () => {
     assert.equal(tooOld("4.7.1"), true);
     assert.equal(tooOld("4.8.0-beta.2"), true);
     assert.equal(tooOld("5.0.0-beta.2"), true);
-    assert.equal(tooOld("5.0.0-beta.3"), false);
+    assert.equal(tooOld("5.0.0-beta.3"), true);
     assert.equal(tooOld("5.0.0"), false);
     assert.equal(tooOld("weird"), false, "unknown: not called too old");
   });
