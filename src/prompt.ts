@@ -14,6 +14,10 @@
 //   - a full-width rule directly above the ❯ row, and one below the last input row;
 //   - below that, at most FOOTER_MAX rows, with no ❯ and no rule (no menu down there).
 //
+// Claude Code 2.1.295 may label the top rule ("──── ophyd-async @ some-branch ─", reported in
+// issue #18; not drawn in our own captures); it still runs from column 0 to the last column, so
+// it is accepted.
+//
 // The model cannot draw that. Claude Code renders model text (and the transcript) indented by
 // two columns with control characters removed (verified: an assistant message holding ESC
 // sequences, a "❯ " line and a full-width rule, resumed into a real session, drew all of it
@@ -39,6 +43,8 @@ const SPINNER_ROWS = 6;
 const SPINNER_RE = /^[·✢*✶✻✽✳∗] \S[^…]*…/u;
 const INTERRUPT_RE = /esc to interrupt/i;
 const MENU_RULE_RE = /[─▔]{8}/;
+/** The top rule with a label in it ("<repo> @ <branch>"), still spanning the full width. */
+const LABELLED_RULE_RE = /^─{8,} \S.* ─$/u;
 
 export type PromptState = "starting" | "input" | "busy" | "choice";
 
@@ -60,7 +66,7 @@ export function findBox(screen: Screen): Box | null {
     if (!rows[first]!.startsWith("  ")) return null;
     first--;
   }
-  if (first < 1 || rows[first - 1] !== rule) return null;
+  if (first < 1 || !(rows[first - 1] === rule || LABELLED_RULE_RE.test(rows[first - 1]!))) return null;
   // down from the cursor to the closing rule
   let last = cur.row + 1;
   while (last < rows.length && rows[last] !== rule) {

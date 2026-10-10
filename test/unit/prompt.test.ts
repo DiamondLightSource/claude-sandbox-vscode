@@ -105,6 +105,23 @@ describe("rule 6: the prompt state, read from the screen (Claude Code 2.1.292 ca
     assert.equal(base(`${box}\r\n${"  x\r\n".repeat(9)}\x1b[27;3H\x1b[?25h`).state(), "choice", "too many rows under it");
     assert.equal(base(`\x1b[26;1H${"─".repeat(99)}\r\n❯ \r\n${rule}\x1b[27;3H\x1b[?25h`).state(), "choice", "a rule short of full width");
   });
+  it("a top rule labelled \"<repo> @ <branch>\" (Claude Code 2.1.295, issue #18) still marks the box", () => {
+    const rule = "─".repeat(100);
+    const label = " ophyd-async @ detector-stack-4-flyable ─";
+    const labelled = "─".repeat(100 - label.length) + label;
+    const footer = "  root  Opus 5.5 · medium  ctx:new  /workspaces/ophyd-async detector-stack-4-flyable!\r\n" +
+      "  ⏵⏵ auto mode on (shift+tab to cycle) · gh auth login for PR status · ← for agents";
+    const screen = (top: string): PromptWatcher => {
+      const w = new PromptWatcher(100, 30);
+      w.feed(`\x1b[?1049h\x1b[2J\x1b[25;1H${top}\r\n❯ Try "how do I log an error?"\r\n${rule}\r\n${footer}\x1b[26;3H\x1b[?25h`, 0);
+      return w;
+    };
+    // the screen captured in the issue, at 100×30
+    assert.equal(screen(labelled).state(), "input");
+    assert.equal(screen(`  ${labelled.slice(2)}`).state(), "choice", "indented: transcript text");
+    assert.equal(screen(`${labelled.slice(0, 98)}`).state(), "choice", "short of full width");
+    assert.equal(screen(`${"─".repeat(5)} label ${"─".repeat(88)}`).state(), "choice", "too little rule before the label");
+  });
   it("resizes are followed: a box drawn for the new width is found", () => {
     const w = new PromptWatcher(100, 30);
     w.resize(60, 20);
