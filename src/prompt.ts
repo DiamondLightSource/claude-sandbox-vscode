@@ -66,7 +66,7 @@ export function findBox(screen: Screen): Box | null {
     if (!rows[first]!.startsWith("  ")) return null;
     first--;
   }
-  if (first < 1 || !(rows[first - 1] === rule || LABELLED_RULE_RE.test(rows[first - 1]!))) return null;
+  if (first < 1 || (rows[first - 1] !== rule && !LABELLED_RULE_RE.test(rows[first - 1]!))) return null;
   // down from the cursor to the closing rule
   let last = cur.row + 1;
   while (last < rows.length && rows[last] !== rule) {

@@ -137,7 +137,9 @@ message as hostile. These rules are the security design; each has a test in
    Claude Code 2.1.292 runs in), not from whatever text was drawn last. "Input"
    (`src/prompt.ts`) needs all of: the cursor visible, on a row starting `❯`
    + space (or one of its indented continuation rows); a full-width rule of
-   `─` from column 0 directly above that row and another below the input; and
+   `─` from column 0 directly above that row (from Claude Code 2.1.295 that
+   top rule may carry a `<repo> @ <branch>` label, after at least 8 `─`, still
+   running from column 0 to the last column) and another below the input; and
    under that at most 8 footer rows with no `❯` and no rule. Anything else is
    refused: every menu captured from 2.1.292 (permissions, `/model`, `/ide`,
    `/help`, the folder-trust and new-MCP-server questions) hides the cursor or

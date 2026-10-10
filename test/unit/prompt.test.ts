@@ -119,8 +119,10 @@ describe("rule 6: the prompt state, read from the screen (Claude Code 2.1.292 ca
     // the screen captured in the issue, at 100×30
     assert.equal(screen(labelled).state(), "input");
     assert.equal(screen(`  ${labelled.slice(2)}`).state(), "choice", "indented: transcript text");
-    assert.equal(screen(`${labelled.slice(0, 98)}`).state(), "choice", "short of full width");
-    assert.equal(screen(`${"─".repeat(5)} label ${"─".repeat(88)}`).state(), "choice", "too little rule before the label");
+    // each case below breaks exactly one property of an accepted labelled rule
+    assert.equal(screen(`${"─".repeat(90)} x ─`).state(), "choice", "short of full width");
+    assert.equal(screen(`${"─".repeat(7)} ${"x".repeat(90)} ─`).state(), "choice", "too little rule before the label");
+    assert.equal(screen(`${"─".repeat(8)} ${"x".repeat(89)} ─`).state(), "input", "just enough rule before the label");
   });
   it("resizes are followed: a box drawn for the new width is found", () => {
     const w = new PromptWatcher(100, 30);
