@@ -101,9 +101,11 @@ parent folder for the run if you would rather keep them apart.
   - `notes/with space.md` (a path with whitespace: Mention types it
     instead of sending it over the link);
   - a `.gitignore` listing `ignored.txt`;
-  - `vendor/lib`: a nested repository with its own `git init` and one
-    committed file (so the changes view has two repositories to group).
-    Check that Source Control lists it as a second repository.
+  - `lib`: a nested repository directly under `alpha` (VS Code's Git
+    extension scans only one level deep by default), with its own
+    `git init` and one committed file, so the changes view has two
+    repositories to group. Check that Source Control lists it as a second
+    repository; if not, run **Git: Open Repository** on it.
 - `/workspaces/beta`: a second git repository with one or two files.
 - `/workspaces/gamma`: a plain folder, not a git repository.
 - `/workspaces/multi.code-workspace` listing `alpha`, `beta` and `gamma`.
@@ -135,7 +137,8 @@ User settings to have ready (the extension reads user settings only):
 
 Record the text of every notification exactly; wording is part of what is
 being tested. Some checks overlap the deterministic tests (X6, X7 and most of
-K7) and are marked **smoke**: they are cheap and confirm the packaged build.
+K7) and are marked **covered by unit tests**: they are cheap and confirm the
+packaged build.
 
 ## How to work
 
@@ -199,12 +202,15 @@ Expected behaviour: [README, Usage](../README.md#usage);
   exit 0 (Claude Code may handle `SIGTERM` and exit cleanly, which just
   closes the tab). Either set `claudeSandbox.extraArgs` to
   `["--no-such-flag"]` and Start (Claude exits at once with an error code),
-  or `kill -KILL` the process the relay runs (in `ps -ef --forest`, the
-  `/usr/local/bin/claude` child of the `python -I -c` relay): a signal gives
+  or `kill -KILL` the relay's direct child: in `ps -ef --forest`, the
+  process right under the `python -I -c` relay, whatever it shows as (the
+  shim it starts, `/usr/local/bin/claude`, may appear as
+  `python -I -m claude_sandbox _shadow`, or as `bwrap`). A signal gives
   128 + n, so expect `exited 137`. Expect the tab to stay open renamed
   `Claude Sandbox (exited N)` with
   `[Claude exited with code N. Press any key to close this tab.]`; a key
-  closes it. Restore `extraArgs`.
+  closes it. Then check as in S7 that nothing of the session is left
+  running. Restore `extraArgs`.
 - [ ] **S9 Reload.** Run **Developer: Reload Window** with a session
   running. Expect: the session ends, its terminal is not revived (it is
   transient), status `Claude: off`, no Claude left running. The next Start
@@ -232,9 +238,13 @@ Expected behaviour: [README, Usage](../README.md#usage);
   untrusted. Open `alpha` in Restricted Mode (**Workspaces: Manage Workspace
   Trust** → Don't Trust) and repeat S1, D1 and R1. Expect Start, the link and
   proposal diffs to work as in a trusted folder. VS Code's Git extension does
-  not run in Restricted Mode, so the changes view has no git status: record
-  what it shows (files are expected to be listed as outside any repository,
-  without Stage or Revert to HEAD), and flag anything confusing.
+  not run in Restricted Mode, so the changes view treats every file as
+  outside any repository. Expect: `ignored.txt` listed too (nothing filters
+  it); no Stage or Revert to HEAD in the context menu; a click opens the
+  file itself, not a diff against HEAD; a deleted file says
+  `<name> was deleted (not in a Git repository).`; the symlink's message
+  still says to look at it in Source Control, which has nothing to show
+  here (note it as UX). Flag anything else confusing.
 - [ ] **S15 Terminal in the panel.** Drag the **Claude Sandbox** terminal
   tab from the editor area into the panel and repeat S5, P1 and D1. Expect
   the session to keep working and the diffs to open in the active editor
@@ -293,7 +303,7 @@ Keybindings (all on Linux and Windows; the same keys on macOS):
   Run preset, Open diff, Mark as reviewed, Mark as not reviewed, Open File,
   Stage, Revert to HEAD, Reveal in Explorer View, Copy Path, Copy Relative
   Path; Accept and Reject proposed change only while a proposal diff is
-  focused. (**Smoke**: `test/unit/manifest.test.ts` checks the manifest.)
+  focused. (**Covered by unit tests**: `test/unit/manifest.test.ts`.)
 - [ ] **K8 Copilot's entries.** If GitHub Copilot is installed, setting
   `github.copilot.editor.enableCodeActions` to `false` removes its entries
   from Refactor… and `Ctrl+.`, leaving the Claude ones.
@@ -542,8 +552,7 @@ container.
   the newer version and the update command; it never upgrades. Reload again:
   no second notice that day. Do the online case first: the day's check is
   recorded before the fetch, so an offline reload uses it up (and shows
-  nothing). To retry within a day, clear the extension's global state, for
-  example by uninstalling and reinstalling it, or move the clock on.
+  nothing). To retry, use a fresh VS Code profile, or wait 24 hours.
 - [ ] **I6 Noise.** Overall: is any notification shown more often than
   needed, unclear about what to do, or still showing after the problem is
   fixed?
@@ -571,7 +580,7 @@ Open `/workspaces/multi.code-workspace`.
 - [ ] **M5 Changes view grouping.** The view lists only the session's own
   folder, so grouping needs two repositories inside it. In a session in
   `alpha`, have Claude change a file in `alpha` itself only: the files are
-  listed directly. Then have it change one in `vendor/lib` (the nested
+  listed directly. Then have it change one in `lib` (the nested
   repository) too: the files are grouped under one node per repository, as
   Source Control groups them.
 - [ ] **M6 Folder removed.** Remove the session's folder from the workspace
@@ -585,8 +594,11 @@ Open `/workspaces/multi.code-workspace`.
   sent, the file unchanged, status `off`, and no stray notification.
 - [ ] **F2 Link lost mid-diff.** While a proposal waits, Claude shows its
   own edit prompt, so `/ide` cannot be typed. Cut the link instead by
-  killing the in-jail `socat` for the session's port (`ps -ef | grep socat`
-  in another devcontainer terminal). Expect the diff to close by itself with
+  killing the in-jail relay for the session's port. It is
+  `socat TCP4-LISTEN:<port>,…,fork`, so there are two socat processes (the
+  listener and the forked one carrying the connection): kill both, for
+  example `pkill -f 'TCP4-LISTEN:<port>,'` in another devcontainer terminal
+  (the port is in the socket's name). Expect the diff to close by itself with
   no answer, the file unchanged, status `waiting`. (Esc on Claude's prompt
   also closes the diff, but keeps the link: status `connected`; see D12.)
 - [ ] **F3 Container restart.** Restart or rebuild the devcontainer with a
@@ -638,12 +650,11 @@ Expected behaviour: [README, Security](../README.md#security);
 - [ ] **X5 Symlinks are not followed.** R2's symlink is never opened, in a
   diff, by Open File or in Review All.
 - [ ] **X6 uvx from fixed paths only.** In I1, the Install detail shows uvx at
-  `/usr/local/bin/uvx`, `/usr/bin/uvx` or `~/.cargo/bin/uvx` (**smoke**).
-  Put a `uvx`
+  `/usr/local/bin/uvx`, `/usr/bin/uvx` or `~/.cargo/bin/uvx`. Put a `uvx`
   only in `~/.local/bin` (or elsewhere on `PATH`): expect I4's message, never
-  an Install button that would run it.
+  an Install button that would run it. (**Covered by unit tests.**)
 - [ ] **X7 Socket permissions.** The `.claude-sandbox-vscode-*.sock` in the
-  session's folder is mode `0600` (**smoke**).
+  session's folder is mode `0600`. (**Covered by unit tests.**)
 - [ ] **X8 Nothing typed into menus.** Across all P checks, no preset text
   ever lands in a permission prompt, `/model` or any menu.
 
