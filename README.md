@@ -126,7 +126,8 @@ files before reopening.
 ## Development
 
 Linux, Node 22.18+, `socat` and Python 3 for the tests. The repository's
-devcontainer has all of them, installs claude-sandbox and runs `npm ci`; its
+devcontainer has all of them, installs claude-sandbox and the Marketplace
+release of this extension, and runs `npm ci`; its
 **Run Extension** launch configuration opens an Extension Development Host
 with the development build.
 
@@ -137,7 +138,12 @@ npm run typecheck
 npm test            # test/unit and test/hostile
 npm run build       # dist/extension.cjs
 npm run package     # .vsix
+npm run install:dev # install this build over the Marketplace copy, as the next patch version
 ```
+
+`install:dev` packages the working tree as one patch above the newest release tag
+(0.8.0 gives 0.8.1), so VS Code does not swap it back for the Marketplace version.
+Run it from a devcontainer terminal, where `code` is available.
 
 ## Releasing
 
