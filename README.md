@@ -142,8 +142,13 @@ npm run install:dev # install this build over the Marketplace copy, as the next 
 ```
 
 `install:dev` packages the working tree as one patch above the newest release tag
-(0.8.0 gives 0.8.1), so VS Code does not swap it back for the Marketplace version.
-Run it from a devcontainer terminal, where `code` is available.
+(0.8.0 gives 0.8.1), so the Extensions view shows it is a development build, and
+installs it over the Marketplace copy. Run it from a devcontainer terminal, where
+`code` is available, then reload the window. A VSIX installed this way is pinned:
+VS Code stops auto-updating it, even when a newer release comes out. To go back to
+the Marketplace build, uninstall it
+(`code --uninstall-extension diamondlightsource.claude-sandbox-vscode`) and reload,
+or rebuild the devcontainer.
 
 ## Releasing
 

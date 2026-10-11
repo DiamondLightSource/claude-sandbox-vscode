@@ -99,10 +99,9 @@ describe("rule 10: the install offer", () => {
   it("the devcontainer installs claude-sandbox the way the extension does", () => {
     const root = path.resolve(import.meta.dirname, "..", "..");
     const script = fs.readFileSync(path.join(root, ".devcontainer", "postCreate.sh"), "utf8");
-    assert.ok(
-      script.includes(`uvx --no-cache --from '${REQUIREMENT}' claude-sandbox install --minimal\n`),
-      `postCreate.sh runs uvx --no-cache --from '${REQUIREMENT}' claude-sandbox install --minimal`,
-    );
+    const words = installArgv(0, "uvx").map((w) => (/^[\w./-]+$/.test(w) ? w : `'${w}'`));
+    const line = `${words.join(" ")}\n`;
+    assert.ok(script.includes(line), `postCreate.sh runs ${line}`);
   });
   it("uvx only from fixed places the jail cannot write, never PATH or ~/.local/bin", () => {
     assert.deepEqual(uvxCandidates("/home/me"), ["/usr/local/bin/uvx", "/usr/bin/uvx", "/home/me/.cargo/bin/uvx"]);
