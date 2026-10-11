@@ -96,17 +96,12 @@ describe("rule 10: the install offer", () => {
     assert.equal(tooOld("5.0.0"), false);
     assert.equal(tooOld("weird"), false, "unknown: not called too old");
   });
-  it("the devcontainer's pinned claude-sandbox is not older than MIN_VERSION", () => {
+  it("the devcontainer installs claude-sandbox the way the extension does", () => {
     const root = path.resolve(import.meta.dirname, "..", "..");
     const script = fs.readFileSync(path.join(root, ".devcontainer", "postCreate.sh"), "utf8");
-    const version = /uvx claude-sandbox==(\S+) install/.exec(script)?.[1];
-    assert.ok(version, "postCreate.sh pins claude-sandbox");
-    assert.notEqual(compareVersions(version, MIN_VERSION), null, `${version} is a version`);
-    assert.equal(tooOld(version), false);
-    assert.match(
-      script,
-      /uvx claude-sandbox==\S+ install --minimal$/m,
-      "postCreate.sh installs --minimal like installArgv",
+    assert.ok(
+      script.includes(`uvx --no-cache --from '${REQUIREMENT}' claude-sandbox install --minimal\n`),
+      `postCreate.sh runs uvx --no-cache --from '${REQUIREMENT}' claude-sandbox install --minimal`,
     );
   });
   it("uvx only from fixed places the jail cannot write, never PATH or ~/.local/bin", () => {
