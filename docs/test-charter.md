@@ -88,7 +88,10 @@ and install that. Then run **Developer: Reload Window**.
 
 ### Sample workspace
 
-Make these under `/workspaces` (any names will do; the charter uses these):
+Make these under `/workspaces` (any names will do; the charter uses these).
+In this repository's devcontainer `/workspaces` is the host's parent folder,
+so these land beside your real projects on the host: clone into a scratch
+parent folder for the run if you would rather keep them apart.
 
 - `/workspaces/alpha`: a git repository with a few committed files:
   - `src/app.py` with a deliberate error (an undefined name) so the Problems
@@ -97,7 +100,10 @@ Make these under `/workspaces` (any names will do; the charter uses these):
   - `README.md` with a paragraph of prose (for Reword and Tighten);
   - `notes/with space.md` (a path with whitespace: Mention types it
     instead of sending it over the link);
-  - a `.gitignore` listing `ignored.txt`.
+  - a `.gitignore` listing `ignored.txt`;
+  - `vendor/lib`: a nested repository with its own `git init` and one
+    committed file (so the changes view has two repositories to group).
+    Check that Source Control lists it as a second repository.
 - `/workspaces/beta`: a second git repository with one or two files.
 - `/workspaces/gamma`: a plain folder, not a git repository.
 - `/workspaces/multi.code-workspace` listing `alpha`, `beta` and `gamma`.
@@ -119,7 +125,8 @@ User settings to have ready (the extension reads user settings only):
 
 | Evidence | Where |
 | --- | --- |
-| Extension log | Output panel, channel **Claude Sandbox**. Lines are tagged `[ide]`, `[session]`, `[pty]`, `[install]`. |
+| Extension log | Output panel, channel **Claude Sandbox**. Lines are tagged `[ide]`, `[session]`, `[pty]`, `[install]`. The channel is also written to disk in the container, under the VS Code Server's logs folder (for example `~/.vscode-server/data/logs/<session>/exthost*/output_logging_*/*Claude Sandbox.log`; the path varies by version): an agent can read that file instead of the panel. |
+| Notifications | They disappear after a while and the log does not record them: open **Notifications: Show Notifications** (the Notification Center) to read them again. Status bar messages (such as P6's) go after 20 s. |
 | Status bar | The right-hand item: `Claude: off`, `Claude: waiting` or `Claude: connected`, plus `· N changed` while files await review. Its tooltip is `Claude Sandbox: Start` or `Claude Sandbox: show the session`. |
 | Link files | `ls -l /workspaces/alpha/.claude-sandbox-vscode-*.sock` (mode `srw-------`). |
 | Files on disk | `git -C <folder> status --short`, `git -C <folder> diff`, `stat -c '%y %n' <file>`. |
@@ -127,7 +134,8 @@ User settings to have ready (the extension reads user settings only):
 | Changes view | Activity bar, **Claude Sandbox** icon, view **Changed this session**: rows, descriptions, badge count. |
 
 Record the text of every notification exactly; wording is part of what is
-being tested.
+being tested. Some checks overlap the deterministic tests (X6, X7 and most of
+K7) and are marked **smoke**: they are cheap and confirm the packaged build.
 
 ## How to work
 
@@ -182,13 +190,21 @@ Expected behaviour: [README, Usage](../README.md#usage);
   is left for the user ([rule 7](design.md#trust-boundary)).
 - [ ] **S7 Close the tab.** Close the **Claude Sandbox** tab while Claude is
   idle, then again while it is working. Expect the session to end both times,
-  status `Claude: off`, and no Claude process left
-  (`pgrep -af claude` in another terminal).
-- [ ] **S8 Non-zero exit.** Make Claude exit non-zero (for example
-  `kill -TERM` its process from another terminal). Expect the tab to stay open
-  renamed `Claude Sandbox (exited N)` with
+  status `Claude: off`, and no Claude process of this session left. Check
+  with `ps -ef --forest` in another terminal and read what it shows:
+  `pgrep -af claude` also matches the in-jail `socat` (its command line
+  holds `.claude-sandbox-vscode-<port>.sock`), other windows' sessions and,
+  if the tester is Claude Code, the tester itself.
+- [ ] **S8 Non-zero exit.** Make Claude exit non-zero in a way that cannot
+  exit 0 (Claude Code may handle `SIGTERM` and exit cleanly, which just
+  closes the tab). Either set `claudeSandbox.extraArgs` to
+  `["--no-such-flag"]` and Start (Claude exits at once with an error code),
+  or `kill -KILL` the process the relay runs (in `ps -ef --forest`, the
+  `/usr/local/bin/claude` child of the `python -I -c` relay): a signal gives
+  128 + n, so expect `exited 137`. Expect the tab to stay open renamed
+  `Claude Sandbox (exited N)` with
   `[Claude exited with code N. Press any key to close this tab.]`; a key
-  closes it.
+  closes it. Restore `extraArgs`.
 - [ ] **S9 Reload.** Run **Developer: Reload Window** with a session
   running. Expect: the session ends, its terminal is not revived (it is
   transient), status `Claude: off`, no Claude left running. The next Start
@@ -211,6 +227,19 @@ Expected behaviour: [README, Usage](../README.md#usage);
 - [ ] **S13 Stuck states.** Throughout the run, note any time the status bar
   shows `waiting` while Claude is clearly up and answering, or `connected`
   after the session ended. Either is a bug.
+- [ ] **S14 Restricted Mode.** The extension declares support for untrusted
+  workspaces, and design.md advises keeping agent-writable workspaces
+  untrusted. Open `alpha` in Restricted Mode (**Workspaces: Manage Workspace
+  Trust** → Don't Trust) and repeat S1, D1 and R1. Expect Start, the link and
+  proposal diffs to work as in a trusted folder. VS Code's Git extension does
+  not run in Restricted Mode, so the changes view has no git status: record
+  what it shows (files are expected to be listed as outside any repository,
+  without Stage or Revert to HEAD), and flag anything confusing.
+- [ ] **S15 Terminal in the panel.** Drag the **Claude Sandbox** terminal
+  tab from the editor area into the panel and repeat S5, P1 and D1. Expect
+  the session to keep working and the diffs to open in the active editor
+  group (VS Code's default: no editor group holds Claude). Record where focus
+  ends up.
 
 ### K: Keybindings and menus
 
@@ -246,8 +275,10 @@ Keybindings (all on Linux and Windows; the same keys on macOS):
   Review All open, `F8` must still go to the next problem.
 - [ ] **K4 Editor context menu.** Right-click in `src/app.py`: a **Claude
   Sandbox** submenu with Explain, Reword, Tighten, My presets… and Mention in
-  Claude. Right-click in an untitled file, a proposal diff (D checks) and a
-  Git HEAD diff: the submenu should not appear there.
+  Claude. Right-click in an untitled file, either side of a proposal diff (D
+  checks) and the left (HEAD) side of a Git diff: the submenu should not
+  appear there. On the right side of a Git diff it does appear (that side is
+  the file itself).
 - [ ] **K5 Refactor… and `Ctrl+.`.** With text selected, **Refactor…**
   (`Ctrl+Shift+R`) and `Ctrl+.` list `Claude: Summarise` (your preset) first,
   then `Claude: Explain`, `Claude: Reword`, `Claude: Tighten`,
@@ -262,7 +293,7 @@ Keybindings (all on Linux and Windows; the same keys on macOS):
   Run preset, Open diff, Mark as reviewed, Mark as not reviewed, Open File,
   Stage, Revert to HEAD, Reveal in Explorer View, Copy Path, Copy Relative
   Path; Accept and Reject proposed change only while a proposal diff is
-  focused.
+  focused. (**Smoke**: `test/unit/manifest.test.ts` checks the manifest.)
 - [ ] **K8 Copilot's entries.** If GitHub Copilot is installed, setting
   `github.copilot.editor.enableCodeActions` to `false` removes its entries
   from Refactor… and `Ctrl+.`, leaving the Claude ones.
@@ -283,26 +314,33 @@ Expected behaviour: [README, Usage](../README.md#usage);
   `@path` (visible in the submitted prompt).
 - [ ] **P3 My presets.** `Ctrl+Alt+C P` opens a quick pick titled
   **Claude Sandbox preset** listing `Summarise` with its prompt as detail;
-  choosing it sends it. With `claudeSandbox.presets` set to `[]`, expect
-  `No presets of your own yet: …` with **Open settings**, which opens the
-  setting.
+  choosing it sends it. With `claudeSandbox.presets` set to `[]` and a
+  session running, expect `No presets of your own yet: …` with **Open
+  settings**, which opens the setting. With no session, the session check
+  comes first: `Claude Sandbox: start the linked session first.` (as P7).
 - [ ] **P4 A preset removed under the menu.** Open `Ctrl+.` on a selection,
   then (without choosing) remove `Summarise` from settings in another window
   or quickly, and choose it. Expect
   `Claude Sandbox: that preset is no longer in your settings.`
 - [ ] **P5 Busy refusals.** Trigger a preset while Claude is (a) working, (b)
   showing a permission question, (c) showing `/model`, (d) waiting on a
-  proposed diff (D checks). Expect a warning each time and nothing typed:
-  `Claude is working: send it again once it has finished.`,
-  `Claude Code is asking you something in the terminal (its input box is not
-  showing): answer it there first.`,
-  `Claude is waiting for your answer to a proposed change: accept or reject
-  it first.` Nothing must ever be typed into a menu: check the terminal after
-  each.
-- [ ] **P6 Starting session.** Run Start and immediately press
-  `Ctrl+Alt+C E` on a selection. Expect the status bar message
-  `Waiting for Claude Code to start…`, then the ask goes through once the
-  input box appears (waits up to 20 s), or a warning that nothing was sent.
+  proposed diff (D checks). Expect a warning each time and nothing typed,
+  each starting `Claude Sandbox:`:
+  `Claude Sandbox: Claude is working: send it again once it has finished.`,
+  `Claude Sandbox: Claude Code is asking you something in the terminal (its
+  input box is not showing): answer it there first.`,
+  `Claude Sandbox: Claude is waiting for your answer to a proposed change:
+  accept or reject it first.` Nothing must ever be typed into a menu: check
+  the terminal after each.
+- [ ] **P6 Starting session.** Run Start; focus moves to the Claude
+  terminal, so click straight back into `src/app.py` (or use the editor's
+  context menu), select text and run Explain before Claude's input box is
+  up. Expect the status bar message `Waiting for Claude Code to start…` (it
+  goes after 20 s), then the ask goes through once the input box appears
+  (it waits up to 20 s), or a warning that nothing was sent. Also run
+  Explain from the palette while the Claude terminal tab is the active
+  editor: the ask takes its file from the active text editor, so it goes
+  with no file. Record whether that is clear to the user.
 - [ ] **P7 No session.** With no session, run a preset. Expect
   `Claude Sandbox: start the linked session first.` with a **Start** button
   that starts one.
@@ -329,13 +367,13 @@ Expected behaviour: [README, Usage](../README.md#usage) (Reviewing edits);
 Turn on `claudeSandbox.reviewEdits` in user settings and start a new
 session (it applies at Start).
 
-- [ ] **D1 A diff opens.** Ask Claude to change one line in `src/app.py`.
-  Expect a diff tab with Claude's title for it: left the file on disk
-  (read-only), right the proposal; **Accept proposed change** and **Reject
-  proposed change** (check and close icons) in the editor title. Focus stays in the Claude
+- [ ] **D1 A diff opens.** Ask Claude to change one line in `src/app.py`. Expect
+  a diff tab with Claude's title for it: left the file on disk (read-only),
+  right the proposal; **Accept proposed change** and **Reject proposed change**
+  (check and close icons) in the editor title. Focus stays in the Claude
   terminal. The diff opens in a group that is not the terminal's: the active
-  editor group if that is not Claude's, otherwise another group, otherwise a
-  new one beside. Log: `[ide] showing a proposed change to …`.
+  editor group if that is not Claude's, otherwise another group, otherwise a new
+  one beside. Log: `[ide] showing a proposed change to …`.
 - [ ] **D2 Accept.** Click Accept. Expect: the diff closes, Claude writes the
   file from the sandbox (`git diff` shows exactly the proposal), the log says
   `[ide] accepted the change to …`, focus returns to Claude's group.
@@ -355,14 +393,24 @@ session (it applies at Start).
   groups, and the Claude terminal in each in turn, trigger edits. Record where
   each diff opens. A diff that covers the Claude terminal, or that steals
   focus from it, is a bug.
-- [ ] **D9 Auto mode.** Switch Claude to auto-accept edits mode and ask for an
-  edit. Expect the diff still to appear (`reviewEdits` asks in auto mode too).
+- [ ] **D9 Permission modes.** Claude Code's "accept edits" mode and its
+  "auto" mode are different modes. Switch to each in turn (as Claude Code's
+  mode indicator names them) and ask for an edit. The docs say the diff
+  still appears in auto mode (`reviewEdits` adds the edit tools to
+  `permissions.ask`); they say nothing about accept-edits mode. Record what
+  each mode does.
 - [ ] **D10 Shell edits.** Ask Claude to change a file with `sed -i`. Expect
   no diff (documented: not caught) but the file listed in Changed this
   session.
 - [ ] **D11 Settings off.** With `reviewEdits` off (new session), edits apply
   without a diff in VS Code (Claude's own prompt may still ask, depending on
   its mode).
+- [ ] **D12 Answer in the terminal.** With a proposal diff open, answer
+  Claude's own edit prompt in the terminal instead of in the diff: once Yes,
+  once No, once Esc. Expect the diff tab to close by itself each time (Claude
+  closes it, or cancels the request), the file on disk to match the answer
+  (`git diff`), nothing answered twice, no error notification, and status
+  still `connected`. This is the most common real-world path.
 
 ### R: Changed this session and Review All
 
@@ -374,10 +422,10 @@ Start a session in `alpha` and have Claude modify two tracked files, create
 one, delete one, write `ignored.txt` and make a symlink
 (`ln -s /etc/hostname link`). Save a file yourself too.
 
-- [ ] **R1 The list.** Expect: the modified, new and deleted files listed;
-  the symlink listed with description `symlink`; `ignored.txt` and your own
-  save absent; the view's badge and the status bar's `· N changed` both equal
-  to the number of unreviewed rows.
+- [ ] **R1 The list.** Expect: the modified, new and deleted files listed; the
+  symlink listed with `(symlink)` in its description, after its folder;
+  `ignored.txt` and your own save absent; the view's badge and the status bar's
+  `· N changed` both equal to the number of unreviewed rows.
 - [ ] **R2 Open a diff.** Click a modified file: a diff against HEAD. A new
   file opens as itself; a deleted one shows HEAD against empty; the symlink
   shows `link is a symlink: it is not opened here. Look at it in Source
@@ -417,13 +465,18 @@ one, delete one, write `ignored.txt` and make a symlink
   preview. Note whether this fights with D's proposal diffs or steals focus.
 - [ ] **R11 After the session.** End the session: the list stays, with the
   same reviewed state. Start again: the list resets.
-- [ ] **R12 After a reload.** Reload with files listed. Record what the view
-  shows (the docs say only that the list is kept after the session ends and
-  reset at Start). Stale rows that cannot be opened, or a badge that does not
-  match the rows, are bugs.
+- [ ] **R12 After a reload.** Reload with files listed. The docs say nothing,
+  but the list lives in the extension host, so expect an empty view showing
+  its welcome (**Start Claude Sandbox**), no badge, and `Claude: off`. Stale
+  rows that cannot be opened, or a badge that does not match the rows, are
+  bugs.
 - [ ] **R13 Busy repository.** Have Claude run something that rewrites many
   files (for example `npm ci` in a Node project). Expect the view to stay
-  responsive; above 50,000 files it says how many changes it did not record.
+  responsive. The list records at most 50,000 files, but once full it first
+  forgets rows git does not show (such as an ignored `node_modules`) that
+  changed at least 5 s ago, so the message saying how many changes were not
+  recorded appears only when more than 50,000 files git still shows have
+  changed; with ignored files it may never appear.
 
 ### C: Copy launch command
 
@@ -447,7 +500,13 @@ Expected behaviour: [README, Usage](../README.md#usage);
   launch command while it is `waiting` and again while `connected`, in a
   single-root and a multi-root window (choose a different folder when asked).
   The docs do not say what should happen. Record whether the Start session
-  keeps its link and status; a running session losing its link is a bug.
+  keeps its link and status; a running session losing its link is a bug
+  (a likely one is described in issue #37).
+- [ ] **C6 Copy, then Start before pasting.** With no session, run Copy
+  launch command, then Start (same folder) without pasting. The Start session
+  reuses the link whose token is on the clipboard. Record whether Start
+  connects, and what happens when the copied command is pasted afterwards
+  (expected: a second Claude is refused while the first is connected).
 
 ### I: Install and update notifications
 
@@ -460,9 +519,13 @@ container.
   (`sudo mv /usr/local/bin/claude-sandbox /usr/local/bin/claude-sandbox.off`)
   and reload. Expect a warning `claude-sandbox isn't installed in this
   container.` with **Install** and **About claude-sandbox**, whose detail
-  names the command: `uvx --no-cache --from 'claude-sandbox>=5.1.0'
-  claude-sandbox install --minimal`, by absolute path, with `/usr/bin/sudo`
-  first when not root. Start shows the same offer.
+  reads ``Install runs `<uvx> --no-cache --from claude-sandbox>=5.1.0
+  claude-sandbox install --minimal` in a terminal.``, with uvx by absolute
+  path and `/usr/bin/sudo` first when not root. The detail shows the
+  requirement without quotes (the arguments are joined with spaces); the
+  terminal runs them as separate words, so that is not a bug, though the
+  text is not safe to paste into a shell (`>=` is a redirect): note it as UX.
+  Start shows the same offer.
 - [ ] **I2 Install.** Click **Install**. Expect a visible terminal
   **claude-sandbox install** running that command; when it is closed after
   success, `claude-sandbox is installed. Run Claude Sandbox: Start.` Start
@@ -477,7 +540,10 @@ container.
 - [ ] **I5 Outdated notice.** With an older (but supported) claude-sandbox
   and network access, reload. Expect at most one info notice a day naming
   the newer version and the update command; it never upgrades. Reload again:
-  no second notice that day. Offline, nothing.
+  no second notice that day. Do the online case first: the day's check is
+  recorded before the fetch, so an offline reload uses it up (and shows
+  nothing). To retry within a day, clear the extension's global state, for
+  example by uninstalling and reinstalling it, or move the clock on.
 - [ ] **I6 Noise.** Overall: is any notification shown more often than
   needed, unclear about what to do, or still showing after the problem is
   fixed?
@@ -502,10 +568,12 @@ Open `/workspaces/multi.code-workspace`.
   text in an `alpha` file and run Explain. Expect it to work (a peer: sent
   over the link). Check that Claude does not see a stale selection from
   another file.
-- [ ] **M5 Changes view grouping.** Have Claude change files in its own
-  folder only, then (in a second session) in `gamma`. With one root the files
-  are listed directly; files spanning several repositories are grouped under
-  a node per root.
+- [ ] **M5 Changes view grouping.** The view lists only the session's own
+  folder, so grouping needs two repositories inside it. In a session in
+  `alpha`, have Claude change a file in `alpha` itself only: the files are
+  listed directly. Then have it change one in `vendor/lib` (the nested
+  repository) too: the files are grouped under one node per repository, as
+  Source Control groups them.
 - [ ] **M6 Folder removed.** Remove the session's folder from the workspace
   while it runs. Record what happens to the status bar, the terminal and
   later asks (the docs say the link's workspace becomes empty).
@@ -515,8 +583,12 @@ Open `/workspaces/multi.code-workspace`.
 - [ ] **F1 Claude exits mid-diff.** With a proposal diff open (D1), `/exit`
   or kill Claude. Expect the diff tab to close by itself with no answer
   sent, the file unchanged, status `off`, and no stray notification.
-- [ ] **F2 Link lost mid-diff.** With a diff open, `/ide` → None. Expect the
-  diff closed (its connection went), status `waiting`.
+- [ ] **F2 Link lost mid-diff.** While a proposal waits, Claude shows its
+  own edit prompt, so `/ide` cannot be typed. Cut the link instead by
+  killing the in-jail `socat` for the session's port (`ps -ef | grep socat`
+  in another devcontainer terminal). Expect the diff to close by itself with
+  no answer, the file unchanged, status `waiting`. (Esc on Claude's prompt
+  also closes the diff, but keeps the link: status `connected`; see D12.)
 - [ ] **F3 Container restart.** Restart or rebuild the devcontainer with a
   session running. Expect, once VS Code reconnects: no session, status
   `off`, Start works again. Check the installed extension version again: a
@@ -525,12 +597,15 @@ Open `/workspaces/multi.code-workspace`.
   (sandboxed, no link) and `/ide`, choosing this extension, while the linked
   session is connected. Expect it to fail
   (`Failed to connect to Claude Sandbox for VS Code`), the linked session to
-  stay connected, and the log line `[ide] refused a second connection: one
-  Claude session is linked already`.
-- [ ] **F5 Long path.** Open a folder whose absolute path is over about 75
-  bytes (the socket path, folder plus `.claude-sandbox-vscode-<port>.sock`,
-  is limited to 107) and Start. Expect an error naming the limit (`… move the
-  workspace to a shorter path …`) and no session, not a silent hang.
+  stay connected, and the log line `[ide] refused a connection: another
+  Claude session is linked to this window` (the second Claude is turned away
+  with `409` at the WebSocket upgrade).
+- [ ] **F5 Long path.** Open a folder whose absolute path is 74 bytes or
+  more (use about 90 to stay clear of the edge; the socket path, folder plus
+  `/.claude-sandbox-vscode-<port>.sock`, is limited to 107 bytes) and Start.
+  Expect the error `Claude Sandbox: The IDE link cannot listen: "Error: the
+  socket path would be longer than 107 bytes (move the workspace to a
+  shorter path): …"` and no session, not a silent hang.
 - [ ] **F6 Two windows.** Open `alpha` and `beta` in two windows, start in
   both. Expect independent sessions; a preset in one window never reaches the
   other's Claude.
@@ -563,11 +638,12 @@ Expected behaviour: [README, Security](../README.md#security);
 - [ ] **X5 Symlinks are not followed.** R2's symlink is never opened, in a
   diff, by Open File or in Review All.
 - [ ] **X6 uvx from fixed paths only.** In I1, the Install detail shows uvx at
-  `/usr/local/bin/uvx`, `/usr/bin/uvx` or `~/.cargo/bin/uvx`. Put a `uvx`
+  `/usr/local/bin/uvx`, `/usr/bin/uvx` or `~/.cargo/bin/uvx` (**smoke**).
+  Put a `uvx`
   only in `~/.local/bin` (or elsewhere on `PATH`): expect I4's message, never
   an Install button that would run it.
 - [ ] **X7 Socket permissions.** The `.claude-sandbox-vscode-*.sock` in the
-  session's folder is mode `0600`.
+  session's folder is mode `0600` (**smoke**).
 - [ ] **X8 Nothing typed into menus.** Across all P checks, no preset text
   ever lands in a permission prompt, `/model` or any menu.
 
@@ -596,8 +672,12 @@ It is a real bug when, after a retry:
 
 ## Time box
 
-- **Full pass** (before a release): every area, about two to three hours. Do
-  the destructive I checks and F3 in a throwaway container at the end.
+- **Full pass** (before a release): every area. Allow about four to six
+  hours for an agent driving VS Code (through a DevTools-style driver,
+  every step is slower), or two to three hours for a person who knows the
+  extension. Do the destructive I checks and F3 in a throwaway container at
+  the end; R9 needs a second VS Code version and K8 needs Copilot, so skip
+  them when those are not to hand.
 - **Targeted pass** (one PR): about 30 to 45 minutes. A smoke run (S1, S6,
   P1, D1, D2, D4, R1, R8), then the areas the PR touches and their
   neighbours. For example, a change to `src/vscode/changesView.ts` gets all of
