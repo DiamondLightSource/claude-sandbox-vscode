@@ -126,7 +126,8 @@ files before reopening.
 ## Development
 
 Linux, Node 22.18+, `socat` and Python 3 for the tests. The repository's
-devcontainer has all of them, installs claude-sandbox and runs `npm ci`; its
+devcontainer has all of them, installs claude-sandbox and the Marketplace
+release of this extension, and runs `npm ci`; its
 **Run Extension** launch configuration opens an Extension Development Host
 with the development build.
 
@@ -137,7 +138,17 @@ npm run typecheck
 npm test            # test/unit and test/hostile
 npm run build       # dist/extension.cjs
 npm run package     # .vsix
+npm run install:dev # install this build over the Marketplace copy, as the next patch version
 ```
+
+`install:dev` packages the working tree as one patch above the newest release tag
+(0.8.0 gives 0.8.1), so the Extensions view shows it is a development build, and
+installs it over the Marketplace copy. Run it from a devcontainer terminal, where
+`code` is available, then reload the window. A VSIX installed this way is pinned:
+VS Code stops auto-updating it, even when a newer release comes out. To go back to
+the Marketplace build, uninstall it
+(`code --uninstall-extension diamondlightsource.claude-sandbox-vscode`) and reload,
+or rebuild the devcontainer.
 
 ## Releasing
 

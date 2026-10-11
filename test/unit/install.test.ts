@@ -96,18 +96,12 @@ describe("rule 10: the install offer", () => {
     assert.equal(tooOld("5.0.0"), false);
     assert.equal(tooOld("weird"), false, "unknown: not called too old");
   });
-  it("the devcontainer's pinned claude-sandbox is not older than MIN_VERSION", () => {
+  it("the devcontainer installs claude-sandbox the way the extension does", () => {
     const root = path.resolve(import.meta.dirname, "..", "..");
     const script = fs.readFileSync(path.join(root, ".devcontainer", "postCreate.sh"), "utf8");
-    const version = /uvx claude-sandbox==(\S+) install/.exec(script)?.[1];
-    assert.ok(version, "postCreate.sh pins claude-sandbox");
-    assert.notEqual(compareVersions(version, MIN_VERSION), null, `${version} is a version`);
-    assert.equal(tooOld(version), false);
-    assert.match(
-      script,
-      /uvx claude-sandbox==\S+ install --minimal$/m,
-      "postCreate.sh installs --minimal like installArgv",
-    );
+    const words = installArgv(0, "uvx").map((w) => (/^[\w./-]+$/.test(w) ? w : `'${w}'`));
+    const line = `${words.join(" ")}\n`;
+    assert.ok(script.includes(line), `postCreate.sh runs ${line}`);
   });
   it("uvx only from fixed places the jail cannot write, never PATH or ~/.local/bin", () => {
     assert.deepEqual(uvxCandidates("/home/me"), ["/usr/local/bin/uvx", "/usr/bin/uvx", "/home/me/.cargo/bin/uvx"]);

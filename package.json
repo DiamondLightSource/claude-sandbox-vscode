@@ -490,6 +490,8 @@
     "format": "biome check --write .",
     "test": "node --test --test-concurrency=1 \"test/**/*.test.ts\"",
     "package": "npm run build && vsce package --no-dependencies",
+    "package:dev": "v=$(git tag -l | grep -E '^[0-9]+\\.[0-9]+\\.[0-9]+$' | sort -V | tail -n1) && [ -n \"$v\" ] && vsce package --no-dependencies --no-update-package-json -o claude-sandbox-vscode-dev.vsix \"${v%.*}.$((${v##*.} + 1))\"",
+    "install:dev": "npm run package:dev && code --install-extension claude-sandbox-vscode-dev.vsix --force",
     "vscode:prepublish": "npm run build -- --minify"
   },
   "devDependencies": {
