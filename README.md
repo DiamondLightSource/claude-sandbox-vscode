@@ -150,6 +150,10 @@ the Marketplace build, uninstall it
 (`code --uninstall-extension diamondlightsource.claude-sandbox-vscode`) and reload,
 or rebuild the devcontainer.
 
+Before a release, [docs/test-charter.md](docs/test-charter.md) is an
+exploratory check of the packaged extension in a real VS Code, for what the
+tests above cannot see.
+
 ## Releasing
 
 Create a GitHub release with a new tag `X.Y.Z` (no `v` prefix) on `main`, or
