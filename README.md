@@ -14,6 +14,14 @@ The extension runs in a devcontainer. Install **Claude Sandbox for VS Code**
 from the Extensions view, or add `diamondlightsource.claude-sandbox-vscode` to
 the devcontainer's `customizations.vscode.extensions`.
 
+Outside a devcontainer it refuses: the status bar reads
+`Claude: needs a devcontainer`, Start says what is missing, and Install is
+never offered. The devcontainer must be started with `/dev/net/tun`
+(`"runArgs": ["--device=/dev/net/tun"]`), which claude-sandbox's network
+egress jail needs; without it the status bar reads
+`Claude: needs /dev/net/tun` (unless `/etc/claude-sandbox.conf` turns the
+jail off with `egress-jail = 0`).
+
 To install a GitHub release instead, run this from a devcontainer terminal
 with VS Code attached:
 

@@ -20,6 +20,19 @@ extension runs in the devcontainer's remote extension host. Rootless Podman and
 the devcontainer are claude-sandbox prerequisites. claude-sandbox's standalone
 mode (the host launcher starting its own container) is not a target.
 
+Anything else is refused (`src/environment.ts`, issue #41): a window whose
+`vscode.env.remoteName` is not `dev-container` or `attached-container`, an
+extension host with neither `/run/.containerenv` (Podman) nor `/.dockerenv`
+(Docker), or a container with no `/dev/net/tun` character device unless
+`/etc/claude-sandbox.conf` turns the egress jail off (`egress-jail = 0`). The
+checks read files, never the extension host's environment, which
+devcontainer.json's `remoteEnv` (agent-editable) sets; the jail cannot write
+`/` or `/etc`. The status bar then reads `Claude: needs a devcontainer`
+(`Claude: needs /dev/net/tun` when only the device is missing); Start (from
+the status bar, the palette, a preset or the Changes view's welcome) and Copy
+launch command show a modal error listing what was found and what is needed; the startup install
+offer and outdated notice stay silent, so Install is never offered on a host.
+
 One linked Claude session per VS Code window, started with **Claude Sandbox:
 Start**. Any other Claude is started the usual way (`claude` in a terminal) and runs sandboxed with no IDE link. While a
 connection is open, the link refuses a new one rather than replacing it, so a
@@ -356,7 +369,7 @@ client on the real socket, with the real token, attacking).
 | 7 Lock files and sockets | `test/hostile/hook.test.ts` (the hook run for real with socat, in a workspace whose name tries to break out of the command; idempotent, one socat; another's lock left alone and not removed at SessionEnd; no lock when socat never listens; the matchers; silent on stderr when the lock folder cannot be made), "SessionEnd removes only a lock that is ours, byte for byte" (trailing newline, NUL, prefix, suffix kept; a FIFO at the lock path neither blocks nor is removed; a symlink and its target left; a huge file); `test/unit/settings.test.ts` "hook commands"; `test/hostile/audit.test.ts` "rule 7" (every fs path recorded during a session; none under the config folder); `test/hostile/link.test.ts` "rule 7: the socket name" |
 | 8 Parser and connection limits | `test/unit/websocket.test.ts`; `test/hostile/link.test.ts` "rule 8" (0600, deflate refused, tokens, 4 handshakes, slow handshake, 1009, 1002, one linked session (the `/ide` behaviour above recorded by hand with Claude Code 2.1.292), a client that stops reading (backpressure), the 32 MiB cap, pings, a slow reader not dropped while paused); `test/unit/mcp.test.ts` "connections", "rule 8" and "the largest answer (FILE_SAVED) always fits under the output cap" (`PROPOSAL_MAX` derived from `MAX_QUEUED`, a worst-case proposal and id, a larger proposal or accepted text), `test/unit/settings.test.ts` (`__proto__`); `test/unit/log.test.ts` |
 | 9 The pty relay | `test/unit/pty.test.ts` (Claude's environment without VS Code's channels, an inherited link port or another Claude's child markers; argv constant but for size and arguments; the pty is the controlling terminal at the given size with no fd of ours; arguments are words; keys and UTF-8; SIGWINCH on resize, bad resize lines ignored; Ctrl-C and exit status; output before exit kept; kill hangs up; a slow reader of the output holds up neither keys nor resizes (fails on the old blocking relay); a flood of redraws with input bursts, resizes, a stalling host and a throwing output handler at once; a missing program is 127, a missing interpreter is explained; writes coalesced per 16 ms, a throwing sink reported); `test/hostile/audit.test.ts` "child_process only in the pty relay and the version check" |
-| 10 Install offer | `test/unit/install.test.ts` (the shim, CLI and interpreter recognised, read without blocking on a FIFO; the fixed command with `--no-cache` and `--minimal`, the `>=5.1.0` requirement, and sudo; older than the minimum is too old; uvx only from the fixed paths, not a symlink out of them, not writable by others, not owned by another user; the terminal script runs its arguments as words; version parsing and comparison; PyPI JSON read as own keys); `test/hostile/audit.test.ts` "terminals" |
+| 10 Install offer | `test/unit/install.test.ts` (the shim, CLI and interpreter recognised, read without blocking on a FIFO; the fixed command with `--no-cache` and `--minimal`, the `>=5.1.0` requirement, and sudo; older than the minimum is too old; uvx only from the fixed paths, not a symlink out of them, not writable by others, not owned by another user; the terminal script runs its arguments as words; version parsing and comparison; PyPI JSON read as own keys); `test/unit/environment.test.ts` (refused outside a devcontainer: a local window, another remote, no container marker, no tun device unless the conf turns the jail off); `test/hostile/audit.test.ts` "terminals" |
 | 11 Settings | `test/unit/manifest.test.ts` (every setting `scope: application`; the code reads no other setting of ours and no other extension's, `files.watcherExclude` included; keybindings on the `Ctrl+Alt+C` chord only); `test/unit/settings.test.ts` "reviewEdits" (the ask list merged and deduplicated, theirs kept, `__proto__` a plain key) |
 | 12 Changes view | `test/unit/changes.test.ts` (only workspace files, not a `.git` segment or sockets, no settings patterns; any path decided in linear time; lstat: a symlink listed as one, a folder and a missing path told apart; the user's saves skipped; kinds; reviewed until changed again; Review All's rows: HEAD vs now, new against nothing, deleted HEAD vs nothing, symlinks left out; `splitByGit`: only what git shows changed, outside a repository all; git status re-read once per repository first, so a just-made file is shown and new); `test/hostile/audit.test.ts` "rule 3" (no write API; `workspace.fs` only for `stat`; Git API writes (`add`, `revert`, `clean`) only in the changes view, `revert` and `clean` after the modal prompt: a tripwire on the source, not a proof); `picked` (the context menu's files) |
 
@@ -442,7 +455,10 @@ _shadow`) or `/usr/local/bin/claude-sandbox` is missing, a notification says
 `claude-sandbox version` reports one older than 5.0.0, that it needs 5.0.0
 or later) and offers **Install**, which opens a visible terminal running
 `uvx --no-cache --from 'claude-sandbox>=5.1.0' claude-sandbox install --minimal` (with sudo when not root; uvx only from the fixed paths of rule 10).
-Without uvx it links to the claude-sandbox docs instead. Start checks the same
+Without uvx it links to the claude-sandbox docs instead. Neither the offer
+nor the notice appears outside a devcontainer set up for claude-sandbox
+([Scope](#scope)): there Install would run the installer, with sudo, on the
+host. Start checks the same
 (the interpreter too) and offers the same; a relay that cannot start because
 the interpreter is missing says so on the terminal, not just "exited 127". Once a day at most, `claude-sandbox
 version` is compared with PyPI's latest (its latest stable, or for a

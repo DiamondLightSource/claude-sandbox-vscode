@@ -2,14 +2,16 @@
 // session as a terminal in the editor area (src/vscode/terminal.ts), the presets type asks into
 // it (src/vscode/presets.ts), the "Changed this session" view lists what changed while it ran
 // (src/vscode/changesView.ts), and on startup the install offer and the outdated notice
-// (src/vscode/installOffer.ts). "Copy launch command" stays as an advanced way to link a Claude
-// started by hand.
+// (src/vscode/installOffer.ts). Outside a devcontainer set up for claude-sandbox all of it
+// refuses (src/vscode/environment.ts). "Copy launch command" stays as an advanced way to link a
+// Claude started by hand.
 //
 // A window reload ends the session: deactivation closes the link and hangs up the terminal's
 // pty, and the reloaded window draws a new port and token.
 
 import * as vscode from "vscode";
 import { extraArgs } from "./ask.ts";
+import { needs } from "./environment.ts";
 import { IdeLink } from "./link.ts";
 import type { Logger } from "./log.ts";
 import type { LinkState } from "./mcp.ts";
@@ -25,6 +27,7 @@ import {
 import { ChangesView } from "./vscode/changesView.ts";
 import { vscodeDiagnostics } from "./vscode/diagnostics.ts";
 import { DiffEditors } from "./vscode/diffView.ts";
+import { checkEnvironment, problems } from "./vscode/environment.ts";
 import { checkInstalled, checkOutdated } from "./vscode/installOffer.ts";
 import { registerPresets } from "./vscode/presets.ts";
 import { trackSelection } from "./vscode/selection.ts";
@@ -43,7 +46,16 @@ export function activate(context: vscode.ExtensionContext): void {
   status.command = "claudeSandbox.start";
   const changes = new ChangesView();
   let linkState: LinkState = "off";
+  // the remote and the container's devices are fixed for the window's life; only an edit to
+  // claude-sandbox's conf (egress-jail = 0) can clear it, and Start and the launch command re-check
+  let found = problems();
   const showState = (): void => {
+    if (found.length > 0) {
+      status.text = `$(error) Claude: ${needs(found)}`;
+      status.tooltip = "Claude Sandbox runs only in a devcontainer set up for claude-sandbox: click for details";
+      status.show();
+      return;
+    }
     const running = claude?.running === true;
     const s = running || link !== undefined ? linkState : "off";
     const n = changes.unreviewed;
@@ -123,11 +135,21 @@ export function activate(context: vscode.ExtensionContext): void {
     await l?.close();
   };
 
+  const usable = async (): Promise<boolean> => {
+    if (!(await checkEnvironment(logger.info))) return false;
+    if (found.length > 0) {
+      found = [];
+      showState();
+    }
+    return true;
+  };
+
   const start = async (folder?: vscode.Uri): Promise<void> => {
     if (claude?.running) {
       claude.terminal.show();
       return;
     }
+    if (!(await usable())) return;
     if (!(await checkInstalled(logger.info))) return;
     const roots = folders();
     if (roots.length === 0) {
@@ -189,6 +211,7 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.workspace.onDidChangeWorkspaceFolders(() => link?.setFolders(folders().filter((f) => f === linkRoot))),
     vscode.commands.registerCommand("claudeSandbox.start", start),
     vscode.commands.registerCommand("claudeSandbox.copySettings", async () => {
+      if (!(await usable())) return;
       const roots = folders();
       if (roots.length === 0) {
         void vscode.window.showWarningMessage("Claude Sandbox: open a folder first.");
@@ -214,8 +237,10 @@ export function activate(context: vscode.ExtensionContext): void {
     { dispose: () => claude?.dispose() },
   );
 
-  // the install offer and the outdated notice, after startup
+  // the install offer and the outdated notice, after startup: never outside a devcontainer,
+  // where Install would run claude-sandbox's installer on the host (the status bar says why)
   void (async () => {
+    if (!(await checkEnvironment(logger.info, true))) return;
     if (await checkInstalled(logger.info)) await checkOutdated(context.globalState, logger.info);
   })().catch((err) => logger.info(`[install] ${String(err)}`));
 }
