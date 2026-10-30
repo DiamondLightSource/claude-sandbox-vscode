@@ -657,21 +657,20 @@ Expected behaviour: [README, Security](../README.md#security);
   session's folder is mode `0600`. (**Covered by unit tests.**)
 - [ ] **X8 Nothing typed into menus.** Across all P checks, no preset text
   ever lands in a permission prompt, `/model` or any menu.
-- [ ] **X9 Outside a devcontainer.** A possible bug
+- [ ] **X9 Outside a devcontainer.** The refusal
   ([#41](https://github.com/DiamondLightSource/claude-sandbox-vscode/issues/41)):
-  in a plain local window the extension may offer **Install** (which runs
-  the claude-sandbox install, with sudo, on the host) and **Start** may run
+  in a plain local window the extension used to offer **Install** (which runs
+  the claude-sandbox install, with sudo, on the host) and **Start** could run
   Claude without the devcontainer around it, with nothing telling the user.
-  **NEVER click Install or Start in a local window on a machine you care
-  about, or on a shared or automation host: installing claude-sandbox there
-  changes that host's Claude setup.** This check is observe-only. Open a
-  local folder (no devcontainer, no remote) with the extension installed
-  locally and record, without clicking any action:
+  **If Install is offered anyway, NEVER click it in a local window on a
+  machine you care about, or on a shared or automation host: installing
+  claude-sandbox there changes that host's Claude setup.** Open a local
+  folder (no devcontainer, no remote) with the extension installed locally
+  and record:
   - every notification and its exact wording (does it say "this
     container"?), from the Notification Center too;
   - the status bar item's text;
-  - whether Install and Start are offered (notification buttons, the status
-    bar item, the Changes view's welcome), without using them;
+  - whether Install is offered (notification buttons), without using it;
   - the **Claude Sandbox** output channel;
   - that the window is local: no remote indicator at the left of the status
     bar, and **Developer: Show Running Extensions** shows the extension
@@ -679,11 +678,16 @@ Expected behaviour: [README, Security](../README.md#security);
     window; it is an extension API, so read it from an extension or a debug
     session, not from the Developer Tools console.)
 
-  Expect the extension to refuse, or to warn unmistakably that it is not in
-  a devcontainer. Offering Install or Start silently is the bug. Do the full
-  confirmation (click Install, then Start, look at `ps -ef --forest`, ask
-  Claude to write outside the folder) only in a disposable VM or container
-  standing in for a host.
+  Expect no install notification, the status bar to read
+  `Claude: needs a devcontainer`, and the output channel to show
+  `[environment] refusing: ...`. Then click Start from the status bar item,
+  the palette, the Changes view's welcome and a preset's **Start**: each
+  shows a modal error naming what is missing and what is needed, and no
+  terminal opens. **Copy launch command** shows the same and copies nothing.
+  Offering Install, or starting anything, is the bug. In a devcontainer
+  started without `--device=/dev/net/tun` expect `Claude: needs
+  /dev/net/tun` and the same modal with only that line found; its **How to
+  set up** opens claude-sandbox's network egress jail page.
 
 ## Flakiness
 
