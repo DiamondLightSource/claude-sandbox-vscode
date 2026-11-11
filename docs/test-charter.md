@@ -435,14 +435,17 @@ one, delete one, write `ignored.txt` and make a symlink
 - [ ] **R1 The list.** Expect: the modified, new and deleted files listed; the
   symlink listed with `(symlink)` in its description, after its folder;
   `ignored.txt` and your own save absent; the view's badge and the status bar's
-  `· N changed` both equal to the number of unreviewed rows.
+  `· N changed` both equal to the number of unreviewed rows (under R14's
+  folder rows: the unreviewed files, whether or not their folders are
+  expanded).
 - [ ] **R2 Open a diff.** Click a modified file: a diff against HEAD. A new
   file opens as itself; a deleted one shows HEAD against empty; the symlink
   shows `link is a symlink: it is not opened here. Look at it in Source
   Control.`
 - [ ] **R3 Mark as reviewed.** Use the inline check and the context menu's
   **Mark as reviewed** / **Mark as not reviewed**; the title bar's **Mark all
-  as reviewed**. Expect the badge and status bar count to follow at once. Ask
+  as reviewed** (every file the view shows, R14's collapsed folders
+  included). Expect the badge and status bar count to follow at once. Ask
   Claude to change a reviewed file again: it becomes unreviewed.
 - [ ] **R4 Context menu per row type.** Right-click each kind of row. Expect:
   Open File not offered for deleted rows or symlinks; Reveal in Explorer View
@@ -456,8 +459,9 @@ one, delete one, write `ignored.txt` and make a symlink
   Expect a modal confirmation first (Cancel leaves everything), then the
   tracked file checked out and the new file deleted; the rows leave the list.
   **Revert All Changes to HEAD** (the view's `…` menu) does the same for every
-  listed file and nothing else in the repository (make an unrelated change in
-  `beta` or an unlisted file first and check it survives). A file git could
+  listed file (under R14's folder rows too, expanded or not; its prompt
+  gives the number) and nothing else in the repository (make an unrelated
+  change in `beta` or an unlisted file first and check it survives). A file git could
   not revert is named in a warning.
 - [ ] **R8 Review All.** `Ctrl+Alt+C V` (or the title bar's icon) opens one
   multi-file diff editor titled `Claude changes` (VS Code adds the count),
@@ -473,6 +477,11 @@ one, delete one, write `ignored.txt` and make a symlink
 - [ ] **R10 autoOpenDiffs.** Turn on `claudeSandbox.autoOpenDiffs` and have
   Claude change files. Expect each change's diff against HEAD to open as a
   preview. Note whether this fights with D's proposal diffs or steals focus.
+  Then have Claude write many files at once (for example
+  `for i in $(seq 200); do echo $i > f$i.txt; done`). Expect no diff to open
+  for them, one status-bar message `Claude Sandbox: many files are changing:
+  their diffs are not opened`, and no pile of editor tabs. Wait a few
+  seconds and have Claude change one file: its diff opens again.
 - [ ] **R11 After the session.** End the session: the list stays, with the
   same reviewed state. Start again: the list resets.
 - [ ] **R12 After a reload.** Reload with files listed. The docs say nothing,
@@ -486,7 +495,45 @@ one, delete one, write `ignored.txt` and make a symlink
   forgets rows git does not show (such as an ignored `node_modules`) that
   changed at least 5 s ago, so the message saying how many changes were not
   recorded appears only when more than 50,000 files git still shows have
-  changed; with ignored files it may never appear.
+  changed; with ignored files it may never appear. A file the view shows is
+  never forgotten, and while the list is not full nothing is: change a
+  tracked file with the VS Code window unfocused, wait a minute, focus it,
+  and expect the file listed.
+- [ ] **R14 Folder rows.** In a folder no repository covers (remove `.git`
+  from a scratch copy of `alpha`, or use a plain workspace folder), have
+  Claude change `src/real.py` and then create more than 1000 files in
+  another folder (for example a `uv sync` or `npm ci` there, or
+  `mkdir -p big/a big/b; for i in $(seq 2000); do echo $i > big/a/f$i; done`).
+  Expect VS Code to stay responsive throughout; the view to list collapsed
+  folder rows (`big`, `src`), each with `N files` and, once some are
+  reviewed, `, M to review`; folders before files; `src` expanding to
+  `real.py`; every created file reachable by expanding, one directory level
+  per row. Expanded folders stay expanded as more files change, in them or
+  beside them (`echo x > big/new.txt` with `big/a` expanded). Right-click a folder
+  row: no file command is offered. Delete the files until 1000 or fewer are
+  left: the list is flat again.
+  Then make a wide level:
+  `mkdir wide; for i in $(seq 3000); do echo $i > wide/f$i; done` (and the
+  same directly in the workspace folder, and with one-file directories:
+  `for i in $(seq 3000); do mkdir -p dirs/d$i; echo $i > dirs/d$i/f; done`).
+  Expect VS Code to stay responsive, and each level of more than 1000 rows
+  drawn as collapsed range rows (labelled with their first and last names,
+  `f1 … f…`, and `1000 files`), at most
+  1000 rows under any row, every file reachable; an expanded range stays
+  expanded as more files are created; no file command on a range row.
+  The limits to check throughout: no row has more than 1000 rows directly
+  under it, and with nothing expanded by you the whole tree is at most 1000
+  rows; what you expand is fetched again as files change.
+- [ ] **R15 Review All's limit.** With more than 1000 files listed (R14, in a
+  workspace that also has a repository with changes), run Review All.
+  Expect one multi-file diff editor of at most 1000 files, the repository's
+  files all among them, and an info message such as `Claude Sandbox: 1003
+  of 2003 changed files are not in this review: it opens at most 1000
+  (tracked files first, then a repository's new files, then files outside
+  one, each by path). Open the others from the Changed this session view.`
+  Check the numbers against the view. Then, in the repository, modify a
+  tracked file `zzz.py` and create more than 1000 untracked files whose
+  names sort before it: expect `zzz.py` in the review.
 
 ### C: Copy launch command
 
@@ -582,7 +629,9 @@ Open `/workspaces/multi.code-workspace`.
   `alpha`, have Claude change a file in `alpha` itself only: the files are
   listed directly. Then have it change one in `lib` (the nested
   repository) too: the files are grouped under one node per repository, as
-  Source Control groups them.
+  Source Control groups them, expanded. Then have it create 1000 files in
+  `lib`: the repository rows are collapsed (files and repository rows
+  together are more than 1000), and expanding one lists its files.
 - [ ] **M6 Folder removed.** Remove the session's folder from the workspace
   while it runs. Record what happens to the status bar, the terminal and
   later asks (the docs say the link's workspace becomes empty).

@@ -68,8 +68,10 @@ never upgrades it.
   another window has its own.
 - **Changed this session**: the side bar lists files changed while the
   session ran (your own saves excluded, and only those git shows a change
-  for). Click one for a diff against HEAD, tick **Mark as reviewed**, or
-  **Review All Changes** to open them in the multi-file diff editor, then step
+  for; more than 1000 are listed under folders, and ranges of a long folder, to expand). Click one for a
+  diff against HEAD, tick **Mark as reviewed**, or **Review All Changes** to
+  open them in the multi-file diff editor (at most 1000, tracked files first;
+  a message says how many are left out), then step
   with **Next/Previous Change** (`F8`/`Shift+F8` in that editor or the view,
   VS Code 1.106+). Right-click a file (or a selection) to open it, stage
   it, revert it to HEAD, reveal it or copy its path; **Revert All Changes
@@ -86,7 +88,7 @@ Settings (user scope only):
 | --- | --- | --- |
 | `claudeSandbox.extraArgs` | `[]` | Extra Claude Code arguments, e.g. `["--model", "opus"]` |
 | `claudeSandbox.presets` | `[]` | Your presets: `[{"title": "Summarise", "prompt": "…"}]` |
-| `claudeSandbox.autoOpenDiffs` | `false` | Open each change's diff as it happens |
+| `claudeSandbox.autoOpenDiffs` | `false` | Open each change's diff as it happens (not while many files change at once) |
 | `claudeSandbox.reviewEdits` | `false` | Ask before file-edit tools, showing each as a diff |
 
 **Claude Sandbox: Copy launch command (advanced)** copies a

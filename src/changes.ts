@@ -138,7 +138,12 @@ export class ChangeSet {
 
   /** All of them, by path. */
   list(): Change[] {
-    return [...this.items.values()].sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
+    return byPath([...this.items.values()]);
+  }
+
+  /** All of them, in no order (the view sorts only the ones it shows). */
+  all(): Change[] {
+    return [...this.items.values()];
   }
 
   get size(): number {
@@ -155,6 +160,70 @@ export class ChangeSet {
     this.items.clear();
     this.saves.clear();
   }
+}
+
+/** Sorts `changes` by path, in place. */
+export function byPath(changes: Change[]): Change[] {
+  return changes.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
+}
+
+/** What the tree draws for the shown files (see drawn): a file's fields at one index of each. */
+export interface Drawn {
+  paths: string[];
+  /** Kind, reviewed, symlink and in a repository, as one number. */
+  bits: number[];
+  roots: string[];
+}
+
+const KIND_BITS: Record<ChangeKind, number> = { created: 0, changed: 8, deleted: 16 };
+
+/**
+ * What the tree draws for these files: the view is redrawn only when it differs (sameDrawn)
+ * from the last one drawn. A burst of watcher events for files the view does not show (an
+ * install into an ignored folder) changes nothing in it. Every row comes from these fields
+ * alone (a folder row's counts too: see folderIndex), so the same Drawn is the same tree,
+ * whichever rows are expanded. The fields are kept and compared as they are, not hashed: no
+ * two different trees compare the same.
+ */
+export function drawn(rows: readonly Change[], rootOf: (c: Change) => string, inRepo: (c: Change) => boolean): Drawn {
+  const d: Drawn = { paths: [], bits: [], roots: [] };
+  for (const c of rows) {
+    d.paths.push(c.path);
+    d.bits.push(KIND_BITS[c.kind] + (c.reviewed ? 4 : 0) + (c.symlink ? 2 : 0) + (inRepo(c) ? 1 : 0));
+    d.roots.push(rootOf(c));
+  }
+  return d;
+}
+
+export function sameDrawn(a: Drawn | undefined, b: Drawn): boolean {
+  if (a === undefined || a.paths.length !== b.paths.length) return false;
+  for (let i = 0; i < a.paths.length; i++)
+    if (a.bits[i] !== b.bits[i] || a.paths[i] !== b.paths[i] || a.roots[i] !== b.roots[i]) return false;
+  return true;
+}
+
+/** Watcher events come in bursts (a checkout, an install): the view is refreshed at most this often. */
+export const REFRESH_MS = 100;
+/** A refresh waits this many times as long as the last one took, */
+const REFRESH_BACKOFF = 4;
+/** but never longer than this. */
+export const REFRESH_MAX_MS = 3000;
+
+/**
+ * How long a refresh waits after the last one, given how long that one took (ms): a refresh
+ * looks at every recorded file, so with tens of thousands the wait grows with it.
+ */
+export function refreshDelay(lastMs: number): number {
+  return Math.max(REFRESH_MS, Math.min(REFRESH_MAX_MS, Math.ceil(lastMs * REFRESH_BACKOFF)));
+}
+
+/**
+ * How long from `now` the refresh for a change waits (ms): until refreshDelay after the last
+ * refresh ended (`lastEnd`; it took `lastMs`), and at least REFRESH_MS so a burst's events are
+ * gathered. A lone change long after a slow refresh waits only REFRESH_MS.
+ */
+export function refreshWait(now: number, lastEnd: number, lastMs: number): number {
+  return Math.max(REFRESH_MS, lastEnd + refreshDelay(lastMs) - now);
 }
 
 /**
@@ -198,9 +267,232 @@ export function groupByRoot(changes: readonly Change[], rootOf: (c: Change) => s
 }
 
 /**
+ * The most files a group lists flat. VS Code fetches every row of an expanded node at once and
+ * each redraw sends them to the window: tens of thousands (an install into a folder that is in
+ * no open repository, so nothing is ignored) stall it. A group with more is drawn as folder
+ * rows (folderIndex). Also the most files Review All opens (reviewPick).
+ */
+export const VIEW_MAX = 1000;
+
+/** A folder row of a group with more than VIEW_MAX files: the files under one directory. */
+export interface ChangeFolder {
+  /** Its group's root. */
+  root: string;
+  /** The directory's path. */
+  dir: string;
+  /** Its name. */
+  name: string;
+  /** How many files are under it, at any depth, and how many of those are not reviewed. */
+  files: number;
+  unreviewed: number;
+}
+
+/** The rows directly under one directory of a group drawn as folders. */
+export interface FolderRows {
+  folders: ChangeFolder[];
+  files: Change[];
+}
+
+/**
+ * A group drawn as folders, by directory (the group's root, and every directory under it
+ * holding changed files): a folder row per sub-directory, by path, then the files directly in
+ * it, by path. Every file of the group is under exactly one row at each level, so none is
+ * hidden, and the view fetches a level only when its row is expanded. Built in one pass over
+ * the group, once per redraw, so a level is a lookup. A row is one directory level: its
+ * identity is its path, which no other file's coming or going changes, so an expanded row
+ * stays expanded. A level of more than VIEW_MAX rows is drawn as ranges (levelRows). A file
+ * not under the group's root is listed at the root.
+ */
+export function folderIndex(changes: readonly Change[], root: string): Map<string, FolderRows> {
+  const index = new Map<string, FolderRows>();
+  const byDir = new Map<string, ChangeFolder>();
+  const rows = (dir: string): FolderRows => {
+    let r = index.get(dir);
+    if (r === undefined) {
+      r = { folders: [], files: [] };
+      index.set(dir, r);
+    }
+    return r;
+  };
+  const top = rows(root);
+  const prefix = root.endsWith("/") ? root : `${root}/`;
+  // the last file's directory (with its "/"), its rows and the folder rows above it: files
+  // come mostly a directory at a time, and the next one in it needs no walk
+  let last = "";
+  let lastRows = top;
+  let above: ChangeFolder[] = [];
+  // files of that directory not yet counted in the rows above it, and the unreviewed of them
+  let n = 0;
+  let open = 0;
+  const count = (): void => {
+    for (const f of above) {
+      f.files += n;
+      f.unreviewed += open;
+    }
+    n = 0;
+    open = 0;
+  };
+  for (const c of changes) {
+    if (!c.path.startsWith(prefix)) {
+      top.files.push(c);
+      continue;
+    }
+    if (last === "" || !c.path.startsWith(last) || c.path.indexOf("/", last.length) >= 0) {
+      count();
+      lastRows = top;
+      above = [];
+      let from = prefix.length;
+      for (let end = c.path.indexOf("/", from); end >= 0; end = c.path.indexOf("/", from)) {
+        const dir = c.path.slice(0, end);
+        let f = byDir.get(dir);
+        if (f === undefined) {
+          f = { root, dir, name: c.path.slice(from, end), files: 0, unreviewed: 0 };
+          byDir.set(dir, f);
+          lastRows.folders.push(f);
+        }
+        above.push(f);
+        lastRows = rows(dir);
+        from = end + 1;
+      }
+      last = c.path.slice(0, from);
+    }
+    n++;
+    if (!c.reviewed) open++;
+    lastRows.files.push(c);
+  }
+  count();
+  for (const r of index.values()) {
+    r.folders.sort((a, b) => (a.dir < b.dir ? -1 : a.dir > b.dir ? 1 : 0));
+    byPath(r.files);
+  }
+  return index;
+}
+
+/**
+ * A range row: a run of the rows of one level (a directory's folders, then its files) that has
+ * more than the most rows a level draws.
+ */
+export interface ChangeRange {
+  /** Its group's root, and the level's directory. */
+  root: string;
+  dir: string;
+  /** Which range of the level: its number, within the range above's when ranges are nested. */
+  range: number[];
+  /** The names of its first and last rows. */
+  first: string;
+  last: string;
+  /** How many files are under it, at any depth, and how many of those are not reviewed. */
+  files: number;
+  unreviewed: number;
+}
+
+export type LevelRow = ChangeFolder | Change | ChangeRange;
+
+/**
+ * `all` (the rows of one level, in order), or the part of it under one of its range rows
+ * (`range`): never more than `max` rows. At most `max` rows are returned as they are. More are
+ * range rows of `max` rows each, in that order, and ranges of ranges when there are more than
+ * `max` of those, so every row is under exactly one range and no fetch sends more than `max`
+ * rows to the window. A range is known by its number, so an expanded one stays expanded as
+ * rows come and go; a row added before it moves the rows at its edges into the next range.
+ * `at`: the level, for its range rows; `info`: a row's name, and the files under it.
+ */
+function rangeRows<T>(
+  all: readonly T[],
+  max: number,
+  range: readonly number[],
+  at: { root: string; dir: string },
+  info: (row: T) => { name: string; files: number; unreviewed: number },
+): (T | ChangeRange)[] {
+  // the rows a range covers are [lo, hi); each range of a run covers `span` rows, the largest
+  // power of `max` that leaves more than one range
+  const spanOf = (n: number): number => {
+    let span = max;
+    while (span * max < n) span *= max;
+    return span;
+  };
+  let lo = 0;
+  let hi = all.length;
+  for (const i of range) {
+    if (hi - lo <= max) return []; // an older draw's range: this run has none
+    const span = spanOf(hi - lo);
+    lo += i * span;
+    hi = Math.min(lo + span, hi);
+    if (i < 0 || lo >= hi) return [];
+  }
+  if (hi - lo <= max) return all.slice(lo, hi);
+  const span = spanOf(hi - lo);
+  const rows: ChangeRange[] = [];
+  for (let from = lo, i = 0; from < hi; from += span, i++) {
+    const to = Math.min(from + span, hi);
+    let files = 0;
+    let unreviewed = 0;
+    for (let k = from; k < to; k++) {
+      const r = info(all[k]!);
+      files += r.files;
+      unreviewed += r.unreviewed;
+    }
+    rows.push({
+      ...at,
+      range: [...range, i],
+      first: info(all[from]!).name,
+      last: info(all[to - 1]!).name,
+      files,
+      unreviewed,
+    });
+  }
+  return rows;
+}
+
+/**
+ * The rows the tree draws for one level (`level`: directory `dir` of the group at `root`), or
+ * under one of its range rows (`range`): its folders, then its files, as ranges when there are
+ * more than `max` (an install's thousands of files or of directories in one place): see
+ * rangeRows.
+ */
+export function levelRows(
+  level: FolderRows,
+  root: string,
+  dir: string,
+  max: number,
+  range: readonly number[] = [],
+): LevelRow[] {
+  return rangeRows<ChangeFolder | Change>([...level.folders, ...level.files], max, range, { root, dir }, (r) =>
+    "name" in r ? r : { name: r.path.slice(r.path.lastIndexOf("/") + 1), files: 1, unreviewed: r.reviewed ? 0 : 1 },
+  );
+}
+
+/**
+ * Whether the group rows are drawn collapsed: when there are several and, expanded, a redraw
+ * would send more than `max` rows (theirs and their files'). So with no row expanded by the
+ * user a redraw sends at most `max` rows: one group is its level (levelRows); several small
+ * ones are expanded and flat; else the collapsed group rows, in ranges (groupRows).
+ */
+export function groupsCollapsed(groups: number, files: number, max: number): boolean {
+  return groups > 1 && groups + files > max;
+}
+
+/**
+ * The group rows, or those under one of their range rows (`range`, whose root and dir are
+ * ""): as ranges when there are more than `max` groups (see rangeRows).
+ */
+export function groupRows(
+  groups: readonly ChangeGroup[],
+  max: number,
+  range: readonly number[] = [],
+): (ChangeGroup | ChangeRange)[] {
+  return rangeRows(groups, max, range, { root: "", dir: "" }, (g) => ({
+    name: g.root.slice(g.root.lastIndexOf("/") + 1) || g.root,
+    files: g.changes.length,
+    unreviewed: g.changes.filter((c) => !c.reviewed).length,
+  }));
+}
+
+/**
  * The files a context-menu command acts on: VS Code passes the row right-clicked and the rows
  * selected. The selection when it holds that row (a right-click elsewhere acts on that row
- * alone), files only (a repository row in the selection is not all of its files).
+ * alone), files only (a repository, folder or range row in the selection is not all of its
+ * files).
  */
 export function picked<T, F extends T>(
   clicked: T | undefined,
@@ -248,6 +540,66 @@ export function reviewPlan(
     } else rows.push({ path: c.path, head, now: true });
   }
   return { rows, symlinks, title: REVIEW_TITLE };
+}
+
+/**
+ * The files Review All opens when there are more than `max` (VS Code's multi-file diff editor
+ * cannot take tens of thousands), and how many are left out. By `rank`, then by path: files
+ * HEAD has (0: a tracked file changed or deleted), then files in a repository that HEAD lacks
+ * (1: untracked or added), then files outside any repository (2). So neither an install into
+ * a folder no repository covers, nor a thousand new files in a repository, crowds out an edit
+ * to a tracked file. The ones taken are returned by path.
+ */
+export function reviewPick(
+  shown: readonly Change[],
+  rank: (c: Change) => number,
+  max: number,
+): { files: Change[]; left: number } {
+  if (shown.length <= max) return { files: byPath([...shown]), left: 0 };
+  const ranked = shown.map((c) => ({ c, r: rank(c) }));
+  ranked.sort((a, b) => a.r - b.r || (a.c.path < b.c.path ? -1 : a.c.path > b.c.path ? 1 : 0));
+  return { files: byPath(ranked.slice(0, max).map((x) => x.c)), left: shown.length - max };
+}
+
+/** autoOpenDiffs: a changed file's diff opens once the file has been still for this long. */
+export const AUTO_OPEN_MS = 400;
+/** More files than this waiting for their diff at once is a burst (an install, a checkout). */
+export const AUTO_OPEN_MAX = 10;
+/** A burst is over this long after changes last came at a burst's pace. */
+export const AUTO_QUIET_MS = 2000;
+
+/**
+ * autoOpenDiffs' guard: a diff for every changed file would open thousands during an install,
+ * so while many files change at once none is opened. A burst starts when more than
+ * AUTO_OPEN_MAX files wait for their diff, and lasts until AUTO_QUIET_MS after the last
+ * AUTO_OPEN_MS in which more than AUTO_OPEN_MAX changes came; an edit every second or so
+ * during its last moments is skipped but does not prolong it.
+ */
+export class AutoOpenGuard {
+  private until = Number.NEGATIVE_INFINITY;
+  private windowAt = Number.NEGATIVE_INFINITY;
+  private windowChanges = 0;
+
+  /**
+   * For a file that just changed, with `waiting` files waiting for their diff (this one
+   * included): "open" its diff after the usual wait; "burst": a burst starts, so the waiting
+   * diffs are cancelled as well; "skip": one is under way.
+   */
+  next(waiting: number, now: number): "open" | "burst" | "skip" {
+    if (now < this.until) {
+      if (now - this.windowAt >= AUTO_OPEN_MS) {
+        this.windowAt = now;
+        this.windowChanges = 0;
+      }
+      if (++this.windowChanges > AUTO_OPEN_MAX) this.until = now + AUTO_QUIET_MS;
+      return "skip";
+    }
+    if (waiting <= AUTO_OPEN_MAX) return "open";
+    this.until = now + AUTO_QUIET_MS;
+    this.windowAt = now;
+    this.windowChanges = 0;
+    return "burst";
+  }
 }
 
 /** Whether a tab's label is Review All's: its title, then VS Code's " (N files)" (localised). */

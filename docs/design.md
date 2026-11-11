@@ -371,7 +371,7 @@ client on the real socket, with the real token, attacking).
 | 9 The pty relay | `test/unit/pty.test.ts` (Claude's environment without VS Code's channels, an inherited link port or another Claude's child markers; argv constant but for size and arguments; the pty is the controlling terminal at the given size with no fd of ours; arguments are words; keys and UTF-8; SIGWINCH on resize, bad resize lines ignored; Ctrl-C and exit status; output before exit kept; kill hangs up; a slow reader of the output holds up neither keys nor resizes (fails on the old blocking relay); a flood of redraws with input bursts, resizes, a stalling host and a throwing output handler at once; a missing program is 127, a missing interpreter is explained; writes coalesced per 16 ms, a throwing sink reported); `test/hostile/audit.test.ts` "child_process only in the pty relay and the version check" |
 | 10 Install offer | `test/unit/install.test.ts` (the shim, CLI and interpreter recognised, read without blocking on a FIFO; the fixed command with `--no-cache` and `--minimal`, the `>=5.1.0` requirement, and sudo; older than the minimum is too old; uvx only from the fixed paths, not a symlink out of them, not writable by others, not owned by another user; the terminal script runs its arguments as words; version parsing and comparison; PyPI JSON read as own keys); `test/unit/environment.test.ts` (refused outside a devcontainer: a local window, another remote, no container marker, no tun device unless the conf turns the jail off); `test/hostile/audit.test.ts` "terminals" |
 | 11 Settings | `test/unit/manifest.test.ts` (every setting `scope: application`; the code reads no other setting of ours and no other extension's, `files.watcherExclude` included; keybindings on the `Ctrl+Alt+C` chord only); `test/unit/settings.test.ts` "reviewEdits" (the ask list merged and deduplicated, theirs kept, `__proto__` a plain key) |
-| 12 Changes view | `test/unit/changes.test.ts` (only workspace files, not a `.git` segment or sockets, no settings patterns; any path decided in linear time; lstat: a symlink listed as one, a folder and a missing path told apart; the user's saves skipped; kinds; reviewed until changed again; Review All's rows: HEAD vs now, new against nothing, deleted HEAD vs nothing, symlinks left out; `splitByGit`: only what git shows changed, outside a repository all; git status re-read once per repository first, so a just-made file is shown and new); `test/hostile/audit.test.ts` "rule 3" (no write API; `workspace.fs` only for `stat`; Git API writes (`add`, `revert`, `clean`) only in the changes view, `revert` and `clean` after the modal prompt: a tripwire on the source, not a proof); `picked` (the context menu's files) |
+| 12 Changes view | `test/unit/changes.test.ts` (only workspace files, not a `.git` segment or sockets, no settings patterns; any path decided in linear time; lstat: a symlink listed as one, a folder and a missing path told apart; the user's saves skipped; kinds; reviewed until changed again; Review All's rows: HEAD vs now, new against nothing, deleted HEAD vs nothing, symlinks left out; `splitByGit`: only what git shows changed, outside a repository all; git status re-read once per repository first, so a just-made file is shown and new; `folderIndex`: every file of a large group under exactly one row at each level, counts, order, a row's path fixed; `levelRows`, `groupRows`, `groupsCollapsed`: a level of more than 1000 rows as ranges, every fetch within the limit, every file reachable, root rows collapsed when a redraw would send more; `refreshWait`; `drawn` / `sameDrawn`: redrawn only when a drawn field differs; `refreshDelay`; `reviewPick`: Review All's limit, tracked files first, then a repository's new files; `AutoOpenGuard`: no diffs opened during a burst); `test/hostile/audit.test.ts` "rule 3" (no write API; `workspace.fs` only for `stat`; Git API writes (`add`, `revert`, `clean`) only in the changes view, `revert` and `clean` after the modal prompt: a tripwire on the source, not a proof); `picked` (the context menu's files) |
 
 ## Implementation notes
 
@@ -531,10 +531,50 @@ not show that changed at least 5 s ago (a forgotten file returns if it changes
 again), and if still full says how many later changes it did not record. When the shown files span more than one
 repository (or, outside any, workspace folder) they are grouped under one
 node per root, as Source Control groups by repository; with one root the
-files are listed directly. Each repository's status is followed
-(`state.onDidChange`, keyed by `rootUri`) from the first time it is looked
-at, until the next Start. **Mark as reviewed** (inline) ticks a file until it
-changes again; the view's badge and the status bar count the rest.
+files are listed directly. A root with at most 1000 shown files lists them
+flat. One with more (an install into a folder no open repository covers, so
+nothing is ignored) lists them under collapsed folder rows: one per
+directory level holding changed files, with its count of files and of those
+not reviewed, folders before the files directly in a directory, each by
+path. A row is identified by its directory's path, so it stays expanded
+whatever else changes. VS Code fetches a folder's rows when it is expanded
+(from an index by directory built once per redraw), so every file stays
+reachable and no fetch sends the whole list to the window. A level (a
+root's or a folder's folders, then files) of more than 1000 rows, such as
+thousands of files or of directories in one place, is drawn as collapsed
+range rows of 1000 rows each, labelled with their first and last names and
+the same counts, and as ranges of ranges if there are more than 1000 of
+those; no fetch is of more than 1000 rows. A range is identified by its
+number within its level, so an expanded one stays expanded; a file added
+before it moves the rows at its edges into the next range. Folder and range
+rows take no context-menu command. The tree is redrawn only when
+what it draws differs from the last draw (every shown file's path, kind,
+reviewed, symlink, repository and root, compared field by field, not
+hashed), so events for files the view does not show redraw nothing. Watcher
+events are gathered for 100 ms before a refresh; a refresh also waits,
+after the last one, four times as long as that one took together with the
+time `getChildren` has taken since it began (the tree's fetches after a
+redraw, and rows the user expanded), up to 3 s; a lone change long after a
+slow refresh waits only the 100 ms. When the files span several roots and
+their rows and the root rows together are more than 1000, the root rows
+are drawn collapsed (under ids of their own, since VS Code keeps a row's
+expanded state by id), and more than 1000 root rows are ranges as any level
+is. So no fetch is of more than 1000 rows, and with no row expanded by the
+user a redraw sends at most 1000 rows to the window; rows the user expanded
+are fetched again on a redraw, each fetch within that limit, at the pace
+above. Row ids join their parts with NUL, which no path holds. Each repository's status is followed (`state.onDidChange`, keyed by
+`rootUri`) from the first time it is looked at, until the next Start or
+until any repository opens or closes; it is then followed again from the
+next look. Each file's repository is asked of the Git extension once, and a
+file in none has its workspace folder asked of VS Code once; both are kept
+until the file leaves the list, a repository opens or closes, or a followed
+repository's submodules (`state.submodules`) change, the workspace folder
+also until the workspace folders change; either cache is emptied when it
+holds more than 100,000 paths (twice the list's limit), and fills again as
+files are looked at. **Mark as reviewed** (inline) ticks a file until it changes again;
+**Mark all as reviewed** ticks every file the view shows; the view's badge
+and the status bar count the shown files not ticked, whether or not their
+folder rows are expanded.
 The right-click menu (on the selection, several rows at once; Reveal on the
 row clicked) has **Open
 File** (not for a deleted file or a symlink), **Mark as reviewed** / **Mark
@@ -550,12 +590,18 @@ Files git did not revert are named in a warning. Stage and Revert are
 offered only for files in a repository; Stage marks a file reviewed only
 when its repository's `add` succeeded.
 **Review All Changes** (the view's title bar, the palette, `Ctrl+Alt+C V`)
-opens every listed file in VS Code's multi-file diff editor:
+opens the listed files in VS Code's multi-file diff editor:
 `vscode.changes` with title "Claude changes" (VS Code adds " (N files)" for
 the tab), in place of a Review All tab already open (each `vscode.changes` is a
 new editor, so it would otherwise open beside it), and one
 `[resource, HEAD, now]` row per file, a missing side `undefined` (VS Code shows
-a new file as added, a deleted one as deleted); symlinks left out. No host git
+a new file as added, a deleted one as deleted); symlinks left out. It opens at
+most 1000 files (the editor cannot take tens of thousands): with more, files
+HEAD has (a tracked file changed or deleted) are taken first, then a
+repository's files HEAD lacks (untracked or added), then files outside any
+repository, each by path, so neither an install into a folder no repository
+covers nor a thousand new files in a repository crowds out an edit to a
+tracked file, and a message says how many files are not in the review. No host git
 command runs; VS Code reads the contents.
 **Next Change** and **Previous Change** (the view's title bar, the palette)
 run VS Code's own `multiDiffEditor.goToNextChange` / `goToPreviousChange`
@@ -572,4 +618,8 @@ when VS Code has the commands (`getCommands` at activation), so on 1.105 `F8`
 in Review All still goes to problems. These are the only keys outside the
 `Ctrl+Alt+C` prefix.
 `claudeSandbox.autoOpenDiffs` (off by default) opens each change's diff as a
-preview. Grouping by prompt is a later addition.
+preview, 400 ms after the file last changed. When more than 10 files are
+waiting for their diff at once (an install, a checkout) none is opened: the
+waiting ones are cancelled, a status-bar message says so, and diffs open
+again 2 s after changes last came at that pace (more than 10 in 400 ms).
+Grouping by prompt is a later addition.
