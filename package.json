@@ -217,7 +217,7 @@
           "type": "boolean",
           "default": false,
           "scope": "application",
-          "markdownDescription": "Open the diff against HEAD as a preview when Claude changes a file during the session. User settings only."
+          "markdownDescription": "Open the diff against HEAD as a preview when Claude changes a file during the session; none is opened while many files change at once (an install). User settings only."
         },
         "claudeSandbox.reviewEdits": {
           "type": "boolean",

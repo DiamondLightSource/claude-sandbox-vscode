@@ -168,10 +168,11 @@ export function byPath(changes: Change[]): Change[] {
 }
 
 /**
- * What the tree draws for these rows, as one string: the view is redrawn only when it differs
+ * What the tree draws for these files, as one string: the view is redrawn only when it differs
  * from the last one drawn. A burst of watcher events for files the view does not show (an
- * install into an ignored folder) changes nothing in it, and each redraw sends every row to
- * the window.
+ * install into an ignored folder) changes nothing in it. Every row comes from these fields
+ * alone (a folder row's counts too: see folderRows), so an equal key is an equal tree,
+ * whichever rows are expanded.
  */
 export function drawnKey(
   rows: readonly Change[],
@@ -224,9 +225,93 @@ export function groupByRoot(changes: readonly Change[], rootOf: (c: Change) => s
 }
 
 /**
+ * The most files a group lists flat. VS Code fetches every row of an expanded node at once and
+ * each redraw sends them to the window: tens of thousands (an install into a folder that is in
+ * no open repository, so nothing is ignored) stall it. A group with more is drawn as folder
+ * rows (folderRows). Also the most files Review All opens (reviewPick).
+ */
+export const VIEW_MAX = 1000;
+
+/** A folder row of a group with more than VIEW_MAX files: the files under one directory. */
+export interface ChangeFolder {
+  /** Its group's root. */
+  root: string;
+  /** The directory's path. */
+  dir: string;
+  /** Its path within the row above (several levels when each holds only the next). */
+  name: string;
+  /** How many files are under it, at any depth, and how many of those are not reviewed. */
+  files: number;
+  unreviewed: number;
+}
+
+/**
+ * The rows directly under `dir` (the group's root, or a folder row's directory) for a group
+ * drawn as folders: a folder row per directory holding changed files, by path, then the files
+ * directly in `dir`, by path. Every file of the group is under exactly one row at each level,
+ * so none is hidden, and the view fetches a level only when its row is expanded. A directory
+ * whose changed files are all under one sub-directory is drawn as one row with that
+ * sub-directory ("lib/python3.12/site-packages"). A directory holding more than VIEW_MAX files
+ * directly lists them all when expanded: the user asked for it. A file not under the group's
+ * root is listed at the root.
+ */
+export function folderRows(
+  changes: readonly Change[],
+  root: string,
+  dir: string = root,
+): { folders: ChangeFolder[]; files: Change[] } {
+  const prefix = dir.endsWith("/") ? dir : `${dir}/`;
+  const files: Change[] = [];
+  const under = new Map<string, Change[]>();
+  for (const c of changes) {
+    if (!c.path.startsWith(prefix)) {
+      if (dir === root) files.push(c);
+      continue;
+    }
+    const end = c.path.indexOf("/", prefix.length);
+    if (end < 0) {
+      files.push(c);
+      continue;
+    }
+    const name = c.path.slice(prefix.length, end);
+    const cs = under.get(name);
+    if (cs === undefined) under.set(name, [c]);
+    else cs.push(c);
+  }
+  const folders = [...under].map(([name, cs]): ChangeFolder => {
+    let d = prefix + name;
+    for (;;) {
+      // the one sub-directory every file is under, if there is one
+      const p = `${d}/`;
+      let next: string | undefined;
+      for (const c of cs) {
+        const end = c.path.indexOf("/", p.length);
+        const seg = end < 0 ? undefined : c.path.slice(p.length, end);
+        if (seg === undefined || (next !== undefined && seg !== next)) {
+          next = undefined;
+          break;
+        }
+        next = seg;
+      }
+      if (next === undefined) break;
+      d = p + next;
+    }
+    return {
+      root,
+      dir: d,
+      name: d.slice(prefix.length),
+      files: cs.length,
+      unreviewed: cs.filter((c) => !c.reviewed).length,
+    };
+  });
+  folders.sort((a, b) => (a.dir < b.dir ? -1 : a.dir > b.dir ? 1 : 0));
+  return { folders, files: byPath(files) };
+}
+
+/**
  * The files a context-menu command acts on: VS Code passes the row right-clicked and the rows
  * selected. The selection when it holds that row (a right-click elsewhere acts on that row
- * alone), files only (a repository row in the selection is not all of its files).
+ * alone), files only (a repository or folder row in the selection is not all of its files).
  */
 export function picked<T, F extends T>(
   clicked: T | undefined,
@@ -274,6 +359,64 @@ export function reviewPlan(
     } else rows.push({ path: c.path, head, now: true });
   }
   return { rows, symlinks, title: REVIEW_TITLE };
+}
+
+/**
+ * The files Review All opens when there are more than `max` (VS Code's multi-file diff editor
+ * cannot take tens of thousands), and how many are left out. Files in a Git repository come
+ * before files outside one, then by path, so an install into a folder no repository covers
+ * cannot crowd a repository's edits out; the ones taken are returned by path.
+ */
+export function reviewPick(
+  shown: readonly Change[],
+  inRepo: (c: Change) => boolean,
+  max: number,
+): { files: Change[]; left: number } {
+  if (shown.length <= max) return { files: byPath([...shown]), left: 0 };
+  const first = byPath(shown.filter(inRepo));
+  const rest = first.length < max ? byPath(shown.filter((c) => !inRepo(c))) : [];
+  return { files: byPath([...first, ...rest].slice(0, max)), left: shown.length - max };
+}
+
+/** autoOpenDiffs: a changed file's diff opens once the file has been still for this long. */
+export const AUTO_OPEN_MS = 400;
+/** More files than this waiting for their diff at once is a burst (an install, a checkout). */
+export const AUTO_OPEN_MAX = 10;
+/** A burst is over this long after changes last came at a burst's pace. */
+export const AUTO_QUIET_MS = 2000;
+
+/**
+ * autoOpenDiffs' guard: a diff for every changed file would open thousands during an install,
+ * so while many files change at once none is opened. A burst starts when more than
+ * AUTO_OPEN_MAX files wait for their diff, and lasts until AUTO_QUIET_MS after the last
+ * AUTO_OPEN_MS in which more than AUTO_OPEN_MAX changes came; an edit every second or so
+ * during its last moments is skipped but does not prolong it.
+ */
+export class AutoOpenGuard {
+  private until = Number.NEGATIVE_INFINITY;
+  private windowAt = Number.NEGATIVE_INFINITY;
+  private windowChanges = 0;
+
+  /**
+   * For a file that just changed, with `waiting` files waiting for their diff (this one
+   * included): "open" its diff after the usual wait; "burst": a burst starts, so the waiting
+   * diffs are cancelled as well; "skip": one is under way.
+   */
+  next(waiting: number, now: number): "open" | "burst" | "skip" {
+    if (now < this.until) {
+      if (now - this.windowAt >= AUTO_OPEN_MS) {
+        this.windowAt = now;
+        this.windowChanges = 0;
+      }
+      if (++this.windowChanges > AUTO_OPEN_MAX) this.until = now + AUTO_QUIET_MS;
+      return "skip";
+    }
+    if (waiting <= AUTO_OPEN_MAX) return "open";
+    this.until = now + AUTO_QUIET_MS;
+    this.windowAt = now;
+    this.windowChanges = 0;
+    return "burst";
+  }
 }
 
 /** Whether a tab's label is Review All's: its title, then VS Code's " (N files)" (localised). */

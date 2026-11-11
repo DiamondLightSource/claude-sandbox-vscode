@@ -4,18 +4,25 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { describe, it } from "node:test";
 import {
+  AUTO_OPEN_MAX,
+  AUTO_OPEN_MS,
+  AUTO_QUIET_MS,
+  AutoOpenGuard,
   byPath,
   CHANGES_MAX,
   ChangeSet,
   drawnKey,
   entryKind,
+  folderRows,
   freshStatus,
   groupByRoot,
   isReviewTitle,
   picked,
+  reviewPick,
   reviewPlan,
   SAVE_WINDOW_MS,
   splitByGit,
+  VIEW_MAX,
 } from "../../src/changes.ts";
 
 const set = () => new ChangeSet({ roots: ["/w", "/v/"] });
@@ -280,5 +287,139 @@ describe("what the tree draws", () => {
       ["/w/c", "/w/a", "/w/b"],
     );
     assert.deepEqual(byPath(s.all()), s.list());
+  });
+});
+
+describe("folder rows (a group of more than VIEW_MAX files)", () => {
+  const f = (p: string, reviewed = false) => ({ path: p, kind: "changed" as const, reviewed, at: 0, symlink: false });
+  const install = () => {
+    const cs = [f("/w/src/real.py"), f("/w/README.md"), f("/w/src/deep/other.py", true)];
+    for (let i = 0; i < 20_000; i++) cs.push(f(`/w/.venv/lib/python3.12/site-packages/pkg${i % 200}/mod${i}.py`));
+    return cs;
+  };
+  const names = (r: ReturnType<typeof folderRows>) => [
+    ...r.folders.map((d) => `${d.name}/`),
+    ...r.files.map((c) => c.path),
+  ];
+
+  it("a real edit in src/ is reachable when .venv/ holds 20,000 files", () => {
+    const cs = install();
+    const top = folderRows(cs, "/w");
+    assert.deepEqual(names(top), [".venv/lib/python3.12/site-packages/", "src/", "/w/README.md"]);
+    assert.ok(top.folders.length + top.files.length <= VIEW_MAX);
+    const src = folderRows(cs, "/w", "/w/src");
+    assert.deepEqual(names(src), ["deep/", "/w/src/real.py"]);
+    assert.deepEqual(names(folderRows(cs, "/w", "/w/src/deep")), ["/w/src/deep/other.py"]);
+  });
+
+  it("counts every file under a folder, and the unreviewed ones; no file is in two rows or none", () => {
+    const cs = install();
+    const top = folderRows(cs, "/w");
+    assert.deepEqual(
+      top.folders.map((d) => [d.dir, d.files, d.unreviewed]),
+      [
+        ["/w/.venv/lib/python3.12/site-packages", 20_000, 20_000],
+        ["/w/src", 2, 1],
+      ],
+    );
+    assert.equal(top.folders.reduce((n, d) => n + d.files, 0) + top.files.length, cs.length);
+    const pkgs = folderRows(cs, "/w", top.folders[0]!.dir);
+    assert.equal(pkgs.folders.length, 200);
+    assert.equal(pkgs.files.length, 0);
+    assert.ok(pkgs.folders.every((d) => d.files === 100 && d.root === "/w"));
+    assert.equal(folderRows(cs, "/w", "/w/.venv/lib/python3.12/site-packages/pkg7").files.length, 100);
+    // every file is reached by expanding rows from the root
+    const seen = new Set<string>();
+    const walk = (dir?: string): void => {
+      const r = folderRows(cs, "/w", dir);
+      for (const c of r.files) {
+        assert.ok(!seen.has(c.path), c.path);
+        seen.add(c.path);
+      }
+      for (const d of r.folders) walk(d.dir);
+    };
+    walk();
+    assert.equal(seen.size, cs.length);
+  });
+
+  it("orders folders then files, each by path, whatever order the files come in", () => {
+    const cs = [f("/w/b/y"), f("/w/z"), f("/w/a/x"), f("/w/b/x"), f("/w/a.txt"), f("/w/c/d/e/f")];
+    const want = ["a/", "b/", "c/d/e/", "/w/a.txt", "/w/z"];
+    assert.deepEqual(names(folderRows(cs, "/w")), want);
+    assert.deepEqual(names(folderRows([...cs].reverse(), "/w")), want);
+    assert.deepEqual(names(folderRows(cs, "/w", "/w/b")), ["/w/b/x", "/w/b/y"]);
+  });
+
+  it("a folder with files of its own is not joined to its sub-folder; a file and a folder may share a name", () => {
+    const cs = [f("/w/a/x"), f("/w/a/b/y"), { ...f("/w/d"), kind: "deleted" as const }, f("/w/d/z")];
+    assert.deepEqual(names(folderRows(cs, "/w")), ["a/", "d/", "/w/d"]);
+    assert.deepEqual(names(folderRows(cs, "/w", "/w/a")), ["b/", "/w/a/x"]);
+  });
+
+  it("a file not under the group's root is listed at the root, not hidden", () => {
+    const cs = [f("/elsewhere/x"), f("/w/a/y"), f("/wx/z")];
+    assert.deepEqual(names(folderRows(cs, "/w")), ["a/", "/elsewhere/x", "/wx/z"]);
+    assert.deepEqual(names(folderRows(cs, "/w", "/w/a")), ["/w/a/y"]);
+    assert.deepEqual(names(folderRows([f("/a/b"), f("/c")], "/")), ["a/", "/c"]);
+  });
+
+  it("the redraw key covers what folder rows draw: a file reviewed deep in a collapsed folder changes it", () => {
+    const cs = install();
+    const key = () =>
+      drawnKey(
+        cs,
+        () => "/w",
+        () => false,
+      );
+    const before = key();
+    assert.equal(key(), before);
+    cs[cs.length - 1]!.reviewed = true;
+    assert.notEqual(key(), before);
+  });
+});
+
+describe("Review All's limit", () => {
+  const f = (p: string) => ({ path: p, kind: "changed" as const, reviewed: false, at: 0, symlink: false });
+  it("takes every file up to the limit, by path", () => {
+    const cs = [f("/w/b"), f("/w/a")];
+    assert.deepEqual(
+      reviewPick(cs, () => false, 2),
+      { files: [f("/w/a"), f("/w/b")], left: 0 },
+    );
+  });
+  it("above it, files in a repository come before files outside one, then by path", () => {
+    const cs = [f("/w/.venv/a"), f("/w/.venv/b"), f("/w/.venv/c"), f("/w/repo/src/real.py"), f("/w/repo/z")];
+    const inRepo = (c: { path: string }) => c.path.startsWith("/w/repo/");
+    const r = reviewPick(cs, inRepo, 3);
+    assert.deepEqual(
+      r.files.map((c) => c.path),
+      ["/w/.venv/a", "/w/repo/src/real.py", "/w/repo/z"],
+    );
+    assert.equal(r.left, 2);
+    assert.deepEqual(
+      reviewPick(cs, inRepo, 1).files.map((c) => c.path),
+      ["/w/repo/src/real.py"],
+    );
+    assert.deepEqual(reviewPick([...cs].reverse(), inRepo, 3), r, "whatever order they come in");
+  });
+});
+
+describe("autoOpenDiffs' guard", () => {
+  it("opens diffs for a few files, and none while many change at once", () => {
+    const g = new AutoOpenGuard();
+    for (let n = 1; n <= AUTO_OPEN_MAX; n++) assert.equal(g.next(n, n), "open");
+    assert.equal(g.next(AUTO_OPEN_MAX + 1, 20), "burst", "the waiting diffs are cancelled");
+    // the install goes on: 100 files every 100 ms for 5 s
+    let t = 20;
+    for (; t < 5000; t += 100) for (let i = 0; i < 100; i++) assert.equal(g.next(1, t), "skip");
+    const last = t - 100;
+    assert.equal(g.next(1, last + AUTO_QUIET_MS - 1), "skip");
+    assert.equal(g.next(1, last + AUTO_QUIET_MS), "open", "the burst is over");
+  });
+  it("an edit now and then during a burst's last moments does not prolong it", () => {
+    const g = new AutoOpenGuard();
+    assert.equal(g.next(AUTO_OPEN_MAX + 1, 0), "burst");
+    for (let t = AUTO_OPEN_MS; t < AUTO_QUIET_MS; t += AUTO_OPEN_MS) assert.equal(g.next(1, t), "skip");
+    assert.equal(g.next(1, AUTO_QUIET_MS), "open");
   });
 });
