@@ -201,6 +201,8 @@ export class ChangesView implements vscode.TreeDataProvider<Node>, vscode.Dispos
   private refreshCost = 0;
   private fetchCost = 0;
   private disposed = false;
+  /** Which session's list this is: one more at each start(). */
+  private session = 0;
   /** The claudeSandbox.reviewing context key's value. */
   private reviewingNow = false;
   /** VS Code has the STEP commands (1.106+): until then F8 is left to its problems. */
@@ -304,6 +306,7 @@ export class ChangesView implements vscode.TreeDataProvider<Node>, vscode.Dispos
   start(roots: readonly string[]): void {
     this.stop();
     this.unfollow();
+    this.session++;
     this.set = new ChangeSet({ roots });
     const w = vscode.workspace.createFileSystemWatcher("**/*");
     const saved = (d: vscode.TextDocument): void => {
@@ -327,6 +330,7 @@ export class ChangesView implements vscode.TreeDataProvider<Node>, vscode.Dispos
     if (this.git !== null) return this.git;
     const g = await gitApi();
     if (g === null) return null;
+    if (this.disposed) return g; // nothing is listened to, or kept, after dispose()
     const reopened = (): void => {
       this.unfollow();
       this.refreshSoon();
@@ -364,7 +368,8 @@ export class ChangesView implements vscode.TreeDataProvider<Node>, vscode.Dispos
   private rootFor(p: string): string | null {
     const known = this.repoRoot.get(p);
     if (known !== undefined) return known;
-    if (this.git === null) return null; // not loaded yet: asked again once it is
+    // not loaded yet: asked again once it is; after dispose() no repository is followed
+    if (this.git === null || this.disposed) return null;
     const repo = this.git.getRepository(vscode.Uri.file(p));
     const root = repo?.rootUri.fsPath ?? null;
     if (repo !== null && root !== null && !this.repos.has(root)) {
@@ -379,7 +384,7 @@ export class ChangesView implements vscode.TreeDataProvider<Node>, vscode.Dispos
       };
       this.repos.set(root, { repo, sub: repo.state.onDidChange(changed) });
     }
-    if (this.repoRoot.size >= ROOTS_MAX) this.repoRoot.clear();
+    if (this.repoRoot.size > ROOTS_MAX) this.repoRoot.clear();
     this.repoRoot.set(p, root);
     return root;
   }
@@ -395,7 +400,7 @@ export class ChangesView implements vscode.TreeDataProvider<Node>, vscode.Dispos
     const root = this.rootOf.get(p) ?? this.rootFor(p) ?? this.folderRoot.get(p);
     if (root !== undefined) return root;
     const folder = vscode.workspace.getWorkspaceFolder(vscode.Uri.file(p))?.uri.fsPath ?? path.dirname(p);
-    if (this.folderRoot.size >= ROOTS_MAX) this.folderRoot.clear();
+    if (this.folderRoot.size > ROOTS_MAX) this.folderRoot.clear();
     this.folderRoot.set(p, folder);
     return folder;
   }
@@ -448,8 +453,10 @@ export class ChangesView implements vscode.TreeDataProvider<Node>, vscode.Dispos
   /** Created or changed: a folder is not listed (its files are); a symlink is listed as one. */
   private async seen(kind: "created" | "changed", u: vscode.Uri): Promise<void> {
     if (u.scheme !== "file" || !this.set.wanted(u.fsPath)) return;
+    const session = this.session;
     const e = await entry(u.fsPath);
-    if (e === "dir") return;
+    // the event is its session's: not recorded in the list of one started since
+    if (e === "dir" || session !== this.session) return;
     this.record(kind, u, e === "symlink");
   }
 

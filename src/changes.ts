@@ -205,7 +205,7 @@ export function sameDrawn(a: Drawn | undefined, b: Drawn): boolean {
 /** Watcher events come in bursts (a checkout, an install): the view is refreshed at most this often. */
 export const REFRESH_MS = 100;
 /** A refresh waits this many times as long as the last one took, */
-export const REFRESH_BACKOFF = 4;
+const REFRESH_BACKOFF = 4;
 /** but never longer than this. */
 export const REFRESH_MAX_MS = 3000;
 
