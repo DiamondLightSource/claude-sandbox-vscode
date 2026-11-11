@@ -16,10 +16,12 @@
 import * as path from "node:path";
 import * as vscode from "vscode";
 import {
+  byPath,
   CHANGES_MAX,
   type Change,
   type ChangeGroup,
   ChangeSet,
+  drawnKey,
   type EntryKind,
   entryKind as entry,
   freshStatus as fresh,
@@ -50,6 +52,18 @@ const REFRESH_MS = 100;
  */
 const PRUNE_AGE_MS = 5000;
 const PRUNE_EVERY_MS = 1000;
+/**
+ * Files the view does not show are also forgotten (same age, same pace) once there are more
+ * than this many: every redraw looks at each recorded file, so an install's thousands of
+ * ignored files are not carried for the rest of the session.
+ */
+const QUIET_MAX = 2000;
+/**
+ * The most rows the tree draws, and files Review All opens. VS Code fetches every row of a
+ * tree at once and each redraw sends them all to the window: tens of thousands (an install
+ * into a folder that is in no open repository, so nothing is ignored) stall it.
+ */
+const VIEW_MAX = 1000;
 
 // The parts of the Git extension's API (vscode.git, getAPI(1)) used here.
 interface GitChange {
@@ -81,6 +95,8 @@ interface GitRepository {
   clean(paths: string[]): Promise<void>;
 }
 interface GitApi {
+  readonly onDidOpenRepository: vscode.Event<unknown>;
+  readonly onDidCloseRepository: vscode.Event<unknown>;
   getRepository(uri: vscode.Uri): GitRepository | null;
   toGitUri(uri: vscode.Uri, ref: string): vscode.Uri;
 }
@@ -117,7 +133,17 @@ export class ChangesView implements vscode.TreeDataProvider<Node>, vscode.Dispos
    * (getRepository returns a new wrapper object on every call, so not by object).
    */
   private git: GitApi | null = null;
-  private readonly repos = new Map<string, vscode.Disposable>();
+  private gitSubs: vscode.Disposable[] | undefined;
+  private readonly repos = new Map<string, { repo: GitRepository; sub: vscode.Disposable }>();
+  /**
+   * Each recorded file's repository root (null: in none), asked of the Git extension once: its
+   * lookup walks the open repositories and their submodules, too slow to repeat for every file
+   * on every redraw. Emptied when a repository opens or closes.
+   */
+  private readonly repoRoot = new Map<string, string | null>();
+  /** What the tree last drew (drawnKey), and the badge's count. */
+  private drawn: string | undefined;
+  private badged = -1;
   /** What the view shows, and each file's group root, worked out once per redraw. */
   private shownCache: Change[] | undefined;
   private readonly rootOf = new Map<string, string>();
@@ -245,14 +271,33 @@ export class ChangesView implements vscode.TreeDataProvider<Node>, vscode.Dispos
     void vscode.commands.executeCommand("setContext", "claudeSandbox.watching", true);
     void gitApi().then((g) => {
       this.git = g;
+      const reopened = (): void => {
+        this.unfollow();
+        this.refreshSoon();
+      };
+      if (g !== null) this.gitSubs ??= [g.onDidOpenRepository(reopened), g.onDidCloseRepository(reopened)];
       this.refresh();
     });
     this.refresh();
   }
 
   private unfollow(): void {
-    for (const d of this.repos.values()) d.dispose();
+    for (const r of this.repos.values()) r.sub.dispose();
     this.repos.clear();
+    this.repoRoot.clear();
+  }
+
+  /** The root of the repository `p` is in (followed from now on), or null. */
+  private rootFor(p: string): string | null {
+    const known = this.repoRoot.get(p);
+    if (known !== undefined) return known;
+    if (this.git === null) return null; // not loaded yet: asked again once it is
+    const repo = this.git.getRepository(vscode.Uri.file(p));
+    const root = repo?.rootUri.fsPath ?? null;
+    if (repo !== null && root !== null && !this.repos.has(root))
+      this.repos.set(root, { repo, sub: repo.state.onDidChange(() => this.refreshSoon()) });
+    this.repoRoot.set(p, root);
+    return root;
   }
 
   /**
@@ -263,26 +308,12 @@ export class ChangesView implements vscode.TreeDataProvider<Node>, vscode.Dispos
   private shown(): Change[] {
     if (this.shownCache !== undefined) return this.shownCache;
     const changed = new Map<string, Set<string>>();
-    this.rootOf.clear();
-    this.inRepo.clear();
-    this.shownCache = splitByGit(this.set.list(), (c) => {
-      const repo = this.git?.getRepository(vscode.Uri.file(c.path)) ?? null;
-      if (repo === null) {
-        const folder = vscode.workspace.getWorkspaceFolder(vscode.Uri.file(c.path));
-        this.rootOf.set(c.path, folder?.uri.fsPath ?? path.dirname(c.path));
-        return undefined;
-      }
-      this.rootOf.set(c.path, repo.rootUri.fsPath);
-      this.inRepo.add(c.path);
-      const root = repo.rootUri.toString();
-      if (!this.repos.has(root))
-        this.repos.set(
-          root,
-          repo.state.onDidChange(() => this.refreshSoon()),
-        );
+    const active = splitByGit(this.set.all(), (c) => {
+      const root = this.rootFor(c.path);
+      if (root === null) return undefined;
       let paths = changed.get(root);
       if (paths === undefined) {
-        const s = repo.state;
+        const s = this.repos.get(root)!.repo.state;
         const all = [
           ...s.workingTreeChanges,
           ...s.indexChanges,
@@ -294,7 +325,24 @@ export class ChangesView implements vscode.TreeDataProvider<Node>, vscode.Dispos
       }
       return paths.has(c.path);
     }).active;
+    this.rootOf.clear();
+    this.inRepo.clear();
+    for (const c of active) {
+      const root = this.rootFor(c.path);
+      if (root !== null) this.inRepo.add(c.path);
+      this.rootOf.set(
+        c.path,
+        root ?? vscode.workspace.getWorkspaceFolder(vscode.Uri.file(c.path))?.uri.fsPath ?? path.dirname(c.path),
+      );
+    }
+    this.shownCache = byPath(active);
     return this.shownCache;
+  }
+
+  /** The files the tree draws, and Review All opens: the first VIEW_MAX of shown(). */
+  private rows(): Change[] {
+    const shown = this.shown();
+    return shown.length > VIEW_MAX ? shown.slice(0, VIEW_MAX) : shown;
   }
 
   /** The session ended: the list stays for review, nothing more is recorded. */
@@ -316,12 +364,16 @@ export class ChangesView implements vscode.TreeDataProvider<Node>, vscode.Dispos
 
   private lastPrune = 0;
 
-  /** A full list: forget what the view does not show (see PRUNE_AGE_MS). */
+  /** Forget what the view does not show (see PRUNE_AGE_MS, QUIET_MAX); what it shows is unchanged. */
   private makeRoom(now: number): void {
     if (now - this.lastPrune < PRUNE_EVERY_MS) return;
     this.lastPrune = now;
     const shown = new Set(this.shown().map((c) => c.path));
-    if (this.set.prune((c) => shown.has(c.path), now - PRUNE_AGE_MS) > 0) this.shownCache = undefined;
+    this.set.prune((c) => {
+      if (shown.has(c.path)) return true;
+      this.repoRoot.delete(c.path);
+      return false;
+    }, now - PRUNE_AGE_MS);
   }
 
   private record(kind: Change["kind"], u: vscode.Uri, symlink = false): void {
@@ -355,15 +407,35 @@ export class ChangesView implements vscode.TreeDataProvider<Node>, vscode.Dispos
     if (this.refreshTimer) clearTimeout(this.refreshTimer);
     this.refreshTimer = undefined;
     this.shownCache = undefined;
-    this.emitter.fire(undefined);
+    const shown = this.shown();
+    if (this.set.size - shown.length > QUIET_MAX) this.makeRoom(Date.now());
+    const key = drawnKey(
+      this.rows(),
+      (c) => this.rootOf.get(c.path) ?? "",
+      (c) => this.inRepo.has(c.path),
+    );
+    if (key !== this.drawn) {
+      this.drawn = key;
+      this.emitter.fire(undefined);
+    }
     const n = this.unreviewed;
-    this.view.badge = n > 0 ? { value: n, tooltip: `${n} changed file${n === 1 ? "" : "s"} not reviewed` } : undefined;
-    this.view.message =
+    if (n !== this.badged) {
+      this.badged = n;
+      this.view.badge =
+        n > 0 ? { value: n, tooltip: `${n} changed file${n === 1 ? "" : "s"} not reviewed` } : undefined;
+    }
+    const message = [
       this.set.dropped > 0
         ? `The list is full (${CHANGES_MAX} files): ${this.set.dropped} later change${this.set.dropped === 1 ? " was" : "s were"} not recorded. Use Source Control.`
-        : this.shown().length === 0 && this.watching.length > 0
-          ? "No files have changed yet this session."
-          : "";
+        : "",
+      shown.length > VIEW_MAX
+        ? `${shown.length} files changed: the first ${VIEW_MAX} are listed. Use Source Control for the rest.`
+        : "",
+      shown.length === 0 && this.watching.length > 0 ? "No files have changed yet this session." : "",
+    ]
+      .filter(Boolean)
+      .join(" ");
+    if (message !== (this.view.message ?? "")) this.view.message = message;
     this.onCount(n);
   }
 
@@ -387,6 +459,9 @@ export class ChangesView implements vscode.TreeDataProvider<Node>, vscode.Dispos
     const e = await entry(c.path);
     if (e === "symlink" && !c.symlink && c.kind !== "deleted") {
       c.symlink = true;
+      // the tree's row may be an older record of the file than the list's
+      const now = this.set.get(c.path);
+      if (now !== undefined && now.kind !== "deleted") now.symlink = true;
       this.refreshSoon();
     }
     return e;
@@ -442,7 +517,7 @@ export class ChangesView implements vscode.TreeDataProvider<Node>, vscode.Dispos
     // session file's repository is re-read (not only the shown ones'), then shown() recomputed.
     await fresh(this.set.list().map(repoOf));
     this.refresh();
-    const list = this.shown();
+    const list = this.rows();
     for (const c of list) if (c.kind !== "deleted") await this.check(c); // a symlink now is marked
     const plan = reviewPlan(list, (c) => {
       const repo = repoOf(c);
@@ -644,8 +719,7 @@ export class ChangesView implements vscode.TreeDataProvider<Node>, vscode.Dispos
 
   /** The files grouped by repository (else workspace folder), as Source Control groups them. */
   private groups(): ChangeGroup[] {
-    const shown = this.shown();
-    return groupByRoot(shown, (c) => this.rootOf.get(c.path) ?? path.dirname(c.path));
+    return groupByRoot(this.rows(), (c) => this.rootOf.get(c.path) ?? path.dirname(c.path));
   }
 
   getChildren(element?: Node): Node[] {
@@ -697,6 +771,7 @@ export class ChangesView implements vscode.TreeDataProvider<Node>, vscode.Dispos
   dispose(): void {
     this.stop();
     this.unfollow();
+    for (const s of this.gitSubs ?? []) s.dispose();
     if (this.refreshTimer) clearTimeout(this.refreshTimer);
     for (const s of this.subs) s.dispose();
   }

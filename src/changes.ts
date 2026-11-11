@@ -138,7 +138,12 @@ export class ChangeSet {
 
   /** All of them, by path. */
   list(): Change[] {
-    return [...this.items.values()].sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
+    return byPath([...this.items.values()]);
+  }
+
+  /** All of them, in no order (the view sorts only the ones it shows). */
+  all(): Change[] {
+    return [...this.items.values()];
   }
 
   get size(): number {
@@ -155,6 +160,27 @@ export class ChangeSet {
     this.items.clear();
     this.saves.clear();
   }
+}
+
+/** Sorts `changes` by path, in place. */
+export function byPath(changes: Change[]): Change[] {
+  return changes.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
+}
+
+/**
+ * What the tree draws for these rows, as one string: the view is redrawn only when it differs
+ * from the last one drawn. A burst of watcher events for files the view does not show (an
+ * install into an ignored folder) changes nothing in it, and each redraw sends every row to
+ * the window.
+ */
+export function drawnKey(
+  rows: readonly Change[],
+  rootOf: (c: Change) => string,
+  inRepo: (c: Change) => boolean,
+): string {
+  return rows
+    .map((c) => `${c.path}\0${c.kind}\0${c.reviewed ? 1 : 0}${c.symlink ? 1 : 0}${inRepo(c) ? 1 : 0}\0${rootOf(c)}`)
+    .join("\n");
 }
 
 /**

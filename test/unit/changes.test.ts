@@ -4,8 +4,10 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { describe, it } from "node:test";
 import {
+  byPath,
   CHANGES_MAX,
   ChangeSet,
+  drawnKey,
   entryKind,
   freshStatus,
   groupByRoot,
@@ -238,5 +240,45 @@ describe("the context menu's files", () => {
     assert.deepEqual(picked(a, undefined, isFile), [a]);
     assert.deepEqual(picked(g, [g], isFile), []);
     assert.deepEqual(picked(undefined, [a], isFile), [], "from the palette: nothing");
+  });
+});
+
+describe("what the tree draws", () => {
+  const rootOf = () => "/w";
+  const inRepo = () => true;
+  it("is the same for events that change nothing a row shows, and differs for ones that do", () => {
+    const s = set();
+    s.event("changed", "/w/b.py", 0);
+    s.event("changed", "/w/a.py", 0);
+    const key = () => drawnKey(byPath(s.all()), rootOf, inRepo);
+    const before = key();
+    s.event("changed", "/w/a.py", 50); // changed again: a new record, the same row
+    assert.equal(key(), before);
+    s.markReviewed("/w/a.py");
+    assert.notEqual(key(), before, "reviewed is shown");
+    s.markReviewed("/w/a.py", false);
+    assert.equal(key(), before);
+    s.event("deleted", "/w/b.py", 60);
+    assert.notEqual(key(), before, "deleted is shown");
+    assert.notEqual(
+      drawnKey(byPath(s.all()), rootOf, () => false),
+      key(),
+      "so is being in a repository",
+    );
+    assert.notEqual(
+      drawnKey(byPath(s.all()), () => "/v", inRepo),
+      key(),
+      "and the group",
+    );
+  });
+
+  it("all() is list() unsorted", () => {
+    const s = set();
+    for (const p of ["/w/c", "/w/a", "/w/b"]) s.event("changed", p, 0);
+    assert.deepEqual(
+      s.all().map((c) => c.path),
+      ["/w/c", "/w/a", "/w/b"],
+    );
+    assert.deepEqual(byPath(s.all()), s.list());
   });
 });
