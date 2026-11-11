@@ -16,6 +16,8 @@ import {
   folderIndex,
   freshStatus,
   groupByRoot,
+  groupRows,
+  groupsCollapsed,
   isReviewTitle,
   type LevelRow,
   levelRows,
@@ -23,6 +25,7 @@ import {
   REFRESH_MAX_MS,
   REFRESH_MS,
   refreshDelay,
+  refreshWait,
   reviewPick,
   reviewPlan,
   SAVE_WINDOW_MS,
@@ -314,6 +317,13 @@ describe("what the tree draws", () => {
     assert.equal(refreshDelay(60_000), REFRESH_MAX_MS);
   });
 
+  it("a change waits until that long after the last refresh ended, and at least the floor", () => {
+    assert.equal(refreshWait(1000, 990, 500), 1990, "just after a slow refresh");
+    assert.equal(refreshWait(2900, 990, 500), REFRESH_MS, "near its end: still a burst's worth");
+    assert.equal(refreshWait(600_000, 990, 5000), REFRESH_MS, "a lone change minutes later");
+    assert.equal(refreshWait(50, 0, 0), REFRESH_MS);
+  });
+
   it("all() is list() unsorted", () => {
     const s = set();
     for (const p of ["/w/c", "/w/a", "/w/b"]) s.event("changed", p, 0);
@@ -527,6 +537,36 @@ describe("a wide level (more rows than the tree draws at once)", () => {
     assert.deepEqual(rows(cs, [3]), []);
     assert.deepEqual(rows(cs, [0, 0]), []);
     assert.deepEqual(rows(cs.slice(0, 10), [0]), []);
+  });
+});
+
+describe("the group rows", () => {
+  const f = (p: string) => ({ path: p, kind: "changed" as const, reviewed: false, at: 0, symlink: false });
+  it("are expanded while a redraw sends at most the limit, rows and files together", () => {
+    assert.ok(!groupsCollapsed(1, 50_000, VIEW_MAX), "one group is unwrapped: its level bounds it");
+    assert.ok(!groupsCollapsed(2, VIEW_MAX - 2, VIEW_MAX));
+    assert.ok(groupsCollapsed(2, VIEW_MAX - 1, VIEW_MAX));
+    assert.ok(groupsCollapsed(50, 50_000, VIEW_MAX), "50 repositories of 1000 files");
+    assert.ok(groupsCollapsed(600, 600, VIEW_MAX), "a group per directory");
+  });
+
+  it("up to the limit are listed; more are ranges, every group under one, no fetch over the limit", () => {
+    const groups = (n: number) =>
+      Array.from({ length: n }, (_, i) => ({ root: `/w/r${String(i).padStart(4, "0")}`, changes: [f(`/w/r${i}/a`)] }));
+    const few = groups(VIEW_MAX);
+    assert.deepEqual(groupRows(few, VIEW_MAX), few);
+    const many = groups(1500);
+    const top = groupRows(many, VIEW_MAX);
+    assert.deepEqual(
+      top.map((r) => ("range" in r ? [r.root, r.dir, r.range, r.first, r.last, r.files, r.unreviewed] : [])),
+      [
+        ["", "", [0], "r0000", "r0999", 1000, 1000],
+        ["", "", [1], "r1000", "r1499", 500, 500],
+      ],
+    );
+    assert.deepEqual([...groupRows(many, VIEW_MAX, [0]), ...groupRows(many, VIEW_MAX, [1])], many);
+    assert.deepEqual(groupRows(many, VIEW_MAX, [2]), []);
+    assert.deepEqual(groupRows(few, VIEW_MAX, [0]), [], "an older draw's range");
   });
 });
 

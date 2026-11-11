@@ -521,6 +521,9 @@ one, delete one, write `ignored.txt` and make a symlink
   `f1 … f…`, and `1000 files`), at most
   1000 rows under any row, every file reachable; an expanded range stays
   expanded as more files are created; no file command on a range row.
+  The limits to check throughout: no row has more than 1000 rows directly
+  under it, and with nothing expanded by you the whole tree is at most 1000
+  rows; what you expand is fetched again as files change.
 - [ ] **R15 Review All's limit.** With more than 1000 files listed (R14, in a
   workspace that also has a repository with changes), run Review All.
   Expect one multi-file diff editor of at most 1000 files, the repository's
@@ -626,7 +629,9 @@ Open `/workspaces/multi.code-workspace`.
   `alpha`, have Claude change a file in `alpha` itself only: the files are
   listed directly. Then have it change one in `lib` (the nested
   repository) too: the files are grouped under one node per repository, as
-  Source Control groups them.
+  Source Control groups them, expanded. Then have it create 1000 files in
+  `lib`: the repository rows are collapsed (files and repository rows
+  together are more than 1000), and expanding one lists its files.
 - [ ] **M6 Folder removed.** Remove the session's folder from the workspace
   while it runs. Record what happens to the status bar, the terminal and
   later asks (the docs say the link's workspace becomes empty).

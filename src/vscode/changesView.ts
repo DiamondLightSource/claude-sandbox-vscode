@@ -34,10 +34,13 @@ import {
   folderIndex,
   freshStatus as fresh,
   groupByRoot,
+  groupRows,
+  groupsCollapsed,
   isReviewTitle,
   levelRows,
   picked,
   refreshDelay,
+  refreshWait,
   reviewPick,
   reviewPlan,
   sameDrawn,
@@ -47,7 +50,11 @@ import {
 
 /**
  * A row of the view: a file, a repository (when the files span several), or, in a group of
- * more than VIEW_MAX files, a folder or a range of a level's rows.
+ * more than VIEW_MAX files, a folder or a range of a level's rows (also a range of the
+ * repository rows, when there are more than VIEW_MAX). No fetch (getChildren) returns more
+ * than VIEW_MAX rows, and with no row expanded by the user a redraw sends at most VIEW_MAX
+ * rows to the window (see groupsCollapsed). The rows the user expanded are fetched again on
+ * a redraw, each fetch within that limit, at the pace of refreshDelay.
  */
 type Node = Change | ChangeGroup | ChangeFolder | ChangeRange;
 const isFile = (n: Node): n is Change => "path" in n;
@@ -187,7 +194,8 @@ export class ChangesView implements vscode.TreeDataProvider<Node>, vscode.Dispos
   /**
    * When the last refresh ended, how long it took, and how long getChildren has taken since it
    * began (the tree's fetches after a redraw, and the user's expanding rows), in ms: the next
-   * timed refresh waits refreshDelay of the two times together after the last one.
+   * timed refresh waits until refreshDelay of the two times together after the last one ended
+   * (refreshWait).
    */
   private refreshedAt = 0;
   private refreshCost = 0;
@@ -462,7 +470,8 @@ export class ChangesView implements vscode.TreeDataProvider<Node>, vscode.Dispos
   }
 
   private record(kind: Change["kind"], u: vscode.Uri, symlink = false): void {
-    if (u.scheme !== "file") return;
+    // an lstat (seen) may end after the session has
+    if (u.scheme !== "file" || this.disposed || this.watching.length === 0) return;
     const now = Date.now();
     if (this.set.size >= CHANGES_MAX && this.set.get(u.fsPath) === undefined) this.makeRoom(now);
     const c = this.set.event(kind, u.fsPath, now, symlink);
@@ -485,6 +494,7 @@ export class ChangesView implements vscode.TreeDataProvider<Node>, vscode.Dispos
       c.path,
       setTimeout(() => {
         this.autoTimers.delete(c.path);
+        if (this.disposed || this.watching.length === 0) return;
         const now = this.set.get(c.path);
         if (now !== undefined && now.kind !== "deleted") void this.open(now, true);
       }, AUTO_OPEN_MS),
@@ -493,7 +503,10 @@ export class ChangesView implements vscode.TreeDataProvider<Node>, vscode.Dispos
 
   private refreshSoon(): void {
     if (this.disposed) return;
-    this.refreshTimer ??= setTimeout(() => this.refreshDue(), refreshDelay(this.refreshCost + this.fetchCost));
+    this.refreshTimer ??= setTimeout(
+      () => this.refreshDue(),
+      refreshWait(performance.now(), this.refreshedAt, this.refreshCost + this.fetchCost),
+    );
   }
 
   /** The timer's refresh, put off while the tree's fetches since the last one call for a longer wait. */
@@ -877,10 +890,11 @@ export class ChangesView implements vscode.TreeDataProvider<Node>, vscode.Dispos
   }
 
   private children(element?: Node): Node[] {
-    if (element === undefined) {
+    if (element === undefined || (isRange(element) && element.root === "")) {
       const groups = [...this.groups().values()];
       // one repository: its files, unwrapped
-      return groups.length === 1 ? this.under(groups[0]!.root) : groups;
+      if (groups.length === 1) return element === undefined ? this.under(groups[0]!.root) : [];
+      return groupRows(groups, VIEW_MAX, element?.range);
     }
     if (isFile(element)) return [];
     if (isRange(element)) return this.under(element.root, element.dir, element.range);
@@ -890,16 +904,17 @@ export class ChangesView implements vscode.TreeDataProvider<Node>, vscode.Dispos
   getTreeItem(n: Node): vscode.TreeItem {
     if (isRange(n)) {
       const item = new vscode.TreeItem(`${n.first} … ${n.last}`, vscode.TreeItemCollapsibleState.Collapsed);
-      item.id = `range:${n.root}:${n.dir}:${n.range.join(".")}`;
+      // ids are joined with NUL, which no path holds, so no two rows share one
+      item.id = `range\0${n.root}\0${n.dir}\0${n.range.join(".")}`;
       item.description = `${n.files} file${n.files === 1 ? "" : "s"}${n.unreviewed < n.files ? `, ${n.unreviewed} to review` : ""}`;
-      item.tooltip = `${n.dir}: ${n.first} to ${n.last}`;
+      item.tooltip = `${n.dir === "" ? "" : `${n.dir}: `}${n.first} to ${n.last}`;
       item.iconPath = new vscode.ThemeIcon("list-tree");
       item.contextValue = "changeRange";
       return item;
     }
     if (isFolder(n)) {
       const item = new vscode.TreeItem(n.name, vscode.TreeItemCollapsibleState.Collapsed);
-      item.id = `dir:${n.root}:${n.dir}`;
+      item.id = `dir\0${n.root}\0${n.dir}`;
       item.description = `${n.files} file${n.files === 1 ? "" : "s"}${n.unreviewed < n.files ? `, ${n.unreviewed} to review` : ""}`;
       item.tooltip = n.dir;
       item.iconPath = new vscode.ThemeIcon("folder");
@@ -907,8 +922,14 @@ export class ChangesView implements vscode.TreeDataProvider<Node>, vscode.Dispos
       return item;
     }
     if (!isFile(n)) {
-      const item = new vscode.TreeItem(path.basename(n.root) || n.root, vscode.TreeItemCollapsibleState.Expanded);
-      item.id = `root:${n.root}`;
+      // VS Code keeps a row's expanded or collapsed state by its id once it has drawn it, and
+      // takes ours only for an id it has not seen: the two forms have ids of their own
+      const collapsed = groupsCollapsed(this.groups().size, this.shown().length, VIEW_MAX);
+      const item = new vscode.TreeItem(
+        path.basename(n.root) || n.root,
+        collapsed ? vscode.TreeItemCollapsibleState.Collapsed : vscode.TreeItemCollapsibleState.Expanded,
+      );
+      item.id = `${collapsed ? "root-collapsed" : "root"}\0${n.root}`;
       const open = n.changes.filter((c) => !c.reviewed).length;
       item.description = `${path.dirname(n.root)} · ${n.changes.length} file${n.changes.length === 1 ? "" : "s"}${open < n.changes.length ? `, ${open} to review` : ""}`;
       item.tooltip = n.root;
@@ -919,7 +940,7 @@ export class ChangesView implements vscode.TreeDataProvider<Node>, vscode.Dispos
     const c = n;
     const uri = vscode.Uri.file(c.path);
     const item = new vscode.TreeItem(uri, vscode.TreeItemCollapsibleState.None);
-    item.id = `file:${c.path}`;
+    item.id = `file\0${c.path}`;
     // the folder within its group's root (repository, else workspace folder); under folder rows,
     // they say it
     const root = this.groupRoot(c.path);

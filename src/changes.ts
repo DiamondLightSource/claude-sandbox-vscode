@@ -211,11 +211,19 @@ export const REFRESH_MAX_MS = 3000;
 
 /**
  * How long a refresh waits after the last one, given how long that one took (ms): a refresh
- * looks at every recorded file, so with tens of thousands the wait grows with it and
- * refreshing takes at most a fraction of the extension host's time.
+ * looks at every recorded file, so with tens of thousands the wait grows with it.
  */
 export function refreshDelay(lastMs: number): number {
   return Math.max(REFRESH_MS, Math.min(REFRESH_MAX_MS, Math.ceil(lastMs * REFRESH_BACKOFF)));
+}
+
+/**
+ * How long from `now` the refresh for a change waits (ms): until refreshDelay after the last
+ * refresh ended (`lastEnd`; it took `lastMs`), and at least REFRESH_MS so a burst's events are
+ * gathered. A lone change long after a slow refresh waits only REFRESH_MS.
+ */
+export function refreshWait(now: number, lastEnd: number, lastMs: number): number {
+  return Math.max(REFRESH_MS, lastEnd + refreshDelay(lastMs) - now);
 }
 
 /**
@@ -381,23 +389,21 @@ export interface ChangeRange {
 export type LevelRow = ChangeFolder | Change | ChangeRange;
 
 /**
- * The rows the tree draws for one level (`level`: directory `dir` of the group at `root`), or
- * under one of its range rows (`range`): never more than `max`. A level of at most `max` rows
- * is its folders, then its files. A wider one (an install's thousands of files or of
- * directories in one place) is range rows of `max` rows each, in that order, and ranges of
- * ranges when there are more than `max` of those, so every file is under exactly one row and
- * no fetch sends more than `max` rows to the window. A range is known by its number, so an
- * expanded one stays expanded as files come and go; a file added before it moves the rows at
- * its edges into the next range.
+ * `all` (the rows of one level, in order), or the part of it under one of its range rows
+ * (`range`): never more than `max` rows. At most `max` rows are returned as they are. More are
+ * range rows of `max` rows each, in that order, and ranges of ranges when there are more than
+ * `max` of those, so every row is under exactly one range and no fetch sends more than `max`
+ * rows to the window. A range is known by its number, so an expanded one stays expanded as
+ * rows come and go; a row added before it moves the rows at its edges into the next range.
+ * `at`: the level, for its range rows; `info`: a row's name, and the files under it.
  */
-export function levelRows(
-  level: FolderRows,
-  root: string,
-  dir: string,
+function rangeRows<T>(
+  all: readonly T[],
   max: number,
-  range: readonly number[] = [],
-): LevelRow[] {
-  const all: (ChangeFolder | Change)[] = [...level.folders, ...level.files];
+  range: readonly number[],
+  at: { root: string; dir: string },
+  info: (row: T) => { name: string; files: number; unreviewed: number },
+): (T | ChangeRange)[] {
   // the rows a range covers are [lo, hi); each range of a run covers `span` rows, the largest
   // power of `max` that leaves more than one range
   const spanOf = (n: number): number => {
@@ -416,33 +422,70 @@ export function levelRows(
   }
   if (hi - lo <= max) return all.slice(lo, hi);
   const span = spanOf(hi - lo);
-  const name = (r: ChangeFolder | Change): string => ("name" in r ? r.name : r.path.slice(r.path.lastIndexOf("/") + 1));
   const rows: ChangeRange[] = [];
   for (let from = lo, i = 0; from < hi; from += span, i++) {
     const to = Math.min(from + span, hi);
     let files = 0;
     let unreviewed = 0;
     for (let k = from; k < to; k++) {
-      const r = all[k]!;
-      if ("name" in r) {
-        files += r.files;
-        unreviewed += r.unreviewed;
-      } else {
-        files++;
-        if (!r.reviewed) unreviewed++;
-      }
+      const r = info(all[k]!);
+      files += r.files;
+      unreviewed += r.unreviewed;
     }
     rows.push({
-      root,
-      dir,
+      ...at,
       range: [...range, i],
-      first: name(all[from]!),
-      last: name(all[to - 1]!),
+      first: info(all[from]!).name,
+      last: info(all[to - 1]!).name,
       files,
       unreviewed,
     });
   }
   return rows;
+}
+
+/**
+ * The rows the tree draws for one level (`level`: directory `dir` of the group at `root`), or
+ * under one of its range rows (`range`): its folders, then its files, as ranges when there are
+ * more than `max` (an install's thousands of files or of directories in one place): see
+ * rangeRows.
+ */
+export function levelRows(
+  level: FolderRows,
+  root: string,
+  dir: string,
+  max: number,
+  range: readonly number[] = [],
+): LevelRow[] {
+  return rangeRows<ChangeFolder | Change>([...level.folders, ...level.files], max, range, { root, dir }, (r) =>
+    "name" in r ? r : { name: r.path.slice(r.path.lastIndexOf("/") + 1), files: 1, unreviewed: r.reviewed ? 0 : 1 },
+  );
+}
+
+/**
+ * Whether the group rows are drawn collapsed: when there are several and, expanded, a redraw
+ * would send more than `max` rows (theirs and their files'). So with no row expanded by the
+ * user a redraw sends at most `max` rows: one group is its level (levelRows); several small
+ * ones are expanded and flat; else the collapsed group rows, in ranges (groupRows).
+ */
+export function groupsCollapsed(groups: number, files: number, max: number): boolean {
+  return groups > 1 && groups + files > max;
+}
+
+/**
+ * The group rows, or those under one of their range rows (`range`, whose root and dir are
+ * ""): as ranges when there are more than `max` groups (see rangeRows).
+ */
+export function groupRows(
+  groups: readonly ChangeGroup[],
+  max: number,
+  range: readonly number[] = [],
+): (ChangeGroup | ChangeRange)[] {
+  return rangeRows(groups, max, range, { root: "", dir: "" }, (g) => ({
+    name: g.root.slice(g.root.lastIndexOf("/") + 1) || g.root,
+    files: g.changes.length,
+    unreviewed: g.changes.filter((c) => !c.reviewed).length,
+  }));
 }
 
 /**
