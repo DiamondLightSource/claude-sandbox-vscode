@@ -512,6 +512,15 @@ one, delete one, write `ignored.txt` and make a symlink
   beside them (`echo x > big/new.txt` with `big/a` expanded). Right-click a folder
   row: no file command is offered. Delete the files until 1000 or fewer are
   left: the list is flat again.
+  Then make a wide level:
+  `mkdir wide; for i in $(seq 3000); do echo $i > wide/f$i; done` (and the
+  same directly in the workspace folder, and with one-file directories:
+  `for i in $(seq 3000); do mkdir -p dirs/d$i; echo $i > dirs/d$i/f; done`).
+  Expect VS Code to stay responsive, and each level of more than 1000 rows
+  drawn as collapsed range rows (labelled with their first and last names,
+  `f1 … f…`, and `1000 files`), at most
+  1000 rows under any row, every file reachable; an expanded range stays
+  expanded as more files are created; no file command on a range row.
 - [ ] **R15 Review All's limit.** With more than 1000 files listed (R14, in a
   workspace that also has a repository with changes), run Review All.
   Expect one multi-file diff editor of at most 1000 files, the repository's

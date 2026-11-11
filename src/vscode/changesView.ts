@@ -24,6 +24,7 @@ import {
   type Change,
   type ChangeFolder,
   type ChangeGroup,
+  type ChangeRange,
   ChangeSet,
   type Drawn,
   drawn,
@@ -34,6 +35,7 @@ import {
   freshStatus as fresh,
   groupByRoot,
   isReviewTitle,
+  levelRows,
   picked,
   refreshDelay,
   reviewPick,
@@ -44,12 +46,13 @@ import {
 } from "../changes.ts";
 
 /**
- * A row of the view: a file, a repository (when the files span several), or a folder (in a
- * group of more than VIEW_MAX files).
+ * A row of the view: a file, a repository (when the files span several), or, in a group of
+ * more than VIEW_MAX files, a folder or a range of a level's rows.
  */
-type Node = Change | ChangeGroup | ChangeFolder;
+type Node = Change | ChangeGroup | ChangeFolder | ChangeRange;
 const isFile = (n: Node): n is Change => "path" in n;
-const isFolder = (n: Node): n is ChangeFolder => "dir" in n;
+const isFolder = (n: Node): n is ChangeFolder => "name" in n;
+const isRange = (n: Node): n is ChangeRange => "range" in n;
 /** The files a context-menu command acts on (see picked). */
 const files = (clicked?: Node, selected?: Node[]): Change[] => picked(clicked, selected, isFile);
 
@@ -181,8 +184,15 @@ export class ChangesView implements vscode.TreeDataProvider<Node>, vscode.Dispos
   private readonly autoTimers = new Map<string, NodeJS.Timeout>();
   private autoGuard = new AutoOpenGuard();
   private refreshTimer: NodeJS.Timeout | undefined;
-  /** How long the last refresh took (ms), the tree's fetches after it included: see refreshDelay. */
-  private cost = 0;
+  /**
+   * When the last refresh ended, how long it took, and how long getChildren has taken since it
+   * began (the tree's fetches after a redraw, and the user's expanding rows), in ms: the next
+   * timed refresh waits refreshDelay of the two times together after the last one.
+   */
+  private refreshedAt = 0;
+  private refreshCost = 0;
+  private fetchCost = 0;
+  private disposed = false;
   /** The claudeSandbox.reviewing context key's value. */
   private reviewingNow = false;
   /** VS Code has the STEP commands (1.106+): until then F8 is left to its problems. */
@@ -482,16 +492,24 @@ export class ChangesView implements vscode.TreeDataProvider<Node>, vscode.Dispos
   }
 
   private refreshSoon(): void {
-    this.refreshTimer ??= setTimeout(() => {
-      this.refreshTimer = undefined;
-      this.refresh();
-    }, refreshDelay(this.cost));
+    if (this.disposed) return;
+    this.refreshTimer ??= setTimeout(() => this.refreshDue(), refreshDelay(this.refreshCost + this.fetchCost));
+  }
+
+  /** The timer's refresh, put off while the tree's fetches since the last one call for a longer wait. */
+  private refreshDue(): void {
+    this.refreshTimer = undefined;
+    const wait = this.refreshedAt + refreshDelay(this.refreshCost + this.fetchCost) - performance.now();
+    if (wait >= 1) this.refreshTimer = setTimeout(() => this.refreshDue(), wait);
+    else this.refresh();
   }
 
   private refresh(): void {
     if (this.refreshTimer) clearTimeout(this.refreshTimer);
     this.refreshTimer = undefined;
+    if (this.disposed) return;
     const began = performance.now();
+    this.fetchCost = 0;
     this.stale();
     const shown = this.shown();
     // every shown file, not only the rows fetched so far: a folder row's counts, and the rows
@@ -521,7 +539,8 @@ export class ChangesView implements vscode.TreeDataProvider<Node>, vscode.Dispos
       .join(" ");
     if (message !== (this.view.message ?? "")) this.view.message = message;
     this.onCount(n);
-    this.cost = performance.now() - began;
+    this.refreshedAt = performance.now();
+    this.refreshCost = this.refreshedAt - began;
   }
 
   /** Unreviewed files the view shows. */
@@ -835,8 +854,8 @@ export class ChangesView implements vscode.TreeDataProvider<Node>, vscode.Dispos
     return (this.groups().get(root)?.changes.length ?? 0) > VIEW_MAX;
   }
 
-  /** The rows under a group's root, or under one of its folder rows. */
-  private under(root: string, dir?: string): Node[] {
+  /** The rows under a group's root, one of its folder rows, or a range row of either. */
+  private under(root: string, dir?: string, range?: readonly number[]): Node[] {
     const g = this.groups().get(root);
     if (g === undefined) return [];
     if (!this.foldered(root)) return dir === undefined ? g.changes : [];
@@ -845,15 +864,15 @@ export class ChangesView implements vscode.TreeDataProvider<Node>, vscode.Dispos
       index = folderIndex(g.changes, root);
       this.indexCache.set(root, index);
     }
-    const rows = index.get(dir ?? root);
-    return rows === undefined ? [] : [...rows.folders, ...rows.files];
+    const level = index.get(dir ?? root);
+    return level === undefined ? [] : levelRows(level, root, dir ?? root, VIEW_MAX, range);
   }
 
   // Rows are looked up afresh by root and directory: the row VS Code passes may be an older draw's.
   getChildren(element?: Node): Node[] {
     const began = performance.now();
     const rows = this.children(element);
-    this.cost += performance.now() - began;
+    this.fetchCost += performance.now() - began;
     return rows;
   }
 
@@ -864,10 +883,20 @@ export class ChangesView implements vscode.TreeDataProvider<Node>, vscode.Dispos
       return groups.length === 1 ? this.under(groups[0]!.root) : groups;
     }
     if (isFile(element)) return [];
+    if (isRange(element)) return this.under(element.root, element.dir, element.range);
     return isFolder(element) ? this.under(element.root, element.dir) : this.under(element.root);
   }
 
   getTreeItem(n: Node): vscode.TreeItem {
+    if (isRange(n)) {
+      const item = new vscode.TreeItem(`${n.first} … ${n.last}`, vscode.TreeItemCollapsibleState.Collapsed);
+      item.id = `range:${n.root}:${n.dir}:${n.range.join(".")}`;
+      item.description = `${n.files} file${n.files === 1 ? "" : "s"}${n.unreviewed < n.files ? `, ${n.unreviewed} to review` : ""}`;
+      item.tooltip = `${n.dir}: ${n.first} to ${n.last}`;
+      item.iconPath = new vscode.ThemeIcon("list-tree");
+      item.contextValue = "changeRange";
+      return item;
+    }
     if (isFolder(n)) {
       const item = new vscode.TreeItem(n.name, vscode.TreeItemCollapsibleState.Collapsed);
       item.id = `dir:${n.root}:${n.dir}`;
@@ -918,6 +947,7 @@ export class ChangesView implements vscode.TreeDataProvider<Node>, vscode.Dispos
   }
 
   dispose(): void {
+    this.disposed = true;
     this.stop();
     this.unfollow();
     for (const s of this.gitSubs ?? []) s.dispose();

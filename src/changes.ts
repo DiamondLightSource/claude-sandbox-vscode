@@ -210,9 +210,9 @@ export const REFRESH_BACKOFF = 4;
 export const REFRESH_MAX_MS = 3000;
 
 /**
- * How long the next refresh waits, given how long the last one took (ms, the tree's fetches
- * included): a refresh looks at every recorded file, so with tens of thousands the wait grows
- * with it and refreshing takes at most a fraction of the extension host's time.
+ * How long a refresh waits after the last one, given how long that one took (ms): a refresh
+ * looks at every recorded file, so with tens of thousands the wait grows with it and
+ * refreshing takes at most a fraction of the extension host's time.
  */
 export function refreshDelay(lastMs: number): number {
   return Math.max(REFRESH_MS, Math.min(REFRESH_MAX_MS, Math.ceil(lastMs * REFRESH_BACKOFF)));
@@ -292,8 +292,8 @@ export interface FolderRows {
  * hidden, and the view fetches a level only when its row is expanded. Built in one pass over
  * the group, once per redraw, so a level is a lookup. A row is one directory level: its
  * identity is its path, which no other file's coming or going changes, so an expanded row
- * stays expanded. A directory holding more than VIEW_MAX files directly lists them all when
- * expanded: the user asked for it. A file not under the group's root is listed at the root.
+ * stays expanded. A level of more than VIEW_MAX rows is drawn as ranges (levelRows). A file
+ * not under the group's root is listed at the root.
  */
 export function folderIndex(changes: readonly Change[], root: string): Map<string, FolderRows> {
   const index = new Map<string, FolderRows>();
@@ -361,9 +361,95 @@ export function folderIndex(changes: readonly Change[], root: string): Map<strin
 }
 
 /**
+ * A range row: a run of the rows of one level (a directory's folders, then its files) that has
+ * more than the most rows a level draws.
+ */
+export interface ChangeRange {
+  /** Its group's root, and the level's directory. */
+  root: string;
+  dir: string;
+  /** Which range of the level: its number, within the range above's when ranges are nested. */
+  range: number[];
+  /** The names of its first and last rows. */
+  first: string;
+  last: string;
+  /** How many files are under it, at any depth, and how many of those are not reviewed. */
+  files: number;
+  unreviewed: number;
+}
+
+export type LevelRow = ChangeFolder | Change | ChangeRange;
+
+/**
+ * The rows the tree draws for one level (`level`: directory `dir` of the group at `root`), or
+ * under one of its range rows (`range`): never more than `max`. A level of at most `max` rows
+ * is its folders, then its files. A wider one (an install's thousands of files or of
+ * directories in one place) is range rows of `max` rows each, in that order, and ranges of
+ * ranges when there are more than `max` of those, so every file is under exactly one row and
+ * no fetch sends more than `max` rows to the window. A range is known by its number, so an
+ * expanded one stays expanded as files come and go; a file added before it moves the rows at
+ * its edges into the next range.
+ */
+export function levelRows(
+  level: FolderRows,
+  root: string,
+  dir: string,
+  max: number,
+  range: readonly number[] = [],
+): LevelRow[] {
+  const all: (ChangeFolder | Change)[] = [...level.folders, ...level.files];
+  // the rows a range covers are [lo, hi); each range of a run covers `span` rows, the largest
+  // power of `max` that leaves more than one range
+  const spanOf = (n: number): number => {
+    let span = max;
+    while (span * max < n) span *= max;
+    return span;
+  };
+  let lo = 0;
+  let hi = all.length;
+  for (const i of range) {
+    if (hi - lo <= max) return []; // an older draw's range: this run has none
+    const span = spanOf(hi - lo);
+    lo += i * span;
+    hi = Math.min(lo + span, hi);
+    if (i < 0 || lo >= hi) return [];
+  }
+  if (hi - lo <= max) return all.slice(lo, hi);
+  const span = spanOf(hi - lo);
+  const name = (r: ChangeFolder | Change): string => ("name" in r ? r.name : r.path.slice(r.path.lastIndexOf("/") + 1));
+  const rows: ChangeRange[] = [];
+  for (let from = lo, i = 0; from < hi; from += span, i++) {
+    const to = Math.min(from + span, hi);
+    let files = 0;
+    let unreviewed = 0;
+    for (let k = from; k < to; k++) {
+      const r = all[k]!;
+      if ("name" in r) {
+        files += r.files;
+        unreviewed += r.unreviewed;
+      } else {
+        files++;
+        if (!r.reviewed) unreviewed++;
+      }
+    }
+    rows.push({
+      root,
+      dir,
+      range: [...range, i],
+      first: name(all[from]!),
+      last: name(all[to - 1]!),
+      files,
+      unreviewed,
+    });
+  }
+  return rows;
+}
+
+/**
  * The files a context-menu command acts on: VS Code passes the row right-clicked and the rows
  * selected. The selection when it holds that row (a right-click elsewhere acts on that row
- * alone), files only (a repository or folder row in the selection is not all of its files).
+ * alone), files only (a repository, folder or range row in the selection is not all of its
+ * files).
  */
 export function picked<T, F extends T>(
   clicked: T | undefined,

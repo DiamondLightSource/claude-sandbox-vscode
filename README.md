@@ -68,7 +68,7 @@ never upgrades it.
   another window has its own.
 - **Changed this session**: the side bar lists files changed while the
   session ran (your own saves excluded, and only those git shows a change
-  for; more than 1000 are listed under folders to expand). Click one for a
+  for; more than 1000 are listed under folders, and ranges of a long folder, to expand). Click one for a
   diff against HEAD, tick **Mark as reviewed**, or **Review All Changes** to
   open them in the multi-file diff editor (at most 1000, tracked files first;
   a message says how many are left out), then step

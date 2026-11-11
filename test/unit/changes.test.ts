@@ -17,6 +17,8 @@ import {
   freshStatus,
   groupByRoot,
   isReviewTitle,
+  type LevelRow,
+  levelRows,
   picked,
   REFRESH_MAX_MS,
   REFRESH_MS,
@@ -415,6 +417,116 @@ describe("folder rows (a group of more than VIEW_MAX files)", () => {
     assert.ok(sameDrawn(before, now()));
     cs[cs.length - 1]!.reviewed = true;
     assert.ok(!sameDrawn(before, now()));
+  });
+});
+
+describe("a wide level (more rows than the tree draws at once)", () => {
+  const f = (p: string, reviewed = false) => ({ path: p, kind: "changed" as const, reviewed, at: 0, symlink: false });
+  const isRange = (r: LevelRow) => "range" in r;
+  /** Every fetch from the root down: the most rows in one, how many fetches, and the files reached. */
+  const walk = (cs: ReturnType<typeof f>[], max: number) => {
+    const ix = folderIndex(cs, "/w");
+    const seen: string[] = [];
+    let most = 0;
+    let fetches = 0;
+    const visit = (dir: string, range?: number[]): void => {
+      const rows = levelRows(ix.get(dir)!, "/w", dir, max, range);
+      fetches++;
+      most = Math.max(most, rows.length);
+      for (const r of rows) {
+        if ("range" in r) visit(r.dir, r.range);
+        else if ("name" in r) visit(r.dir);
+        else seen.push(r.path);
+      }
+    };
+    visit("/w");
+    return { most, fetches, seen, top: levelRows(ix.get("/w")!, "/w", "/w", max) };
+  };
+  const all = (cs: { path: string }[]) => cs.map((c) => c.path).sort();
+
+  it("50,000 files directly in the root: 50 range rows, every file under one, no fetch over the limit", () => {
+    const cs = Array.from({ length: 50_000 }, (_, i) => f(`/w/f${i}`, i % 2 === 0));
+    const w = walk(cs, VIEW_MAX);
+    assert.equal(w.top.length, 50);
+    assert.ok(w.top.every(isRange));
+    assert.equal(w.most, VIEW_MAX);
+    assert.deepEqual(w.seen.slice().sort(), all(cs));
+    const first = w.top[0]!;
+    assert.ok("range" in first);
+    const names = cs.map((c) => c.path.slice(3)).sort();
+    assert.deepEqual([first.first, first.last, first.files, first.range], [names[0], names[999], 1000, [0]]);
+    assert.equal(
+      w.top.reduce((n, r) => n + ("range" in r ? r.unreviewed : 0), 0),
+      25_000,
+    );
+  });
+
+  it("50,000 one-file directories: ranges of folder rows, counted by their files", () => {
+    const cs = Array.from({ length: 50_000 }, (_, i) => f(`/w/d${i}/only.py`));
+    const w = walk(cs, VIEW_MAX);
+    assert.equal(w.top.length, 50);
+    assert.equal(w.most, VIEW_MAX);
+    assert.deepEqual(w.seen.slice().sort(), all(cs));
+    const last = w.top[49]!;
+    assert.ok("range" in last);
+    const dirs = cs.map((c) => c.path.split("/")[2]).sort();
+    assert.deepEqual([last.first, last.last, last.files, last.unreviewed], [dirs[49_000], "d9999", 1000, 1000]);
+  });
+
+  it("a level exactly at the limit is its rows; one over is two ranges", () => {
+    const at = Array.from({ length: VIEW_MAX - 1 }, (_, i) => f(`/w/f${i}`));
+    at.push(f("/w/sub/x"));
+    const flat = walk(at, VIEW_MAX);
+    assert.equal(flat.top.length, VIEW_MAX);
+    assert.ok(!flat.top.some(isRange));
+    assert.ok("name" in flat.top[0]! && flat.top[0].name === "sub", "folders first");
+    const over = walk([...at, f("/w/zzz")], VIEW_MAX);
+    assert.equal(over.top.length, 2);
+    const [a, b] = over.top as [LevelRow, LevelRow];
+    assert.ok("range" in a && "range" in b);
+    assert.deepEqual([a.first, a.files, b.first, b.last, b.files], ["sub", VIEW_MAX, "zzz", "zzz", 1]);
+    assert.equal(over.seen.length, VIEW_MAX + 1);
+  });
+
+  it("more ranges than the limit are ranges of ranges", () => {
+    const cs = Array.from({ length: 30 }, (_, i) => f(`/w/f${String(i).padStart(2, "0")}`));
+    const w = walk(cs, 3);
+    assert.equal(w.most, 3);
+    assert.deepEqual(w.seen, all(cs), "in order");
+    const top = w.top as { range: number[]; first: string; last: string; files: number }[];
+    assert.deepEqual(
+      top.map((r) => [r.range, r.first, r.last, r.files]),
+      [
+        [[0], "f00", "f26", 27],
+        [[1], "f27", "f29", 3],
+      ],
+    );
+    const ix = folderIndex(cs, "/w");
+    const inner = levelRows(ix.get("/w")!, "/w", "/w", 3, [0, 2]) as typeof top;
+    assert.deepEqual(
+      inner.map((r) => [r.range, r.first, r.last]),
+      [
+        [[0, 2, 0], "f18", "f20"],
+        [[0, 2, 1], "f21", "f23"],
+        [[0, 2, 2], "f24", "f26"],
+      ],
+    );
+    assert.deepEqual(
+      levelRows(ix.get("/w")!, "/w", "/w", 3, [0, 2, 1]).map((r) => ("path" in r ? r.path : "")),
+      ["/w/f21", "/w/f22", "/w/f23"],
+    );
+  });
+
+  it("a range is known by its number: files added later in the level leave it as it was; a stale one is empty", () => {
+    const cs = Array.from({ length: 2500 }, (_, i) => f(`/w/f${String(i).padStart(5, "0")}`));
+    const rows = (xs: typeof cs, range: number[]) =>
+      levelRows(folderIndex(xs, "/w").get("/w")!, "/w", "/w", 1000, range);
+    const more = [...cs, f("/w/zzz1"), f("/w/zzz2")];
+    assert.deepEqual(rows(more, [1]), rows(cs, [1]));
+    assert.equal(rows(more, [2]).length, 502);
+    assert.deepEqual(rows(cs, [3]), []);
+    assert.deepEqual(rows(cs, [0, 0]), []);
+    assert.deepEqual(rows(cs.slice(0, 10), [0]), []);
   });
 });
 
