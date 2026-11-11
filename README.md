@@ -70,8 +70,8 @@ never upgrades it.
   session ran (your own saves excluded, and only those git shows a change
   for; more than 1000 are listed under folders to expand). Click one for a
   diff against HEAD, tick **Mark as reviewed**, or **Review All Changes** to
-  open them in the multi-file diff editor (at most 1000, a repository's files
-  first; a message says how many are left out), then step
+  open them in the multi-file diff editor (at most 1000, tracked files first;
+  a message says how many are left out), then step
   with **Next/Previous Change** (`F8`/`Shift+F8` in that editor or the view,
   VS Code 1.106+). Right-click a file (or a selection) to open it, stage
   it, revert it to HEAD, reveal it or copy its path; **Revert All Changes

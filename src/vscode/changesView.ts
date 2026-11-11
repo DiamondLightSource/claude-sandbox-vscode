@@ -25,16 +25,20 @@ import {
   type ChangeFolder,
   type ChangeGroup,
   ChangeSet,
-  drawnKey,
+  type Drawn,
+  drawn,
   type EntryKind,
   entryKind as entry,
-  folderRows,
+  type FolderRows,
+  folderIndex,
   freshStatus as fresh,
   groupByRoot,
   isReviewTitle,
   picked,
+  refreshDelay,
   reviewPick,
   reviewPlan,
+  sameDrawn,
   splitByGit,
   VIEW_MAX,
 } from "../changes.ts";
@@ -52,8 +56,6 @@ const files = (clicked?: Node, selected?: Node[]): Change[] => picked(clicked, s
 const EMPTY_SCHEME = "claude-sandbox-empty";
 /** VS Code's (1.106+) next and previous change in the active multi-file diff editor. */
 const STEP = { next: "multiDiffEditor.goToNextChange", previous: "multiDiffEditor.goToPreviousChange" } as const;
-/** Watcher events come in bursts (a checkout, an install): the view is redrawn at most this often. */
-const REFRESH_MS = 100;
 /**
  * A full list makes room by forgetting files the view does not show (git shows no change)
  * that are at least this old, so git has had time to report a new file; at most once per
@@ -105,6 +107,9 @@ const INDEX_RENAMED = 3;
 const INDEX_COPIED = 4;
 const UNTRACKED = 7;
 const INTENT_TO_ADD = 9;
+const NEW = [UNTRACKED, INDEX_ADDED, INTENT_TO_ADD];
+/** The most paths a cache of roots holds: past it the cache is emptied, and filled again as files are looked at. */
+const ROOTS_MAX = 2 * CHANGES_MAX;
 
 /** An empty document: the missing side of a diff. */
 function empty(uri: vscode.Uri): vscode.Uri {
@@ -149,15 +154,25 @@ export class ChangesView implements vscode.TreeDataProvider<Node>, vscode.Dispos
    * lookup walks the open repositories and their submodules, too slow to repeat for every file
    * on every redraw. Emptied when a repository opens or closes, or a followed repository's
    * submodules change (a path under a submodule is not its parent's). A submodule of a
-   * repository not yet followed is seen at the next of those.
+   * repository not yet followed is seen at the next of those. A path's entry goes when its
+   * record leaves the list, and the whole cache when it holds more than twice CHANGES_MAX.
    */
   private readonly repoRoot = new Map<string, string | null>();
-  /** What the tree last drew (drawnKey), and the badge's count. */
-  private drawn: string | undefined;
+  /**
+   * The workspace folder (else its own folder) of each recorded file in no repository, asked
+   * of VS Code once. Emptied with repoRoot, and when the workspace folders change.
+   */
+  private readonly folderRoot = new Map<string, string>();
+  /** What the tree last drew (see drawn), and the badge's count. */
+  private drawn: Drawn | undefined;
   private badged = -1;
-  /** What the view shows, its groups, and each file's group root, worked out once per redraw. */
+  /**
+   * What the view shows, its groups, a large group's folder rows by directory, and each file's
+   * group root, worked out once per redraw.
+   */
   private shownCache: Change[] | undefined;
   private groupCache: Map<string, ChangeGroup> | undefined;
+  private readonly indexCache = new Map<string, Map<string, FolderRows>>();
   private readonly rootOf = new Map<string, string>();
   /** Shown files in a repository (Stage and Revert are offered for these). */
   private readonly inRepo = new Set<string>();
@@ -166,6 +181,8 @@ export class ChangesView implements vscode.TreeDataProvider<Node>, vscode.Dispos
   private readonly autoTimers = new Map<string, NodeJS.Timeout>();
   private autoGuard = new AutoOpenGuard();
   private refreshTimer: NodeJS.Timeout | undefined;
+  /** How long the last refresh took (ms), the tree's fetches after it included: see refreshDelay. */
+  private cost = 0;
   /** The claudeSandbox.reviewing context key's value. */
   private reviewingNow = false;
   /** VS Code has the STEP commands (1.106+): until then F8 is left to its problems. */
@@ -217,6 +234,10 @@ export class ChangesView implements vscode.TreeDataProvider<Node>, vscode.Dispos
       // claudeSandbox.reviewing: Review All is the active editor (F8 and Shift+F8 step through it)
       vscode.window.tabGroups.onDidChangeTabs(() => this.reviewingChanged()),
       vscode.window.tabGroups.onDidChangeTabGroups(() => this.reviewingChanged()),
+      vscode.workspace.onDidChangeWorkspaceFolders(() => {
+        this.folderRoot.clear();
+        this.refreshSoon();
+      }),
     );
     // a Review All tab restored by a reload may already be active
     void vscode.commands.getCommands(true).then((all) => {
@@ -300,7 +321,25 @@ export class ChangesView implements vscode.TreeDataProvider<Node>, vscode.Dispos
   private unfollow(): void {
     for (const r of this.repos.values()) r.sub.dispose();
     this.repos.clear();
+    this.forgetRoots();
+  }
+
+  private forgetRoots(): void {
     this.repoRoot.clear();
+    this.folderRoot.clear();
+  }
+
+  /** `p`'s record left the list: its cached roots go with it. */
+  private forget(p: string): void {
+    this.repoRoot.delete(p);
+    this.folderRoot.delete(p);
+  }
+
+  /** The cached view of the list is out of date. */
+  private stale(): void {
+    this.shownCache = undefined;
+    this.groupCache = undefined;
+    this.indexCache.clear();
   }
 
   /** The root of the repository `p` is in (followed from now on), or null. */
@@ -316,12 +355,13 @@ export class ChangesView implements vscode.TreeDataProvider<Node>, vscode.Dispos
         const now = submodules(repo);
         if (now !== subs) {
           subs = now;
-          this.repoRoot.clear();
+          this.forgetRoots();
         }
         this.refreshSoon();
       };
       this.repos.set(root, { repo, sub: repo.state.onDidChange(changed) });
     }
+    if (this.repoRoot.size >= ROOTS_MAX) this.repoRoot.clear();
     this.repoRoot.set(p, root);
     return root;
   }
@@ -334,12 +374,12 @@ export class ChangesView implements vscode.TreeDataProvider<Node>, vscode.Dispos
 
   /** The root of the group `p` is listed under: its repository's, else its workspace folder (else its own folder). */
   private groupRoot(p: string): string {
-    return (
-      this.rootOf.get(p) ??
-      this.rootFor(p) ??
-      vscode.workspace.getWorkspaceFolder(vscode.Uri.file(p))?.uri.fsPath ??
-      path.dirname(p)
-    );
+    const root = this.rootOf.get(p) ?? this.rootFor(p) ?? this.folderRoot.get(p);
+    if (root !== undefined) return root;
+    const folder = vscode.workspace.getWorkspaceFolder(vscode.Uri.file(p))?.uri.fsPath ?? path.dirname(p);
+    if (this.folderRoot.size >= ROOTS_MAX) this.folderRoot.clear();
+    this.folderRoot.set(p, folder);
+    return folder;
   }
 
   /**
@@ -402,12 +442,11 @@ export class ChangesView implements vscode.TreeDataProvider<Node>, vscode.Dispos
     if (now - this.lastPrune < PRUNE_EVERY_MS) return;
     this.lastPrune = now;
     // from git's status as it is, not as it was at the last redraw
-    this.shownCache = undefined;
-    this.groupCache = undefined;
+    this.stale();
     const shown = new Set(this.shown().map((c) => c.path));
     this.set.prune((c) => {
       if (shown.has(c.path)) return true;
-      this.repoRoot.delete(c.path);
+      this.forget(c.path);
       return false;
     }, now - PRUNE_AGE_MS);
   }
@@ -417,6 +456,7 @@ export class ChangesView implements vscode.TreeDataProvider<Node>, vscode.Dispos
     const now = Date.now();
     if (this.set.size >= CHANGES_MAX && this.set.get(u.fsPath) === undefined) this.makeRoom(now);
     const c = this.set.event(kind, u.fsPath, now, symlink);
+    if (c === null && this.set.get(u.fsPath) === undefined) this.forget(u.fsPath); // made and gone again
     this.refreshSoon();
     if (c === null || c.kind === "deleted" || c.symlink) return;
     if (!vscode.workspace.getConfiguration("claudeSandbox").get<boolean>("autoOpenDiffs", false)) return;
@@ -445,24 +485,24 @@ export class ChangesView implements vscode.TreeDataProvider<Node>, vscode.Dispos
     this.refreshTimer ??= setTimeout(() => {
       this.refreshTimer = undefined;
       this.refresh();
-    }, REFRESH_MS);
+    }, refreshDelay(this.cost));
   }
 
   private refresh(): void {
     if (this.refreshTimer) clearTimeout(this.refreshTimer);
     this.refreshTimer = undefined;
-    this.shownCache = undefined;
-    this.groupCache = undefined;
+    const began = performance.now();
+    this.stale();
     const shown = this.shown();
     // every shown file, not only the rows fetched so far: a folder row's counts, and the rows
     // under an expanded one, come from them all
-    const key = drawnKey(
+    const now = drawn(
       shown,
       (c) => this.groupRoot(c.path),
       (c) => this.inRepo.has(c.path),
     );
-    if (key !== this.drawn) {
-      this.drawn = key;
+    if (!sameDrawn(this.drawn, now)) {
+      this.drawn = now;
       this.emitter.fire(undefined);
     }
     const n = this.unreviewed;
@@ -481,6 +521,7 @@ export class ChangesView implements vscode.TreeDataProvider<Node>, vscode.Dispos
       .join(" ");
     if (message !== (this.view.message ?? "")) this.view.message = message;
     this.onCount(n);
+    this.cost = performance.now() - began;
   }
 
   /** Unreviewed files the view shows. */
@@ -492,8 +533,7 @@ export class ChangesView implements vscode.TreeDataProvider<Node>, vscode.Dispos
   private original(git: GitApi, repo: GitRepository, c: Change, uri: vscode.Uri): vscode.Uri {
     const s = repo.state;
     const isNew = [...s.workingTreeChanges, ...s.indexChanges, ...(s.untrackedChanges ?? [])].some(
-      (x) =>
-        x.uri.fsPath === c.path && (x.status === UNTRACKED || x.status === INDEX_ADDED || x.status === INTENT_TO_ADD),
+      (x) => x.uri.fsPath === c.path && NEW.includes(x.status),
     );
     return isNew ? empty(uri) : git.toGitUri(uri, "HEAD");
   }
@@ -552,8 +592,8 @@ export class ChangesView implements vscode.TreeDataProvider<Node>, vscode.Dispos
    * The listed files in one multi-file diff editor (vscode.changes: [resource, original,
    * modified] rows, a missing side undefined, which VS Code 1.105+ accepts and shows as added or
    * deleted), against HEAD. VS Code reads the contents; symlinks are left out. At most VIEW_MAX
-   * files: with more, files in a repository come before files outside one, then by path
-   * (reviewPick), and a message says how many are not in the review.
+   * files: with more, files HEAD has come first, then a repository's new files, then files
+   * outside one, each by path (reviewPick), and a message says how many are not in the review.
    */
   async reviewAll(): Promise<void> {
     const git = await this.api();
@@ -564,19 +604,34 @@ export class ChangesView implements vscode.TreeDataProvider<Node>, vscode.Dispos
     await fresh(this.set.all().map(repoOf));
     this.refresh();
     const shown = this.shown();
-    const { files: list, left } = reviewPick(shown, (c) => this.inRepo.has(c.path), VIEW_MAX);
+    // each repository's paths HEAD lacks (untracked or added), as original() tells them
+    const added = new Map<string, Set<string>>();
+    const isNew = (root: string, c: Change): boolean => {
+      let paths = added.get(root);
+      if (paths === undefined) {
+        const st = this.repos.get(root)?.repo.state;
+        const all = st ? [...st.workingTreeChanges, ...st.indexChanges, ...(st.untrackedChanges ?? [])] : [];
+        paths = new Set(all.filter((x) => NEW.includes(x.status)).map((x) => x.uri.fsPath));
+        added.set(root, paths);
+      }
+      return paths.has(c.path);
+    };
+    const { files: list, left } = reviewPick(
+      shown,
+      (c) => {
+        const root = this.rootFor(c.path);
+        return root === null ? 2 : isNew(root, c) ? 1 : 0;
+      },
+      VIEW_MAX,
+    );
     if (left > 0)
       void vscode.window.showInformationMessage(
-        `Claude Sandbox: ${left} of ${shown.length} changed files are not in this review: it opens at most ${VIEW_MAX} (files in a Git repository first, then by path). Open the others from the Changed this session view.`,
+        `Claude Sandbox: ${left} of ${shown.length} changed files ${left === 1 ? "is" : "are"} not in this review: it opens at most ${VIEW_MAX} (tracked files first, then a repository's new files, then files outside one, each by path). Open the others from the Changed this session view.`,
       );
     for (const c of list) if (c.kind !== "deleted") await this.check(c); // a symlink now is marked
     const plan = reviewPlan(list, (c) => {
-      const repo = repoOf(c);
-      return (
-        git !== null &&
-        repo !== null &&
-        (c.kind === "deleted" || this.original(git, repo, c, vscode.Uri.file(c.path)).scheme !== EMPTY_SCHEME)
-      );
+      const root = this.rootFor(c.path);
+      return git !== null && root !== null && (c.kind === "deleted" || !isNew(root, c));
     });
     const rows = plan.rows.map((r): [vscode.Uri, vscode.Uri | undefined, vscode.Uri | undefined] => {
       const uri = vscode.Uri.file(r.path);
@@ -785,12 +840,24 @@ export class ChangesView implements vscode.TreeDataProvider<Node>, vscode.Dispos
     const g = this.groups().get(root);
     if (g === undefined) return [];
     if (!this.foldered(root)) return dir === undefined ? g.changes : [];
-    const rows = folderRows(g.changes, root, dir);
-    return [...rows.folders, ...rows.files];
+    let index = this.indexCache.get(root);
+    if (index === undefined) {
+      index = folderIndex(g.changes, root);
+      this.indexCache.set(root, index);
+    }
+    const rows = index.get(dir ?? root);
+    return rows === undefined ? [] : [...rows.folders, ...rows.files];
   }
 
   // Rows are looked up afresh by root and directory: the row VS Code passes may be an older draw's.
   getChildren(element?: Node): Node[] {
+    const began = performance.now();
+    const rows = this.children(element);
+    this.cost += performance.now() - began;
+    return rows;
+  }
+
+  private children(element?: Node): Node[] {
     if (element === undefined) {
       const groups = [...this.groups().values()];
       // one repository: its files, unwrapped

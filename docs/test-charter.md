@@ -507,18 +507,21 @@ one, delete one, write `ignored.txt` and make a symlink
   Expect VS Code to stay responsive throughout; the view to list collapsed
   folder rows (`big`, `src`), each with `N files` and, once some are
   reviewed, `, M to review`; folders before files; `src` expanding to
-  `real.py`; every created file reachable by expanding; a chain of
-  single-child directories drawn as one row (`.venv/lib/python3.12/…`).
-  Expanded folders stay expanded as more files change. Right-click a folder
+  `real.py`; every created file reachable by expanding, one directory level
+  per row. Expanded folders stay expanded as more files change, in them or
+  beside them (`echo x > big/new.txt` with `big/a` expanded). Right-click a folder
   row: no file command is offered. Delete the files until 1000 or fewer are
   left: the list is flat again.
 - [ ] **R15 Review All's limit.** With more than 1000 files listed (R14, in a
   workspace that also has a repository with changes), run Review All.
   Expect one multi-file diff editor of at most 1000 files, the repository's
   files all among them, and an info message such as `Claude Sandbox: 1003
-  of 2003 changed files are not in this review: it opens at most 1000 (files
-  in a Git repository first, then by path). Open the others from the Changed
-  this session view.` Check the numbers against the view.
+  of 2003 changed files are not in this review: it opens at most 1000
+  (tracked files first, then a repository's new files, then files outside
+  one, each by path). Open the others from the Changed this session view.`
+  Check the numbers against the view. Then, in the repository, modify a
+  tracked file `zzz.py` and create more than 1000 untracked files whose
+  names sort before it: expect `zzz.py` in the review.
 
 ### C: Copy launch command
 

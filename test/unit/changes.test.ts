@@ -11,16 +11,20 @@ import {
   byPath,
   CHANGES_MAX,
   ChangeSet,
-  drawnKey,
+  drawn,
   entryKind,
-  folderRows,
+  folderIndex,
   freshStatus,
   groupByRoot,
   isReviewTitle,
   picked,
+  REFRESH_MAX_MS,
+  REFRESH_MS,
+  refreshDelay,
   reviewPick,
   reviewPlan,
   SAVE_WINDOW_MS,
+  sameDrawn,
   splitByGit,
   VIEW_MAX,
 } from "../../src/changes.ts";
@@ -257,26 +261,55 @@ describe("what the tree draws", () => {
     const s = set();
     s.event("changed", "/w/b.py", 0);
     s.event("changed", "/w/a.py", 0);
-    const key = () => drawnKey(byPath(s.all()), rootOf, inRepo);
-    const before = key();
+    const now = () => drawn(byPath(s.all()), rootOf, inRepo);
+    const before = now();
+    assert.ok(!sameDrawn(undefined, before), "nothing drawn yet");
     s.event("changed", "/w/a.py", 50); // changed again: a new record, the same row
-    assert.equal(key(), before);
+    assert.ok(sameDrawn(before, now()));
     s.markReviewed("/w/a.py");
-    assert.notEqual(key(), before, "reviewed is shown");
+    assert.ok(!sameDrawn(before, now()), "reviewed is shown");
     s.markReviewed("/w/a.py", false);
-    assert.equal(key(), before);
+    assert.ok(sameDrawn(before, now()));
+    s.event("changed", "/w/c.py", 55);
+    assert.ok(!sameDrawn(before, now()), "a file more");
+    s.event("deleted", "/w/c.py", 56);
+    const three = now();
     s.event("deleted", "/w/b.py", 60);
-    assert.notEqual(key(), before, "deleted is shown");
-    assert.notEqual(
-      drawnKey(byPath(s.all()), rootOf, () => false),
-      key(),
+    assert.ok(!sameDrawn(three, now()), "deleted is shown");
+    assert.ok(
+      !sameDrawn(
+        drawn(byPath(s.all()), rootOf, () => false),
+        now(),
+      ),
       "so is being in a repository",
     );
-    assert.notEqual(
-      drawnKey(byPath(s.all()), () => "/v", inRepo),
-      key(),
+    assert.ok(
+      !sameDrawn(
+        drawn(byPath(s.all()), () => "/v", inRepo),
+        now(),
+      ),
       "and the group",
     );
+    const link = set();
+    link.event("changed", "/w/a.py", 0, true);
+    link.event("changed", "/w/b.py", 0);
+    link.event("deleted", "/w/c.py", 0);
+    const plain = set();
+    plain.event("changed", "/w/a.py", 0);
+    plain.event("changed", "/w/b.py", 0);
+    plain.event("deleted", "/w/c.py", 0);
+    assert.ok(!sameDrawn(drawn(link.list(), rootOf, inRepo), drawn(plain.list(), rootOf, inRepo)), "and a symlink");
+    plain.event("changed", "/w/d.py", 0);
+    link.event("created", "/w/d.py", 0);
+    link.get("/w/a.py")!.symlink = false;
+    assert.ok(!sameDrawn(drawn(link.list(), rootOf, inRepo), drawn(plain.list(), rootOf, inRepo)), "and the kind");
+  });
+
+  it("the next refresh waits a multiple of the last one's time, between a floor and a cap", () => {
+    assert.equal(refreshDelay(0), REFRESH_MS);
+    assert.equal(refreshDelay(5), REFRESH_MS);
+    assert.equal(refreshDelay(100), 400);
+    assert.equal(refreshDelay(60_000), REFRESH_MAX_MS);
   });
 
   it("all() is list() unsorted", () => {
@@ -294,87 +327,94 @@ describe("folder rows (a group of more than VIEW_MAX files)", () => {
   const f = (p: string, reviewed = false) => ({ path: p, kind: "changed" as const, reviewed, at: 0, symlink: false });
   const install = () => {
     const cs = [f("/w/src/real.py"), f("/w/README.md"), f("/w/src/deep/other.py", true)];
-    for (let i = 0; i < 20_000; i++) cs.push(f(`/w/.venv/lib/python3.12/site-packages/pkg${i % 200}/mod${i}.py`));
+    for (let i = 0; i < 20_000; i++) cs.push(f(`/w/.venv/lib/site-packages/pkg${i % 200}/mod${i}.py`));
     return cs;
   };
-  const names = (r: ReturnType<typeof folderRows>) => [
-    ...r.folders.map((d) => `${d.name}/`),
-    ...r.files.map((c) => c.path),
-  ];
+  const names = (r: ReturnType<ReturnType<typeof folderIndex>["get"]>) =>
+    r === undefined ? undefined : [...r.folders.map((d) => `${d.name}/`), ...r.files.map((c) => c.path)];
 
   it("a real edit in src/ is reachable when .venv/ holds 20,000 files", () => {
-    const cs = install();
-    const top = folderRows(cs, "/w");
-    assert.deepEqual(names(top), [".venv/lib/python3.12/site-packages/", "src/", "/w/README.md"]);
+    const ix = folderIndex(install(), "/w");
+    const top = ix.get("/w")!;
+    assert.deepEqual(names(top), [".venv/", "src/", "/w/README.md"]);
     assert.ok(top.folders.length + top.files.length <= VIEW_MAX);
-    const src = folderRows(cs, "/w", "/w/src");
-    assert.deepEqual(names(src), ["deep/", "/w/src/real.py"]);
-    assert.deepEqual(names(folderRows(cs, "/w", "/w/src/deep")), ["/w/src/deep/other.py"]);
+    assert.deepEqual(names(ix.get("/w/src")), ["deep/", "/w/src/real.py"]);
+    assert.deepEqual(names(ix.get("/w/src/deep")), ["/w/src/deep/other.py"]);
+    assert.equal(ix.get("/w/nowhere"), undefined);
   });
 
   it("counts every file under a folder, and the unreviewed ones; no file is in two rows or none", () => {
     const cs = install();
-    const top = folderRows(cs, "/w");
+    const ix = folderIndex(cs, "/w");
+    const top = ix.get("/w")!;
     assert.deepEqual(
-      top.folders.map((d) => [d.dir, d.files, d.unreviewed]),
+      top.folders.map((d) => [d.root, d.dir, d.files, d.unreviewed]),
       [
-        ["/w/.venv/lib/python3.12/site-packages", 20_000, 20_000],
-        ["/w/src", 2, 1],
+        ["/w", "/w/.venv", 20_000, 20_000],
+        ["/w", "/w/src", 2, 1],
       ],
     );
     assert.equal(top.folders.reduce((n, d) => n + d.files, 0) + top.files.length, cs.length);
-    const pkgs = folderRows(cs, "/w", top.folders[0]!.dir);
+    assert.deepEqual(names(ix.get("/w/.venv")), ["lib/"]);
+    const pkgs = ix.get("/w/.venv/lib/site-packages")!;
     assert.equal(pkgs.folders.length, 200);
     assert.equal(pkgs.files.length, 0);
     assert.ok(pkgs.folders.every((d) => d.files === 100 && d.root === "/w"));
-    assert.equal(folderRows(cs, "/w", "/w/.venv/lib/python3.12/site-packages/pkg7").files.length, 100);
+    assert.equal(ix.get("/w/.venv/lib/site-packages/pkg7")!.files.length, 100);
     // every file is reached by expanding rows from the root
     const seen = new Set<string>();
-    const walk = (dir?: string): void => {
-      const r = folderRows(cs, "/w", dir);
+    const walk = (dir: string): void => {
+      const r = ix.get(dir)!;
       for (const c of r.files) {
         assert.ok(!seen.has(c.path), c.path);
         seen.add(c.path);
       }
       for (const d of r.folders) walk(d.dir);
     };
-    walk();
+    walk("/w");
     assert.equal(seen.size, cs.length);
   });
 
   it("orders folders then files, each by path, whatever order the files come in", () => {
-    const cs = [f("/w/b/y"), f("/w/z"), f("/w/a/x"), f("/w/b/x"), f("/w/a.txt"), f("/w/c/d/e/f")];
-    const want = ["a/", "b/", "c/d/e/", "/w/a.txt", "/w/z"];
-    assert.deepEqual(names(folderRows(cs, "/w")), want);
-    assert.deepEqual(names(folderRows([...cs].reverse(), "/w")), want);
-    assert.deepEqual(names(folderRows(cs, "/w", "/w/b")), ["/w/b/x", "/w/b/y"]);
+    const cs = [f("/w/b/y"), f("/w/z"), f("/w/a/x"), f("/w/b/x"), f("/w/a.txt"), f("/w/c/d/e/f"), f("/w/a.b/x")];
+    const want = ["a/", "a.b/", "b/", "c/", "/w/a.txt", "/w/z"];
+    assert.deepEqual(names(folderIndex(cs, "/w").get("/w")), want);
+    assert.deepEqual(names(folderIndex([...cs].reverse(), "/w").get("/w")), want);
+    assert.deepEqual(names(folderIndex([...cs].reverse(), "/w").get("/w/b")), ["/w/b/x", "/w/b/y"]);
   });
 
-  it("a folder with files of its own is not joined to its sub-folder; a file and a folder may share a name", () => {
-    const cs = [f("/w/a/x"), f("/w/a/b/y"), { ...f("/w/d"), kind: "deleted" as const }, f("/w/d/z")];
-    assert.deepEqual(names(folderRows(cs, "/w")), ["a/", "d/", "/w/d"]);
-    assert.deepEqual(names(folderRows(cs, "/w", "/w/a")), ["b/", "/w/a/x"]);
+  it("a row is one directory, whatever else changes: its path does not move when a file appears beside it", () => {
+    const cs = [f("/w/a/b/c/x")];
+    const dirs = (xs: typeof cs) => [...folderIndex(xs, "/w").keys()].sort();
+    assert.deepEqual(dirs(cs), ["/w", "/w/a", "/w/a/b", "/w/a/b/c"]);
+    assert.deepEqual(dirs([...cs, f("/w/a/y")]), dirs(cs));
+    assert.deepEqual(names(folderIndex(cs, "/w").get("/w/a")), ["b/"]);
+  });
+
+  it("a file and a folder may share a name", () => {
+    const cs = [{ ...f("/w/d"), kind: "deleted" as const }, f("/w/d/z")];
+    assert.deepEqual(names(folderIndex(cs, "/w").get("/w")), ["d/", "/w/d"]);
   });
 
   it("a file not under the group's root is listed at the root, not hidden", () => {
-    const cs = [f("/elsewhere/x"), f("/w/a/y"), f("/wx/z")];
-    assert.deepEqual(names(folderRows(cs, "/w")), ["a/", "/elsewhere/x", "/wx/z"]);
-    assert.deepEqual(names(folderRows(cs, "/w", "/w/a")), ["/w/a/y"]);
-    assert.deepEqual(names(folderRows([f("/a/b"), f("/c")], "/")), ["a/", "/c"]);
+    const ix = folderIndex([f("/elsewhere/x"), f("/w/a/y"), f("/wx/z")], "/w");
+    assert.deepEqual(names(ix.get("/w")), ["a/", "/elsewhere/x", "/wx/z"]);
+    assert.deepEqual(names(ix.get("/w/a")), ["/w/a/y"]);
+    assert.deepEqual(names(folderIndex([f("/a/b"), f("/c")], "/").get("/")), ["a/", "/c"]);
   });
 
-  it("the redraw key covers what folder rows draw: a file reviewed deep in a collapsed folder changes it", () => {
+  it("the redraw check covers what folder rows draw: a file reviewed deep in a collapsed folder changes it", () => {
     const cs = install();
-    const key = () =>
-      drawnKey(
+    const now = () =>
+      drawn(
         cs,
         () => "/w",
         () => false,
       );
-    const before = key();
-    assert.equal(key(), before);
+    const before = now();
+    assert.ok(sameDrawn(before, now()));
     cs[cs.length - 1]!.reviewed = true;
-    assert.notEqual(key(), before);
+    assert.ok(!sameDrawn(before, now()));
   });
 });
 
@@ -383,24 +423,32 @@ describe("Review All's limit", () => {
   it("takes every file up to the limit, by path", () => {
     const cs = [f("/w/b"), f("/w/a")];
     assert.deepEqual(
-      reviewPick(cs, () => false, 2),
+      reviewPick(cs, () => 2, 2),
       { files: [f("/w/a"), f("/w/b")], left: 0 },
     );
   });
-  it("above it, files in a repository come before files outside one, then by path", () => {
-    const cs = [f("/w/.venv/a"), f("/w/.venv/b"), f("/w/.venv/c"), f("/w/repo/src/real.py"), f("/w/repo/z")];
-    const inRepo = (c: { path: string }) => c.path.startsWith("/w/repo/");
-    const r = reviewPick(cs, inRepo, 3);
-    assert.deepEqual(
-      r.files.map((c) => c.path),
-      ["/w/.venv/a", "/w/repo/src/real.py", "/w/repo/z"],
-    );
-    assert.equal(r.left, 2);
-    assert.deepEqual(
-      reviewPick(cs, inRepo, 1).files.map((c) => c.path),
-      ["/w/repo/src/real.py"],
-    );
-    assert.deepEqual(reviewPick([...cs].reverse(), inRepo, 3), r, "whatever order they come in");
+  it("above it: files HEAD has, then a repository's new files, then files outside one, each by path", () => {
+    const cs = [
+      f("/w/.venv/a"),
+      f("/w/.venv/b"),
+      f("/w/repo/aaa-new1"),
+      f("/w/repo/aaa-new2"),
+      f("/w/repo/src/real.py"),
+      f("/w/repo/z"),
+    ];
+    const rank = (c: { path: string }) => (!c.path.startsWith("/w/repo/") ? 2 : c.path.includes("new") ? 1 : 0);
+    const paths = (max: number) => reviewPick(cs, rank, max).files.map((c) => c.path);
+    assert.deepEqual(paths(1), ["/w/repo/src/real.py"], "new files sorting first do not push a tracked edit out");
+    assert.deepEqual(paths(3), ["/w/repo/aaa-new1", "/w/repo/src/real.py", "/w/repo/z"]);
+    assert.deepEqual(paths(5), [
+      "/w/.venv/a",
+      "/w/repo/aaa-new1",
+      "/w/repo/aaa-new2",
+      "/w/repo/src/real.py",
+      "/w/repo/z",
+    ]);
+    assert.equal(reviewPick(cs, rank, 5).left, 1);
+    assert.deepEqual(reviewPick([...cs].reverse(), rank, 3), reviewPick(cs, rank, 3), "whatever order they come in");
   });
 });
 
